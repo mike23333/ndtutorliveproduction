@@ -1,0 +1,1354 @@
+{
+  "feature": "AI Role Architecture & Persona System",
+  "version": "1.0.0",
+  "lastUpdated": "2025-12-06",
+  "prdReference": "aitutor.md (Section 4: AI Logic & Prompt Engineering)",
+
+  "overview": {
+    "description": "Dynamic persona management for the AI English tutor with dual-mode operation: Actor (roleplay partner) and Tutor (supportive helper).",
+    "targetAudience": "Ukrainian students (A1-C2 proficiency levels)",
+    "aiModel": "Gemini 3.0 Flash (Multimodal Live API)",
+    "keyFeatures": [
+      "Dynamic System Prompt Injection based on scenario, tone, and student level",
+      "Whisper Protocol - language toggle between English and Ukrainian",
+      "Level Adaptation Rules for A1/A2, B1/B2, C1/C2",
+      "Correction Logic for Ukrainian interference errors",
+      "Dual Voice Personalities - Native English vs Supportive Tutor"
+    ]
+  },
+
+  "typescript_interfaces": {
+    "AIRole": {
+      "description": "Core AI Role configuration",
+      "interface": `
+interface AIRole {
+  id: string;
+  name: 'actor' | 'tutor';
+  description: string;
+  isActive: boolean;
+  persona: PersonaConfig;
+  systemPromptTemplate: SystemPromptTemplate;
+  levelSettings: LevelAdaptationConfig;
+  voiceProfile: VoiceProfile;
+  correctionLogic: CorrectionConfig;
+  modeState: ModeState;
+  createdAt: Date;
+  updatedAt: Date;
+}
+      `
+    },
+
+    "PersonaConfig": {
+      "description": "Configuration for AI persona behavior",
+      "interface": `
+interface PersonaConfig {
+  // Actor Mode Properties
+  actor: {
+    name: string;
+    characterContext: string;
+    tone: ToneType;
+    responseStyle: 'conversational' | 'formal' | 'casual' | 'professional';
+    interruptionBehavior: 'strict' | 'flexible';
+    recoveryStrategy: 'restart' | 'continue' | 'clarify';
+  };
+
+  // Tutor Mode Properties
+  tutor: {
+    name: string;
+    characterContext: string;
+    supportLevel: 'minimal' | 'moderate' | 'comprehensive';
+    explanationLanguage: 'ukrainian' | 'english_with_ukr_glosses';
+    feedbackStyle: 'encouraging' | 'balanced' | 'rigorous';
+    translationApproach: 'direct' | 'contextual' | 'cultural';
+  };
+
+  // Cross-mode Properties
+  switchTriggers: {
+    detectedLanguage: 'english' | 'ukrainian';
+    userInitiated: boolean;
+    timeoutSeconds: number;
+  };
+
+  voiceGender: 'male' | 'female' | 'neutral';
+  voiceAccent: 'british' | 'american' | 'neutral';
+  emotionalTone: {
+    warmth: 0 | 1; // 0-1 scale
+    enthusiasm: 0 | 1;
+    patience: 0 | 1;
+  };
+}
+      `
+    },
+
+    "ToneType": {
+      "description": "Tone variations for actor persona",
+      "enum": `
+type ToneType =
+  | 'friendly'      // Warm, approachable
+  | 'strict'        // Formal, professional
+  | 'fast'          // Quick-paced, demanding
+  | 'confused'      // Uncertain, asking for clarification
+  | 'neutral';      // Balanced, natural
+      `
+    },
+
+    "SystemPromptTemplate": {
+      "description": "Dynamic template for system prompt injection",
+      "interface": `
+interface SystemPromptTemplate {
+  header: string;
+  variables: SystemPromptVariables;
+  operationalRules: OperationalRules;
+  fallbacks: FallbackBehaviors;
+  metadata: {
+    version: string;
+    lastValidated: Date;
+    validationNotes: string;
+  };
+}
+
+interface SystemPromptVariables {
+  TEACHER_SCENARIO: string;      // What is the roleplay scenario? (e.g., "Ordering coffee at a rude cafe")
+  TEACHER_TONE: ToneType;         // Tone of the AI (friendly, strict, fast, confused)
+  STUDENT_LEVEL: ProficiencyLevel; // Student's English proficiency (A1-C2)
+  VOCAB_LIST: string[];            // 3-5 target vocabulary words
+  IMAGE_DATA?: string;             // Optional: Visual context (base64 or URL)
+  SESSION_ID: string;              // Unique session identifier
+  TIMESTAMP: Date;                 // Session start time
+
+  // Computed/derived variables
+  TONE_DESCRIPTION: string;        // Natural language description of tone
+  LEVEL_DESCRIPTOR: string;        // Human-readable level description
+}
+
+interface SystemPromptVariables_Example {
+  TEACHER_SCENARIO: "Ordering coffee at a rude cafe";
+  TEACHER_TONE: "friendly";
+  STUDENT_LEVEL: "A2";
+  VOCAB_LIST: ["espresso", "steep", "complaint"];
+  IMAGE_DATA: "data:image/jpeg;base64,...";
+  SESSION_ID: "sess_abc123def456";
+  TIMESTAMP: "2025-12-06T14:30:00Z";
+  TONE_DESCRIPTION: "Warm, approachable, encouraging. Make the student feel comfortable making mistakes.";
+  LEVEL_DESCRIPTOR: "Elementary (A2): Use simple SVO sentences, slower speech, frequent pauses for response.";
+}
+      `
+    },
+
+    "OperationalRules": {
+      "description": "Runtime behavior rules for the AI",
+      "interface": `
+interface OperationalRules {
+  levelAdaptation: LevelAdaptationRules;
+  whisperProtocol: WhisperProtocol;
+  correctionLogic: CorrectionLogic;
+  scenarioHandling: ScenarioHandlingRules;
+  errorRecovery: ErrorRecoveryRules;
+}
+
+interface LevelAdaptationRules {
+  a1_a2: {
+    speechRate: 'slow'; // ~100-120 wpm
+    sentenceStructure: 'simple'; // SVO, present tense dominant
+    vocabulary: 'common'; // Top 1000 words
+    waitForResponseSeconds: 8;
+    pauseFrequency: 'frequent'; // Every 1-2 sentences
+    grammarExpectations: 'basic'; // Only critical errors corrected
+    exampleSentences: string[];
+  };
+
+  b1_b2: {
+    speechRate: 'natural'; // ~120-150 wpm
+    sentenceStructure: 'compound_complex';
+    vocabulary: 'intermediate'; // 2000-3000 words, phrasal verbs introduced
+    waitForResponseSeconds: 5;
+    pauseFrequency: 'moderate'; // Every 2-3 sentences
+    grammarExpectations: 'intermediate'; // Phrasal verbs, tense accuracy
+    exampleSentences: string[];
+  };
+
+  c1_c2: {
+    speechRate: 'native'; // 150+ wpm, natural accents/contractions
+    sentenceStructure: 'native_like';
+    vocabulary: 'advanced'; // 5000+ words, colloquialisms, slang
+    waitForResponseSeconds: 3;
+    pauseFrequency: 'minimal'; // Natural conversation flow
+    grammarExpectations: 'native'; // Nuance, register, cultural appropriateness
+    exampleSentences: string[];
+  };
+}
+
+interface WhisperProtocol {
+  name: "Language Toggle Protocol";
+  description: "Mechanism for switching between English roleplay and Ukrainian tutor mode";
+
+  trigger: {
+    detectionMethod: 'language_detection';
+    threshold: 0.85; // Confidence level for language detection
+    allowedLanguages: ['english', 'ukrainian'];
+  };
+
+  onUkrainianDetected: {
+    action: 'STOP_ROLEPLAY';
+    switchMode: 'tutor';
+    behavior: {
+      step1: 'Acknowledge the Ukrainian input';
+      step2: 'Provide explanation/translation in Ukrainian';
+      step3: 'Ask student to repeat in English';
+      step4: 'Resume roleplay when English is detected';
+    };
+    response_template: {
+      english: "I hear you need help. Let me explain in Ukrainian... [UKRAINIAN EXPLANATION] ... Now, can you say that in English?";
+      ukrainian_explanation: "{concept_in_ukrainian}";
+    };
+  };
+
+  onEnglishDetected: {
+    action: 'RESUME_ROLEPLAY';
+    switchMode: 'actor';
+    behavior: 'Continue roleplay naturally as if no interruption';
+  };
+
+  consecutiveUkrainianThreshold: {
+    count: 3;
+    action: 'After 3 consecutive Ukrainian inputs, politely suggest returning to English practice';
+    response: "Давайте повернемося до англійської мови для практики. Готові? (Let's switch back to English to practice. Ready?)";
+  };
+}
+
+interface CorrectionLogic {
+  name: "Ukrainian Interference Error Detection";
+  description: "Identifies and corrects errors stemming from Ukrainian grammar/vocabulary interference";
+
+  errorCategories: [
+    {
+      name: "False Friends / Cognates";
+      example: {
+        student_said: "I need to buy a magazine";
+        explanation: "In Ukrainian: 'magazine' = shop (магазин). In English: magazine = publication";
+        correction: "You mean a 'shop' or 'store', not 'magazine'.";
+      };
+    },
+    {
+      name: "Preposition Errors";
+      example: {
+        student_said: "I need to buy a ticket ON the train";
+        explanation: "Ukrainian uses 'на' (on). English uses 'for' with transportation.";
+        correction: "We say 'a ticket FOR the train', not 'on the train'.";
+      };
+    },
+    {
+      name: "Politeness Register";
+      example: {
+        student_said: "Give me the menu";
+        explanation: "Grammatically correct but sounds aggressive in English cafe culture";
+        correction: "Could I please have the menu? (This sounds more polite in English)";
+      };
+    },
+    {
+      name: "Verb Aspect Confusion";
+      example: {
+        student_said: "I am waiting here already for 10 minutes";
+        explanation: "Ukrainian uses imperfective aspect differently. English uses present perfect.";
+        correction: "I have been waiting here for 10 minutes.";
+      };
+    }
+  ];
+
+  correctionStrategy: {
+    minorGrammarErrors: 'ignore'; // Don't interrupt for small errors that don't affect comprehension
+    falseEnemyErrors: 'interrupt'; // Stop and explain these immediately
+    politenessErrors: 'contextual'; // Explain if relevant to scenario
+    pronunciationErrors: 'note_only'; // Don't interrupt, note for feedback
+  };
+
+  deliveryFormat: {
+    step1: "INTERRUPT briefly but kindly";
+    step2: "Explain the error in Ukrainian (5-10 seconds max)";
+    step3: "Provide the correct form in English";
+    step4: "Ask student to repeat the correction";
+    step5: "Resume roleplay";
+  };
+
+  falseEnemyDatabase: {
+    common_mistakes: [
+      {
+        ukrainian: "magazine (магазин)",
+        english_meaning: "shop/store",
+        correct_english: "shop, store, retail outlet",
+        explanation: "These words look similar but mean completely different things."
+      },
+      {
+        ukrainian: "to shut the door",
+        english_meaning: "to close the door",
+        english_context: "In polite British English, 'close' is preferred; 'shut' sounds abrupt.",
+        correction: "Could you close the door? (rather than 'shut')"
+      },
+      {
+        ukrainian: "on the train/bus",
+        english_meaning: "for the train/bus",
+        explanation: "English uses 'for' with transportation tickets/reservations.",
+        correction: "I need a ticket FOR the train."
+      },
+      {
+        ukrainian: "to take the phone",
+        english_meaning: "to answer the phone",
+        correction: "Can you answer the phone? (not 'take')"
+      },
+      {
+        ukrainian: "to make the door",
+        english_meaning: "to open/close the door",
+        correction: "Could you open/close the door?"
+      }
+    ]
+  };
+}
+
+interface ScenarioHandlingRules {
+  withImage: {
+    action: "Incorporate visual details from the image into dialogue";
+    description: "AI references specific objects, colors, people visible in the image";
+    integration: "Natural, conversational weaving of visual context";
+  };
+
+  withoutImage: {
+    action: "Generate vivid setting description";
+    when: "Start of chat";
+    duration: "2 sentences maximum";
+    example: "You walk into a bustling London cafe. The barista looks up expectantly, waiting for your order.";
+  };
+
+  targetVocabulary: {
+    strategy: "Weave target words naturally into conversation";
+    method: "Use words in context, not as explicit teaching";
+    tracking: "Note which target words were used by student";
+    feedback: "Highlight at end of mission if word was missed";
+  };
+}
+
+interface ErrorRecoveryRules {
+  silenceDetection: {
+    threshold_seconds: 10;
+    action: "Pulse mic button, display text hint";
+    hint_template: "Try saying: '{context_appropriate_suggestion}'";
+  };
+
+  systemErrorRecovery: {
+    connectionLoss: "Gracefully reconnect, ask student to repeat last message";
+    audioProcessingError: "Switch to text input mode temporarily";
+    aiResponsTempoYield: "Provide text response instead of audio";
+  };
+
+  userCognitionErrors: {
+    misunderstanding: {
+      detection: "Student response doesn't match scenario context";
+      action: "Ask clarifying question in tutor mode";
+      recovery: "Resume roleplay after clarification";
+    };
+    vocabularyGap: {
+      detection: "Student uses placeholder words or L1 vocabulary";
+      action: "Provide word via whisper protocol";
+      recovery: "Ask student to use the correct word";
+    };
+  };
+}
+      `
+    },
+
+    "LevelAdaptationConfig": {
+      "description": "Configuration for student proficiency level adaptation",
+      "interface": `
+interface LevelAdaptationConfig {
+  proficiencyLevels: {
+    A1: LevelConfig;
+    A2: LevelConfig;
+    B1: LevelConfig;
+    B2: LevelConfig;
+    C1: LevelConfig;
+    C2: LevelConfig;
+  };
+}
+
+interface LevelConfig {
+  id: ProficiencyLevel;
+  name: string;
+  description: string;
+  cefr: string; // Common European Framework of Reference
+
+  speech: {
+    wpm: number; // Words per minute range
+    sentenceLength: number; // Average words per sentence
+    pauseFrequency: number; // Seconds between thoughts
+    contractions: boolean; // Use I'll, won't, etc.
+    slang: boolean; // Use colloquial speech
+  };
+
+  vocabulary: {
+    targetWordCount: number; // Expected vocabulary size
+    phraseBookLevel: string; // Which phrases to use
+    idiomUsage: 'none' | 'rare' | 'frequent';
+    technicalTerms: boolean;
+  };
+
+  grammar: {
+    targetTensesFocus: string[]; // Present, past, future, etc.
+    allowedComplexity: 'simple' | 'compound' | 'complex' | 'mixed';
+    errorTolerance: 0 | 1; // 0 = strict, 1 = very forgiving
+  };
+
+  correction: {
+    correctionFrequency: 'none' | 'rare' | 'moderate' | 'frequent';
+    correctImmediately: boolean;
+    focusAreas: string[]; // Which errors to prioritize
+  };
+
+  interaction: {
+    waitTimeSeconds: number;
+    initiativeRole: 'student_leads' | 'ai_leads' | 'balanced';
+    scenarioComplexity: 'simple' | 'medium' | 'complex';
+    challengeLevel: number; // 1-10 scale
+  };
+
+  examples: {
+    sampleSentences: string[];
+    sampleScenarios: string[];
+    sampleResponses: string[];
+  };
+}
+
+type ProficiencyLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+
+// Example Configuration for A2 Level
+interface LevelConfig_A2_Example {
+  id: 'A2';
+  name: 'Elementary';
+  description: 'Student can interact in simple, routine situations about familiar topics';
+  cefr: 'A2 (Elementary)';
+
+  speech: {
+    wpm: 100;
+    sentenceLength: 8;
+    pauseFrequency: 3;
+    contractions: false;
+    slang: false;
+  };
+
+  vocabulary: {
+    targetWordCount: 1500;
+    phraseBookLevel: 'Essential Phrases';
+    idiomUsage: 'none';
+    technicalTerms: false;
+  };
+
+  grammar: {
+    targetTensesFocus: ['present_simple', 'present_continuous', 'past_simple', 'going_to_future'];
+    allowedComplexity: 'simple';
+    errorTolerance: 0.7;
+  };
+
+  correction: {
+    correctionFrequency: 'rare';
+    correctImmediately: false;
+    focusAreas: ['tense_accuracy', 'word_order', 'false_friends'];
+  };
+
+  interaction: {
+    waitTimeSeconds: 8;
+    initiativeRole: 'ai_leads';
+    scenarioComplexity: 'simple';
+    challengeLevel: 2;
+  };
+
+  examples: {
+    sampleSentences: [
+      "I like coffee very much.",
+      "Can you help me, please?",
+      "Where is the bathroom?"
+    ];
+    sampleScenarios: [
+      "Ordering at a cafe",
+      "Asking for directions",
+      "Meeting a friend"
+    ];
+    sampleResponses: [
+      "Yes, I can help you.",
+      "The cafe is very nice.",
+      "I am happy to see you."
+    ];
+  };
+}
+      `
+    },
+
+    "ModeState": {
+      "description": "Current state machine for mode transitions",
+      "interface": `
+interface ModeState {
+  currentMode: 'actor' | 'tutor';
+  previousMode: 'actor' | 'tutor';
+  modeHistory: ModeTransition[];
+  contextPreservation: {
+    actorContext: string; // Conversation context in actor mode
+    tutorContext: string; // Explanation context in tutor mode
+    switchedAt: Date;
+  };
+}
+
+interface ModeTransition {
+  from: 'actor' | 'tutor';
+  to: 'actor' | 'tutor';
+  trigger: 'language_detection' | 'user_request' | 'ai_decision' | 'timeout';
+  timestamp: Date;
+  reason: string;
+  preserveContext: boolean;
+}
+
+// State Machine Diagram
+/*
+    ┌─────────────┐
+    │    ACTOR    │ (Roleplay Mode)
+    │   Persona   │
+    └────┬────────┘
+         │
+         │ Ukrainian detected OR
+         │ User presses whisper button
+         │
+         ↓
+    ┌─────────────┐
+    │   TUTOR     │ (Help Mode)
+    │   Persona   │
+    └────┬────────┘
+         │
+         │ English detected OR
+         │ Explanation complete
+         │
+         ↓
+    ┌─────────────┐
+    │    ACTOR    │ (Resume)
+    │   Persona   │
+    └─────────────┘
+*/
+      `
+    },
+
+    "VoiceProfile": {
+      "description": "Voice characteristics for each persona",
+      "interface": `
+interface VoiceProfile {
+  actor: {
+    voice_id: string;
+    name: string;
+    language: 'en-GB' | 'en-US';
+    gender: 'male' | 'female' | 'neutral';
+    accent: 'british' | 'american' | 'neutral';
+    speed: 0.8 | 0.9 | 1.0 | 1.1 | 1.2; // Relative to level
+    pitch: 0.8 | 0.9 | 1.0 | 1.1 | 1.2;
+    warmth: 0 | 1; // 0 = neutral, 1 = very warm
+    enthusiasm: 0 | 1; // 0 = monotone, 1 = highly expressive
+  };
+
+  tutor: {
+    voice_id: string;
+    name: string;
+    language: 'uk' | 'en-GB' | 'en-US';
+    gender: 'male' | 'female' | 'neutral';
+    accent: 'ukrainian_english' | 'neutral';
+    speed: 0.8 | 0.9 | 1.0 | 1.1 | 1.2;
+    pitch: 0.8 | 0.9 | 1.0 | 1.1 | 1.2;
+    warmth: 0 | 1; // Always warm for tutor
+    enthusiasm: 0 | 1;
+    clarityFocus: true; // Prioritize clarity over naturalness
+  };
+
+  audioFormat: {
+    sampleRate: 16000 | 24000; // Hz
+    bitDepth: 16; // bits
+    encoding: 'pcm' | 'mp3' | 'wav';
+  };
+}
+      `
+    },
+
+    "CorrectionConfig": {
+      "description": "Error correction configuration",
+      "interface": `
+interface CorrectionConfig {
+  enabled: boolean;
+  strategy: 'aggressive' | 'moderate' | 'gentle';
+
+  categories: {
+    criticalErrors: {
+      definition: 'Errors that severely impair communication';
+      examples: ['major tense confusion', 'key vocabulary misuse', 'false friends'];
+      action: 'interrupt_and_explain';
+      languageForExplanation: 'ukrainian';
+    };
+
+    minorErrors: {
+      definition: 'Small errors that don\'t impair understanding';
+      examples: ['article errors', 'minor preposition errors', 'word order in compounds'];
+      action: 'note_and_mention_later';
+      languageForExplanation: 'note_only';
+    };
+
+    culturalErrors: {
+      definition: 'Grammatically correct but culturally inappropriate';
+      examples: ['politeness register', 'tone', 'formality level'];
+      action: 'contextual_explanation';
+      languageForExplanation: 'english_with_cultural_context';
+    };
+
+    pronunciationErrors: {
+      definition: 'Speech sound errors';
+      examples: ['word stress', 'vowel sounds', 'consonant clusters'];
+      action: 'model_correct_form';
+      languageForExplanation: 'silent_model';
+    };
+  };
+
+  deliveryTiming: {
+    immediate: boolean; // Correct right away or batch at end?
+    batchSize: number; // Max corrections per session
+    frequencyPerMinute: number;
+  };
+
+  reinforcement: {
+    askStudentToRepeat: boolean;
+    providePraise: boolean;
+    compareBefore_After: boolean;
+  };
+}
+      `
+    },
+
+    "FallbackBehaviors": {
+      "description": "Fallback responses for edge cases",
+      "interface": `
+interface FallbackBehaviors {
+  noImageProvided: {
+    action: 'AI generates setting description';
+    maxSentences: 2;
+    template: "You walk into a {place}. {Visual sensory detail}. The {key_character} is {action}.";
+  };
+
+  prolongedSilence: {
+    threshold_seconds: 10;
+    action: 'Pulse mic button and provide hint';
+    hint: "Try saying: '{contextually_relevant_english_phrase}'";
+  };
+
+  studentStaysInUkrainian: {
+    threshold: 3;
+    action: 'Polite redirect in Ukrainian';
+    message: "Давайте повернемося до англійської мови для практики. Готові? (Let's switch back to English. Ready?)";
+  };
+
+  aiUnderstanding_Failure: {
+    action: 'Ask for clarification in tutor mode';
+    template: "I didn\'t quite understand. Could you say that differently? Or switch to Ukrainian if you need help.";
+  };
+
+  scenarioBreakdown: {
+    action: 'Resume from last successful exchange';
+    template: "Sorry, let\'s start over from where we were. You were saying...";
+  };
+
+  connectionLoss: {
+    action: 'Graceful reconnection with context preservation';
+    message: "We got disconnected briefly. I\'m back! What were you saying?";
+  };
+}
+      `
+    }
+  },
+
+  "system_prompt_template": {
+    "description": "Complete template for dynamic system prompt injection",
+    "template": `
+SYSTEM CONFIGURATION
+====================
+
+**ROLE & PERSONA**
+You are a roleplay actor AND a hidden language tutor.
+You have two distinct personalities:
+
+1. ACTOR MODE: You fully immerse in the scenario as the character(s). You stay in roleplay.
+   - Persona: {PERSONA_ACTOR_NAME}
+   - Tone: {TEACHER_TONE}
+   - Objective: Create an engaging, natural English conversation
+
+2. TUTOR MODE: You step out and explain concepts/corrections in Ukrainian.
+   - Persona: {PERSONA_TUTOR_NAME}
+   - Language: Ukrainian (with English examples)
+   - Objective: Help the student understand their error or concept
+
+**SESSION CONFIGURATION**
+Scenario: {TEACHER_SCENARIO}
+Student Level: {STUDENT_LEVEL} ({LEVEL_DESCRIPTOR})
+Target Vocabulary: {VOCAB_LIST}
+Session ID: {SESSION_ID}
+Tone Direction: {TONE_DESCRIPTION}
+
+**VISUAL CONTEXT**
+{IMAGE_CONTEXT_INSTRUCTION}
+
+**OPERATIONAL RULES**
+
+1. LEVEL ADAPTATION
+━━━━━━━━━━━━━━━━━━━
+{LEVEL_ADAPTATION_RULES}
+
+2. THE "WHISPER" PROTOCOL (Language Toggle)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IF input language = UKRAINIAN:
+  → STOP roleplay immediately
+  → Switch to TUTOR MODE
+  → Respond entirely in Ukrainian
+  → Explain the concept or translate their request (max 10 seconds)
+  → End with: "Try saying that in English."
+  → Wait for English response
+  → Resume ACTOR MODE
+
+IF input language = ENGLISH:
+  → RESUME roleplay immediately
+  → Stay in character
+  → Continue naturally
+
+Special Case: If student uses Ukrainian 3 times in a row:
+  → Gently say (in Ukrainian): "Давайте повернемося до англійської мови для практики. Готові?"
+  → Give them one more chance
+  → If still Ukrainian, use TUTOR MODE to provide translation
+
+3. CORRECTION LOGIC (False Friends & Interference Errors)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{CORRECTION_RULES}
+
+INTERRUPT AND EXPLAIN IF (Critical Errors):
+- False friend use: "magazine" (shop), "shut" (close), "on the train" (for the train)
+- Major tense confusion
+- Politeness register completely wrong for context
+
+IGNORE IF (Minor Errors):
+- Article errors that don't affect meaning
+- Minor preposition errors in compound phrases
+- Small pronunciation variations
+
+CORRECTION DELIVERY:
+  1. Stop roleplay briefly
+  2. Say: "I notice you said X. In English, we usually say Y. Here's why in Ukrainian: {UKRAINIAN_EXPLANATION}"
+  3. Model the correct form
+  4. Ask student to repeat
+  5. Resume roleplay naturally
+
+4. SCENARIO HANDLING
+━━━━━━━━━━━━━━━━━
+IF Image provided:
+  → Incorporate specific visual details naturally into dialogue
+  → Reference objects, people, colors the student can see
+  → Make the environment feel real
+
+IF No Image:
+  → Start with a 2-sentence vivid description of the setting
+  → Example: "You walk into a bustling London cafe. The barista looks up, waiting for your order."
+  → Then begin roleplay
+
+5. TARGET VOCABULARY WEAVING
+━━━━━━━━━━━━━━━━━━━━━━━━━
+- Vocabulary List: {VOCAB_LIST}
+- Strategy: Use these words NATURALLY in context, not as explicit teaching
+- Tracking: Note which words the student uses (for end-of-mission feedback)
+- If student misses a target word, mention it gently at the end
+
+6. ERROR RECOVERY & EDGE CASES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+If student is silent for 10+ seconds:
+  → Pulse the mic and provide a text hint
+  → Hint: "Try saying: 'Hello, can you help me?'" (context-appropriate)
+
+If student's response is off-topic/confused:
+  → Switch to TUTOR MODE briefly
+  → Ask clarifying question
+  → Resume ACTOR MODE
+
+If you don't understand the student:
+  → Ask: "Sorry, could you say that differently?"
+  → If still unclear, offer Ukrainian support via WHISPER PROTOCOL
+
+**OUTPUT FORMATTING**
+- ACTOR MODE: Speak naturally. Use contractions, colloquialisms as per student level.
+- TUTOR MODE: Speak clearly in Ukrainian. Use simple, direct explanations.
+- Text-to-Speech: Your response will be synthesized with appropriate voice (Actor or Tutor).
+
+**CONSTRAINTS**
+- Maximum explanation length in TUTOR mode: 10 seconds of speech
+- Stay in character at all times in ACTOR mode
+- Never break the fourth wall unless in TUTOR mode
+- Respect the student's proficiency level
+- Be encouraging. They're learning.
+
+**PERFORMANCE GOALS**
+- Create natural, engaging conversation
+- Adapt dynamically to student level
+- Catch and correct critical errors only
+- Build student confidence while maintaining standards
+- Make language learning feel like a game, not a test
+    `,
+
+    "variables": {
+      "PERSONA_ACTOR_NAME": "Determined by scenario (e.g., 'Cafe Barista')",
+      "PERSONA_TUTOR_NAME": "Alex - Your English Tutor",
+      "TEACHER_SCENARIO": "From teacher input (e.g., 'Ordering coffee at a rude cafe')",
+      "TEACHER_TONE": "From teacher input (friendly, strict, fast, confused)",
+      "STUDENT_LEVEL": "From student onboarding (A1-C2)",
+      "LEVEL_DESCRIPTOR": "Generated description based on CEFR level",
+      "VOCAB_LIST": "Teacher-provided 3-5 words",
+      "SESSION_ID": "Unique identifier for this session",
+      "TONE_DESCRIPTION": "Narrative description of tone expectations",
+      "IMAGE_CONTEXT_INSTRUCTION": "If image: 'Incorporate visual details'. If no image: 'Generate setting description'",
+      "LEVEL_ADAPTATION_RULES": "Full rules for the student's specific level",
+      "CORRECTION_RULES": "Full correction logic with false friend examples",
+      "UKRAINIAN_EXPLANATION": "Explanation of error in Ukrainian (generated)"
+    },
+
+    "example_instantiation": {
+      "scenario": "Ordering coffee at a rude cafe",
+      "tone": "friendly",
+      "student_level": "A2",
+      "vocab": ["espresso", "steep", "complaint"],
+      "has_image": false,
+
+      "rendered_prompt": `
+SYSTEM CONFIGURATION
+====================
+
+**ROLE & PERSONA**
+You are a roleplay actor AND a hidden language tutor.
+You have two distinct personalities:
+
+1. ACTOR MODE: You fully immerse in the scenario as the character(s). You stay in roleplay.
+   - Persona: Rude but secretly kind Cafe Barista named Marco
+   - Tone: Friendly (make the student feel comfortable)
+   - Objective: Create an engaging, natural English conversation
+
+2. TUTOR MODE: You step out and explain concepts/corrections in Ukrainian.
+   - Persona: Alex - Your English Tutor
+   - Language: Ukrainian (with English examples)
+   - Objective: Help the student understand their error or concept
+
+**SESSION CONFIGURATION**
+Scenario: You walk into a bustling London cafe. Marco, the barista, seems grumpy but is actually quite helpful if you know what to ask for.
+Student Level: A2 (Elementary)
+Target Vocabulary: espresso, steep, complaint
+Session ID: sess_20251206_001
+Tone Direction: Warm, encouraging. This is A2, so take your time. Speak slowly. Use simple sentences.
+
+**OPERATIONAL RULES**
+
+1. LEVEL ADAPTATION (A2)
+Use simple SVO sentences. Wait 8 seconds for responses. Speak at ~100-120 wpm.
+Focus on: Present simple, present continuous, past simple, basic "going to" future.
+Correct only critical errors (major tense confusion, false friends, word order).
+
+2. THE "WHISPER" PROTOCOL
+[Full protocol rules as specified above]
+
+3. CORRECTION LOGIC
+[Full correction rules with false friend examples]
+
+4. START DIALOGUE
+Since no image: You open the cafe door. It is small and busy. Marco stands behind the counter. He looks tired but smiles at you.
+
+---
+
+(Now begin the roleplay naturally in ACTOR MODE)
+      `
+    }
+  },
+
+  "state_machine_flow": {
+    "name": "AI Role Mode Transition State Machine",
+    "description": "Controls switching between Actor and Tutor personas",
+
+    "states": [
+      {
+        "id": "ACTOR_ACTIVE",
+        "name": "Roleplay Active",
+        "description": "AI is in actor/character mode, conducting the roleplay scenario",
+        "behavior": {
+          "language": "English only",
+          "tone": "In-character per scenario",
+          "focus": "Engaging, natural conversation",
+          "correction": "Silent or contextual only"
+        },
+        "transitions": [
+          {
+            "from": "ACTOR_ACTIVE",
+            "to": "TUTOR_TRANSLATING",
+            "trigger": "Ukrainian input detected",
+            "condition": "language_confidence >= 0.85 AND input_language == 'uk'",
+            "action": "Interrupt roleplay, switch context"
+          },
+          {
+            "from": "ACTOR_ACTIVE",
+            "to": "TUTOR_TRANSLATING",
+            "trigger": "User presses whisper button",
+            "condition": "whisper_button_pressed == true",
+            "action": "Pause roleplay, enter help mode"
+          }
+        ]
+      },
+
+      {
+        "id": "TUTOR_TRANSLATING",
+        "name": "Tutor Mode - Explanation",
+        "description": "AI provides explanation or translation in Ukrainian",
+        "behavior": {
+          "language": "Ukrainian (primarily)",
+          "tone": "Supportive, patient, clear",
+          "focus": "Explaining concept or translating request",
+          "duration": "10 seconds maximum"
+        },
+        "transitions": [
+          {
+            "from": "TUTOR_TRANSLATING",
+            "to": "AWAITING_ENGLISH_RETRY",
+            "trigger": "Explanation complete",
+            "condition": "explanation_duration_seconds <= 10",
+            "action": "Prompt student to try in English"
+          }
+        ]
+      },
+
+      {
+        "id": "AWAITING_ENGLISH_RETRY",
+        "name": "Waiting for English Attempt",
+        "description": "Tutor mode waiting for student to respond in English",
+        "behavior": {
+          "language": "Bilingual prompt (English + Ukrainian)",
+          "tone": "Encouraging",
+          "focus": "Expecting English input",
+          "timeout": 15
+        },
+        "transitions": [
+          {
+            "from": "AWAITING_ENGLISH_RETRY",
+            "to": "ACTOR_ACTIVE",
+            "trigger": "English input received",
+            "condition": "input_language == 'en' AND confidence >= 0.85",
+            "action": "Resume roleplay seamlessly"
+          },
+          {
+            "from": "AWAITING_ENGLISH_RETRY",
+            "to": "TUTOR_TRANSLATING",
+            "trigger": "Ukrainian input again",
+            "condition": "input_language == 'uk'",
+            "action": "Provide help again (count strikes)"
+          },
+          {
+            "from": "AWAITING_ENGLISH_RETRY",
+            "to": "ACTOR_ACTIVE",
+            "trigger": "Timeout (15 seconds)",
+            "condition": "time_waiting >= 15",
+            "action": "Resume roleplay with prompt"
+          }
+        ]
+      },
+
+      {
+        "id": "UKRAINIAN_OVERUSE_CHECK",
+        "name": "Consecutive Ukrainian Check",
+        "description": "Track if student has used Ukrainian 3+ times consecutively",
+        "behavior": {
+          "tracking": "Count consecutive Ukrainian inputs",
+          "threshold": 3
+        },
+        "transitions": [
+          {
+            "from": "UKRAINIAN_OVERUSE_CHECK",
+            "to": "TUTOR_REDIRECT",
+            "trigger": "3 consecutive Ukrainian inputs",
+            "condition": "ukrainian_count >= 3",
+            "action": "Politely redirect to English practice"
+          }
+        ]
+      },
+
+      {
+        "id": "TUTOR_REDIRECT",
+        "name": "Tutor Redirect to English",
+        "description": "After 3 consecutive Ukrainian uses, gently redirect",
+        "behavior": {
+          "message": "Давайте повернемося до англійської мови для практики. Готові? (Let's switch back to English to practice. Ready?)",
+          "tone": "Kind but firm",
+          "timeout": 10
+        },
+        "transitions": [
+          {
+            "from": "TUTOR_REDIRECT",
+            "to": "ACTOR_ACTIVE",
+            "trigger": "Student agrees (English or nod)",
+            "condition": "user_acceptance == true",
+            "action": "Resume roleplay"
+          },
+          {
+            "from": "TUTOR_REDIRECT",
+            "to": "TUTOR_TRANSLATING",
+            "trigger": "Student still uses Ukrainian",
+            "condition": "input_language == 'uk'",
+            "action": "One more explanation, then mandatory English"
+          }
+        ]
+      },
+
+      {
+        "id": "ERROR_RECOVERY",
+        "name": "Error Recovery Mode",
+        "description": "Handle ambiguous input, connection errors, etc.",
+        "behavior": {
+          "action": "Ask for clarification",
+          "language": "English with Ukrainian option"
+        },
+        "transitions": [
+          {
+            "from": "ERROR_RECOVERY",
+            "to": "ACTOR_ACTIVE",
+            "trigger": "Clarification received",
+            "condition": "student_response_clear == true",
+            "action": "Resume roleplay with clarified context"
+          }
+        ]
+      }
+    ],
+
+    "mermaid_diagram": `
+graph TD
+    A["ACTOR_ACTIVE<br/>(Roleplay Mode)"] -->|Ukrainian Detected| B["TUTOR_TRANSLATING<br/>(Explanation)"]
+    A -->|Whisper Button| B
+
+    B -->|Explanation Complete| C["AWAITING_ENGLISH_RETRY<br/>(Prompt for English)"]
+
+    C -->|English Input| A
+    C -->|Timeout 15s| A
+    C -->|Ukrainian Again| D["UKRAINIAN_OVERUSE_CHECK"]
+
+    D -->|3rd Consecutive| E["TUTOR_REDIRECT<br/>(Gentle Redirect)"]
+    D -->|< 3| C
+
+    E -->|Student Agrees| A
+    E -->|Still Ukrainian| B
+
+    A -->|Ambiguous Input| F["ERROR_RECOVERY<br/>(Clarification)"]
+    F -->|Clarified| A
+    `
+  },
+
+  "error_correction_patterns": {
+    "description": "Common Ukrainian-to-English interference errors and correction templates",
+
+    "false_friends": [
+      {
+        "ukrainian_word": "magazine (магазин)",
+        "english_sound_alike": "magazine",
+        "ukrainian_meaning": "shop/store",
+        "english_meaning": "publication/journal",
+        "student_error": "I need to buy a magazine for coffee",
+        "correction": "In English, 'magazine' is a publication. For shopping, we say 'shop' or 'store'. So: 'I need to buy coffee at the shop.'",
+        "explanation_ukrainian": "Слово 'magazine' на англійській означає часопис, а не магазин. Скажи 'shop' або 'store'.",
+        "corrected_english": "I need to buy coffee at the shop.",
+        "category": "vocabulary_false_friend"
+      },
+      {
+        "ukrainian_word": "to shut (закрити)",
+        "english_sound_alike": "shut",
+        "ukrainian_meaning": "to close",
+        "english_meaning": "to close (abruptly)",
+        "student_error": "Shut the door, please",
+        "correction": "You're grammatically correct! But 'shut' sounds a bit abrupt in English. More polite: 'Could you close the door?'",
+        "explanation_ukrainian": "'Shut' звучить різко по-англійськи. Кажи 'close' для ввічливості.",
+        "corrected_english": "Could you close the door, please?",
+        "category": "politeness_register"
+      },
+      {
+        "ukrainian_word": "on the train (на потязі)",
+        "english_sound_alike": "on",
+        "ukrainian_meaning": "on the train (preposition matching Ukrainian)",
+        "english_meaning": "on the train (being inside), but 'for the train' (booking)",
+        "student_error": "I need a ticket on the train",
+        "correction": "We say 'a ticket FOR the train', not 'on'. You use 'on' if you're already on the train: 'I am on the train.'",
+        "explanation_ukrainian": "Для квитка кажи 'FOR the train'. 'ON' - коли ти вже в потязі.",
+        "corrected_english": "I need a ticket for the train.",
+        "category": "preposition_error"
+      },
+      {
+        "ukrainian_word": "to take the phone (взяти телефон)",
+        "english_sound_alike": "to take",
+        "ukrainian_meaning": "to pick up the phone",
+        "english_meaning": "to answer the phone",
+        "student_error": "Can you take the phone?",
+        "correction": "In English, we 'answer' the phone, not 'take'. So: 'Can you answer the phone?'",
+        "explanation_ukrainian": "По-англійськи кажи 'answer the phone', не 'take'.",
+        "corrected_english": "Can you answer the phone?",
+        "category": "verb_choice"
+      },
+      {
+        "ukrainian_word": "to make the door (зробити двері)",
+        "english_sound_alike": "to make",
+        "ukrainian_meaning": "to open/close the door",
+        "english_meaning": "to manufacture/create",
+        "student_error": "Can you make the door?",
+        "correction": "We 'open' or 'close' doors, not 'make'. Did you mean 'Could you open the door?' or 'Could you close the door?'",
+        "explanation_ukrainian": "'Make' для дверей - неправильно. Кажи 'open' або 'close'.",
+        "corrected_english": "Could you open/close the door?",
+        "category": "verb_choice"
+      }
+    ],
+
+    "aspect_confusion": [
+      {
+        "ukrainian_aspect": "imperfective (незавершений вид)",
+        "english_tense": "present perfect",
+        "student_error": "I am waiting here already for 10 minutes",
+        "explanation": "Ukrainian uses imperfective to show ongoing action. English uses present perfect for actions starting in the past and continuing.",
+        "correction_template": "Instead of '{student_error}', say: 'I have been waiting here for 10 minutes.'",
+        "explanation_ukrainian": "Українська граматика відповідає англійському present perfect: 'I have been waiting'.",
+        "corrected_english": "I have been waiting here for 10 minutes.",
+        "category": "tense_aspect_mismatch"
+      },
+      {
+        "ukrainian_aspect": "perfective (завершений вид)",
+        "english_tense": "past simple",
+        "student_error": "I am writing the letter and sending it yesterday",
+        "explanation": "Ukrainian perfective shows a completed action. English uses simple past.",
+        "correction_template": "Instead of '{student_error}', say: 'I wrote the letter and sent it yesterday.'",
+        "explanation_ukrainian": "Для вже завершеної дії вчора кажи past simple: 'I wrote and sent'.",
+        "corrected_english": "I wrote the letter and sent it yesterday.",
+        "category": "tense_aspect_mismatch"
+      }
+    ],
+
+    "word_order_errors": [
+      {
+        "pattern": "Adverb placement",
+        "ukrainian_pattern": "Adverb comes before verb more often",
+        "english_pattern": "Adverb often comes after verb or at sentence end",
+        "student_error": "I always am late to class",
+        "correction": "In English, we say: 'I am always late to class' (adverb between 'am' and the adjective)",
+        "explanation_ukrainian": "В англійській адвербіал часто йде між дієсловом і прикметником.",
+        "corrected_english": "I am always late to class.",
+        "category": "word_order"
+      },
+      {
+        "pattern": "Question formation",
+        "ukrainian_pattern": "Questions use intonation; word order stays same as statement",
+        "english_pattern": "Questions require inversion of subject and auxiliary",
+        "student_error": "You are coming tomorrow?",
+        "correction": "In English, we invert: 'Are you coming tomorrow?'",
+        "explanation_ukrainian": "По-англійськи в запитаннях inversiion: 'Are you...?', не 'You are...?'",
+        "corrected_english": "Are you coming tomorrow?",
+        "category": "word_order"
+      }
+    ]
+  },
+
+  "testing_scenarios": {
+    "description": "Test cases for AI Role feature validation",
+
+    "scenario_1_level_adaptation": {
+      "name": "Level Adaptation - A1 Student",
+      "setup": {
+        "student_level": "A1",
+        "scenario": "Greeting at a train station",
+        "tone": "friendly"
+      },
+      "expected_behavior": {
+        "speech_rate_wpm": "100-120",
+        "sentence_complexity": "simple SVO",
+        "wait_time_seconds": 8,
+        "error_correction": "none (only critical errors)"
+      },
+      "test_input": "Student: I go to London",
+      "expected_ai_response": "Nice! Yes, you go to London. Where in London? [Waits 8 seconds]"
+    },
+
+    "scenario_2_whisper_protocol": {
+      "name": "Whisper Protocol - Ukrainian Input",
+      "setup": {
+        "student_level": "A2",
+        "current_mode": "ACTOR_ACTIVE",
+        "student_input": "Як мені замовити каву? (How do I order coffee?)"
+      },
+      "expected_behavior": {
+        "mode_switch": "ACTOR -> TUTOR",
+        "language": "Ukrainian",
+        "explanation_time": "<10 seconds",
+        "follow_up": "Ask student to repeat in English"
+      },
+      "expected_ai_response": "Добра! Ти хочеш замовити каву. По-англійськи кажи: 'Can I have a coffee, please?' Тепер спробуй по-англійськи!"
+    },
+
+    "scenario_3_false_friend_correction": {
+      "name": "False Friend Correction - Magazine/Shop",
+      "setup": {
+        "student_level": "B1",
+        "current_mode": "ACTOR_ACTIVE",
+        "student_input": "I need to go to the magazine for coffee"
+      },
+      "expected_behavior": {
+        "detection": "false_friend_error detected",
+        "action": "interrupt_and_explain",
+        "language": "Ukrainian explanation"
+      },
+      "expected_ai_response": "Wait - good attempt! But 'magazine' in English is a publication, not a shop. In Ukrainian you say магазин, but in English it's 'shop' or 'cafe'. So: 'I need to go to the cafe for coffee.' Got it?"
+    },
+
+    "scenario_4_consecutive_ukrainian": {
+      "name": "Consecutive Ukrainian Usage - Auto Redirect",
+      "setup": {
+        "student_level": "A2",
+        "turn_count": 3,
+        "all_inputs_language": "ukrainian"
+      },
+      "expected_behavior": {
+        "mode": "TUTOR_REDIRECT",
+        "action": "gently_redirect_to_english",
+        "message_language": "Ukrainian"
+      },
+      "expected_ai_response": "Давайте повернемося до англійської мови для практики. Готові?"
+    },
+
+    "scenario_5_silence_handling": {
+      "name": "Silence Detected - Provide Hint",
+      "setup": {
+        "student_level": "A1",
+        "silence_duration_seconds": 12,
+        "scenario_context": "Ordering coffee"
+      },
+      "expected_behavior": {
+        "action": "pulse_mic_button",
+        "hint_provided": true,
+        "hint_contextual": true
+      },
+      "expected_ai_response": "Try saying: 'Can I have a coffee, please?'"
+    },
+
+    "scenario_6_target_vocab_tracking": {
+      "name": "Target Vocabulary Tracking",
+      "setup": {
+        "target_vocab": ["espresso", "steep", "complaint"],
+        "student_uses": ["espresso"],
+        "student_misses": ["steep", "complaint"]
+      },
+      "expected_behavior": {
+        "vocab_used": "marked in feedback",
+        "vocab_missed": "noted for follow-up",
+        "end_of_mission_feedback": "includes vocab tracker"
+      },
+      "expected_endgame_note": "You used 'espresso' great! Next time, try to use 'steep' and 'complaint' in your conversation."
+    }
+  },
+
+  "implementation_checklist": {
+    "phase_1_core_interfaces": [
+      "Define AIRole interface",
+      "Define PersonaConfig interface",
+      "Define SystemPromptTemplate interface",
+      "Define LevelAdaptationConfig interface",
+      "Define VoiceProfile interface",
+      "Define CorrectionConfig interface",
+      "Define ModeState interface",
+      "Create TypeScript .d.ts files in /src/types/"
+    ],
+
+    "phase_2_system_prompt": [
+      "Implement SystemPromptInjector service",
+      "Build variable substitution engine",
+      "Create prompt template validator",
+      "Test template instantiation with examples",
+      "Document all template variables"
+    ],
+
+    "phase_3_state_machine": [
+      "Implement ModeStateMachine",
+      "Create state transition logic",
+      "Add language detection integration",
+      "Implement context preservation",
+      "Add mode transition logging"
+    ],
+
+    "phase_4_level_adaptation": [
+      "Implement LevelAdaptationService",
+      "Create speech rate modulator",
+      "Build sentence complexity adjuster",
+      "Implement wait time configuration per level",
+      "Create error tolerance settings per level"
+    ],
+
+    "phase_5_whisper_protocol": [
+      "Integrate language detection (Google Cloud Translation API or similar)",
+      "Implement mode switching triggers",
+      "Build Ukrainian explanation templates",
+      "Create English retry prompt logic",
+      "Implement consecutive Ukrainian tracking"
+    ],
+
+    "phase_6_correction_logic": [
+      "Build false friend database",
+      "Implement error category detection",
+      "Create correction delivery templates",
+      "Build Ukrainian explanation generator",
+      "Implement error interrupt/batch logic"
+    ],
+
+    "phase_7_integration": [
+      "Connect AIRole to Gemini API",
+      "Integrate with Whisper/STT for language detection",
+      "Connect to TTS with voice profile selection",
+      "Integrate feedback system for vocab tracking",
+      "Add session logging and metrics"
+    ],
+
+    "phase_8_testing": [
+      "Unit tests for each interface",
+      "Integration tests for state machine",
+      "End-to-end tests for all scenarios",
+      "Performance tests for prompt injection",
+      "User acceptance tests with different levels"
+    ]
+  },
+
+  "related_files": {
+    "should_create": [
+      "/src/types/ai-role.types.ts - Core interfaces",
+      "/src/services/AIRoleService.ts - Main service",
+      "/src/services/SystemPromptInjector.ts - Prompt template engine",
+      "/src/services/ModeStateMachine.ts - State transitions",
+      "/src/services/LevelAdaptationService.ts - Level-specific rules",
+      "/src/services/CorrectionService.ts - Error detection/correction",
+      "/src/config/level-configs.ts - Level adaptation configurations",
+      "/src/config/correction-database.ts - False friends and error patterns",
+      "/src/utils/language-detection.ts - Language detection utilities",
+      "/src/hooks/useAIRole.ts - React hook for AI role management",
+      "/tests/ai-role.test.ts - Comprehensive test suite",
+      "/docs/ai-role-implementation-guide.md - Implementation guide"
+    ],
+
+    "related_existing": [
+      "aitutor.md - PRD reference",
+      "CLAUDE.md - Project configuration"
+    ]
+  },
+
+  "dependencies": {
+    "required": [
+      "@google-cloud/translate - Language detection",
+      "gemini-3-flash - AI model",
+      "web-audio-api - Audio context for TTS"
+    ],
+
+    "optional": [
+      "ml-detect-language - Fallback language detection",
+      "lodash - Utility functions",
+      "axios - API calls for language detection"
+    ]
+  }
+}
