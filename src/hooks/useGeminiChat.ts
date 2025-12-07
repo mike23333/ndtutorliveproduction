@@ -44,6 +44,7 @@ export interface UseGeminiChatResult {
   // Actions
   startRecording: (whisperMode?: boolean) => Promise<void>;
   stopRecording: () => void;
+  stopConversation: () => void;  // Stop/interrupt AI response
   sendTextMessage: (text: string, isWhisper?: boolean) => void;
   clearMessages: () => void;
   reconnect: () => void;
@@ -60,9 +61,11 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isWhisperMode, setIsWhisperMode] = useState(false);
 
+  // Track recording state directly (since we bypass useAudioRecorder)
+  const [isRecording, setIsRecording] = useState(false);
+
   // Audio hooks
   const {
-    isRecording,
     audioChunks,
     startRecording: startAudioRecording,
     stopRecording: stopAudioRecording,
@@ -237,7 +240,8 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
   }, []);
 
   /**
-   * Start recording audio
+   * Start recording audio (Push-to-Talk mode)
+   * Sends activityStart to Gemini, then streams audio
    */
   const startRecording = useCallback(async (whisperMode: boolean = false) => {
     if (!isConnected) {
@@ -246,9 +250,15 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
     }
 
     setIsWhisperMode(whisperMode);
+    setIsRecording(true);  // Track recording state
     clearChunks();
 
     try {
+      // Signal start of speech to Gemini (manual VAD)
+      if (wsRef.current?.isConnected) {
+        wsRef.current.sendControl('activity_start');
+      }
+
       // Start recording with direct audio callback
       const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
       await audioManager.initialize();
@@ -258,16 +268,23 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
       });
     } catch (error) {
       console.error('Failed to start recording:', error);
+      setIsRecording(false);  // Reset on error
     }
   }, [isConnected, clearChunks, sendAudioChunk]);
 
   /**
-   * Stop recording and finalize turn
+   * Stop recording and finalize turn (Push-to-Talk mode)
+   * Sends activityEnd to signal end of speech
    */
   const stopRecording = useCallback(async () => {
+    console.log('stopRecording called, isRecording:', isRecording);
+
     // Stop the audio manager
     const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
     audioManager.stopRecording();
+
+    // Update recording state
+    setIsRecording(false);
 
     // Also call the hook's stop (for state tracking)
     stopAudioRecording();
@@ -279,11 +296,37 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
       isWhisperMode
     );
 
-    // Signal end of speech to Gemini
+    // Signal end of speech to Gemini (manual VAD)
     if (wsRef.current?.isConnected) {
-      wsRef.current.sendControl('end_of_speech');
+      console.log('Sending activity_end to Gemini');
+      wsRef.current.sendControl('activity_end');
+      // Also send audioStreamEnd to flush any cached audio
+      wsRef.current.sendControl('audio_stream_end');
     }
-  }, [stopAudioRecording, isWhisperMode, addMessage]);
+  }, [stopAudioRecording, isWhisperMode, addMessage, isRecording]);
+
+  /**
+   * Stop/interrupt the AI response
+   * Allows user to cut off AI mid-sentence
+   */
+  const stopConversation = useCallback(async () => {
+    // Stop any ongoing recording first
+    try {
+      const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
+      audioManager.stopRecording();
+    } catch {
+      // Ignore if not recording
+    }
+    setIsRecording(false);
+    stopAudioRecording();
+
+    // Send interrupt signal to stop AI response
+    if (wsRef.current?.isConnected) {
+      wsRef.current.sendControl('interrupt');
+    }
+
+    console.log('Conversation interrupted by user');
+  }, [stopAudioRecording]);
 
   /**
    * Send text message
@@ -382,6 +425,7 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
     // Actions
     startRecording,
     stopRecording,
+    stopConversation,
     sendTextMessage,
     clearMessages,
     reconnect,

@@ -116,6 +116,7 @@ export default function ChatPage() {
     messages: geminiMessages,
     startRecording,
     stopRecording,
+    stopConversation,
     sendTextMessage,
     reconnect
   } = useGeminiChat(aiRole || undefined);
@@ -315,30 +316,17 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Recording indicator */}
-      {(isRecording || isPlaying) && (
-        <div style={{
-          padding: '12px 16px',
-          textAlign: 'center',
-          color: isWhisperMode ? AppColors.whisperAmber : AppColors.accentPurple,
-          fontSize: '14px',
-          fontWeight: '500',
-        }}>
-          <span style={{ animation: 'pulse 1s ease-in-out infinite', display: 'inline-block' }}>
-            {isPlaying ? '🔊 AI is responding...' : isWhisperMode ? '🇺🇦 Listening in Ukrainian...' : '🎤 Listening...'}
-          </span>
-        </div>
-      )}
-
-      {/* Bottom Control Bar */}
+      {/* Bottom Control Bar - now includes status indicator and stop button */}
       <ChatControlBar
         isRecording={isRecording}
         isWhisperMode={isWhisperMode}
         isConnected={isConnected}
+        isPlaying={isPlaying}
         onMicPress={handleMicPress}
         onWhisperStart={handleWhisperStart}
         onWhisperEnd={handleWhisperEnd}
         onHint={handleHint}
+        onStop={stopConversation}
       />
     </div>
   );

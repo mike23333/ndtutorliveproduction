@@ -10,6 +10,7 @@ export {
   MicButton,
   WhisperButton,
   HintButton,
+  StopButton,
   ModeIndicator,
   ChatControlBar
 } from './ChatControls';

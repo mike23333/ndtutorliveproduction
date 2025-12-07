@@ -146,6 +146,7 @@ function connectToGemini(session: ClientSession): void {
 
 /**
  * Send setup message to Gemini
+ * Uses MANUAL Voice Activity Detection for push-to-talk (free when not sending audio)
  */
 function sendSetupMessage(session: ClientSession): void {
   if (!session.geminiWs || session.geminiWs.readyState !== WebSocket.OPEN) {
@@ -166,13 +167,20 @@ function sendSetupMessage(session: ClientSession): void {
           }
         }
       },
+      // MANUAL VAD: Push-to-talk mode - client controls when speech starts/ends
+      // This makes it FREE when user is not actively speaking
+      realtimeInputConfig: {
+        automaticActivityDetection: {
+          disabled: true  // Disable auto VAD for push-to-talk
+        }
+      },
       systemInstruction: {
         parts: [{ text: session.systemInstruction }]
       }
     }
   };
 
-  console.log('Sending setup message to Gemini');
+  console.log('Sending setup message to Gemini with manual VAD (push-to-talk mode)');
   session.geminiWs.send(JSON.stringify(setupMessage));
 }
 
@@ -268,6 +276,7 @@ function forwardTextToGemini(session: ClientSession, text: string): void {
 
 /**
  * Handle control messages
+ * Supports manual VAD for push-to-talk mode
  */
 function handleControlMessage(session: ClientSession, control: string): void {
   if (!session.geminiWs || session.geminiWs.readyState !== WebSocket.OPEN) {
@@ -275,8 +284,38 @@ function handleControlMessage(session: ClientSession, control: string): void {
   }
 
   switch (control) {
+    case 'activity_start':
+      // Push-to-talk: User started speaking
+      console.log('Activity start - user is speaking');
+      session.geminiWs.send(JSON.stringify({
+        realtimeInput: {
+          activityStart: {}
+        }
+      }));
+      break;
+
+    case 'activity_end':
+      // Push-to-talk: User stopped speaking
+      console.log('Activity end - user stopped speaking');
+      session.geminiWs.send(JSON.stringify({
+        realtimeInput: {
+          activityEnd: {}
+        }
+      }));
+      break;
+
+    case 'audio_stream_end':
+      // Flush cached audio when stream pauses for >1 second
+      console.log('Audio stream end - flushing cached audio');
+      session.geminiWs.send(JSON.stringify({
+        realtimeInput: {
+          audioStreamEnd: true
+        }
+      }));
+      break;
+
     case 'end_of_speech':
-      // Signal end of user turn
+      // Signal end of user turn (legacy, kept for compatibility)
       session.geminiWs.send(JSON.stringify({
         clientContent: {
           turnComplete: true
@@ -285,8 +324,13 @@ function handleControlMessage(session: ClientSession, control: string): void {
       break;
 
     case 'interrupt':
-      // Interrupt current generation (if supported)
-      console.log('Interrupt requested');
+      // Interrupt current AI generation
+      console.log('Interrupt requested - stopping AI response');
+      session.geminiWs.send(JSON.stringify({
+        realtimeInput: {
+          activityEnd: {}
+        }
+      }));
       break;
 
     default:
