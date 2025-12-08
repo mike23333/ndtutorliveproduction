@@ -1,20 +1,24 @@
 /**
- * Hook for Gemini Live API Chat Integration
+ * Hook for Gemini Live API Chat Integration (Direct Connection)
  *
- * Manages WebSocket connection to Gemini proxy and handles
- * real-time audio/text communication for roleplay scenarios.
+ * Features:
+ * - Direct client-to-Gemini connection using ephemeral tokens
+ * - Affective dialog (emotion-aware responses)
+ * - Always-listening mode with automatic VAD
+ * - Session pause/resume (within 2hr window)
+ * - Token usage tracking in Firebase
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  createGeminiWebSocket,
-  getWebSocketUrl,
-  GeminiWebSocket,
-  GeminiMessage
-} from '../services/geminiWebSocket';
-import { useAudioRecorder, useAudioPlayer } from './useAudioRecorder';
+import { GeminiDirectClient } from '../services/geminiDirectClient';
 import { generateSystemPrompt } from '../services/promptGenerator';
+import {
+  createSessionUsage,
+  updateSessionUsage,
+  finalizeSessionUsage
+} from '../services/firebase/tokenUsage';
 import type { AIRole } from '../types/ai-role';
+import type { UsageMetadata } from '../types/gemini';
 
 export interface ChatMessage {
   id: number;
@@ -31,54 +35,71 @@ export interface UseGeminiChatResult {
   isConnecting: boolean;
   connectionError: string | null;
 
-  // Recording state
-  isRecording: boolean;
-  isWhisperMode: boolean;
+  // Listening state (always true when connected, unless muted)
+  isListening: boolean;
+  isMuted: boolean;
+
+  // Pause state
+  isPaused: boolean;
+  canResume: boolean;
 
   // Playback state
   isPlaying: boolean;
+
+  // Token usage
+  tokenUsage: UsageMetadata;
 
   // Messages
   messages: ChatMessage[];
 
   // Actions
-  startRecording: (whisperMode?: boolean) => Promise<void>;
-  stopRecording: () => void;
-  stopConversation: () => void;  // Stop/interrupt AI response
-  sendTextMessage: (text: string, isWhisper?: boolean) => void;
+  toggleMute: () => void;
+  pauseSession: () => Promise<void>;
+  resumeSession: () => Promise<void>;
+  sendTextMessage: (text: string) => void;
   clearMessages: () => void;
   reconnect: () => void;
+  startNewSession: () => void;
   updateSystemPrompt: (role: AIRole) => void;
 }
 
-export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
+export function useGeminiChat(
+  initialRole?: AIRole,
+  userId?: string
+): UseGeminiChatResult {
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
+  // Always-listening state
+  const [isListening, setIsListening] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Pause state
+  const [isPaused, setIsPaused] = useState(false);
+  const [canResume, setCanResume] = useState(false);
+
+  // Playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Token usage
+  const [tokenUsage, setTokenUsage] = useState<UsageMetadata>({
+    inputTokens: 0,
+    outputTokens: 0,
+    totalTokens: 0
+  });
+
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isWhisperMode, setIsWhisperMode] = useState(false);
-
-  // Track recording state directly (since we bypass useAudioRecorder)
-  const [isRecording, setIsRecording] = useState(false);
-
-  // Audio hooks
-  const {
-    audioChunks,
-    startRecording: startAudioRecording,
-    stopRecording: stopAudioRecording,
-    clearChunks,
-    error: recorderError
-  } = useAudioRecorder();
-
-  const { playAudio, isPlaying, error: playerError } = useAudioPlayer();
 
   // Refs
-  const wsRef = useRef<GeminiWebSocket | null>(null);
+  const clientRef = useRef<GeminiDirectClient | null>(null);
   const roleRef = useRef<AIRole | undefined>(initialRole);
   const messageIdRef = useRef(0);
+  const isStreamingRef = useRef(false);
+  const sessionIdRef = useRef<string | null>(null);
+  const userIdRef = useRef(userId || `user_${Date.now()}`);
 
   /**
    * Generate next message ID
@@ -111,238 +132,236 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
   }, [getNextMessageId]);
 
   /**
-   * Initialize WebSocket connection
+   * Play audio response
    */
-  const connect = useCallback(() => {
-    if (wsRef.current?.isConnected) {
-      console.log('Already connected');
+  const playAudioResponse = useCallback(async (audioData: ArrayBuffer) => {
+    try {
+      const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
+      await audioManager.initialize();
+
+      // Convert ArrayBuffer to base64
+      const bytes = new Uint8Array(audioData);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+
+      setIsPlaying(true);
+      await audioManager.playAudioChunk(base64);
+      setIsPlaying(false);
+    } catch (error) {
+      console.error('[Audio] Playback error:', error);
+      setIsPlaying(false);
+    }
+  }, []);
+
+  /**
+   * Start streaming audio to Gemini
+   */
+  const startAudioStreaming = useCallback(async () => {
+    if (isStreamingRef.current || !clientRef.current?.connected) {
+      return;
+    }
+
+    try {
+      const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
+      await audioManager.initialize();
+      await audioManager.startRecording((base64Data: string) => {
+        if (!isMuted && clientRef.current?.connected) {
+          clientRef.current.sendAudioBase64(base64Data);
+        }
+      });
+
+      isStreamingRef.current = true;
+      setIsListening(true);
+      console.log('[Audio] Started streaming');
+    } catch (error) {
+      console.error('[Audio] Failed to start streaming:', error);
+      setConnectionError('Microphone access denied');
+    }
+  }, [isMuted]);
+
+  /**
+   * Stop streaming audio
+   */
+  const stopAudioStreaming = useCallback(async () => {
+    if (!isStreamingRef.current) return;
+
+    try {
+      const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
+      audioManager.stopRecording();
+    } catch {
+      // Ignore errors during cleanup
+    }
+
+    isStreamingRef.current = false;
+    setIsListening(false);
+    console.log('[Audio] Stopped streaming');
+  }, []);
+
+  /**
+   * Initialize and connect to Gemini
+   */
+  const connect = useCallback(async () => {
+    if (clientRef.current?.connected) {
+      console.log('[Gemini] Already connected');
       return;
     }
 
     setIsConnecting(true);
     setConnectionError(null);
 
-    // Build WebSocket URL with system instruction
-    let wsUrl = getWebSocketUrl();
-    if (roleRef.current) {
-      const systemPrompt = generateSystemPrompt(roleRef.current);
-      wsUrl += `?systemInstruction=${encodeURIComponent(systemPrompt)}`;
-    }
+    // Build system prompt
+    const systemPrompt = roleRef.current
+      ? generateSystemPrompt(roleRef.current)
+      : undefined;
 
-    const ws = createGeminiWebSocket({
-      url: wsUrl,
-      reconnectAttempts: 3,
-      reconnectDelay: 2000
-    });
+    // Create session in Firebase
+    sessionIdRef.current = await createSessionUsage(userIdRef.current);
 
-    // Handle connection events
-    ws.onConnect(() => {
-      console.log('Connected to Gemini');
-      setIsConnected(true);
-      setIsConnecting(false);
-      setConnectionError(null);
-    });
+    // Create the direct client
+    const client = new GeminiDirectClient({
+      userId: userIdRef.current,
+      systemPrompt,
+      callbacks: {
+        onConnected: () => {
+          console.log('[Gemini] Connected');
+          setIsConnected(true);
+          setIsConnecting(false);
+          setConnectionError(null);
+          setIsPaused(false);
+          startAudioStreaming();
+        },
+        onDisconnected: () => {
+          console.log('[Gemini] Disconnected');
+          setIsConnected(false);
+          setIsListening(false);
+          stopAudioStreaming();
+        },
+        onAudio: (audioData: ArrayBuffer) => {
+          playAudioResponse(audioData);
+        },
+        onText: (text: string) => {
+          console.log('[Gemini] Received text:', text);
+          addMessage(text, false, false);
+        },
+        onTurnComplete: () => {
+          console.log('[Gemini] Turn complete');
+        },
+        onSessionUpdate: (_handle: string) => {
+          console.log('[Gemini] Session handle updated');
+          setCanResume(true);
+        },
+        onGoAway: (timeRemaining: number) => {
+          console.log(`[Gemini] GoAway: ${timeRemaining}s remaining`);
+        },
+        onError: (error: Error) => {
+          console.error('[Gemini] Error:', error);
+          setConnectionError(error.message);
+          setIsConnecting(false);
+        },
+        onUsageMetadata: (metadata: UsageMetadata) => {
+          // Update local state
+          setTokenUsage(prev => ({
+            inputTokens: prev.inputTokens + metadata.inputTokens,
+            outputTokens: prev.outputTokens + metadata.outputTokens,
+            totalTokens: prev.totalTokens + metadata.totalTokens
+          }));
 
-    ws.onDisconnect(() => {
-      console.log('Disconnected from Gemini');
-      setIsConnected(false);
-    });
-
-    ws.onError((error) => {
-      console.error('WebSocket error:', error);
-      setConnectionError(error.message);
-      setIsConnecting(false);
-    });
-
-    // Handle incoming messages
-    ws.onMessage((message: GeminiMessage) => {
-      handleGeminiMessage(message);
-    });
-
-    // Connect
-    ws.connect().catch((error) => {
-      console.error('Failed to connect:', error);
-      setConnectionError(error.message);
-      setIsConnecting(false);
-    });
-
-    wsRef.current = ws;
-  }, []);
-
-  /**
-   * Handle messages from Gemini
-   */
-  const handleGeminiMessage = useCallback((message: GeminiMessage) => {
-    console.log('Received message from Gemini:', message.type, message.data?.substring?.(0, 50) || message.text?.substring?.(0, 50) || '');
-
-    switch (message.type) {
-      case 'text':
-        // Add AI text response
-        console.log('Received TEXT from Gemini:', message.text);
-        if (message.text) {
-          addMessage(message.text, false, isWhisperMode);
+          // Update Firebase
+          if (sessionIdRef.current) {
+            updateSessionUsage(sessionIdRef.current, metadata);
+          }
         }
-        break;
+      }
+    });
 
-      case 'audio':
-        // Play audio response
-        console.log('Received AUDIO from Gemini, size:', message.data?.length);
-        if (message.data) {
-          playAudio(message.data).catch((err) => {
-            console.error('Failed to play audio:', err);
-          });
-        }
-        break;
-
-      case 'control':
-        console.log('Received CONTROL from Gemini:', message.data);
-        handleControlMessage(message.data || '');
-        break;
-
-      case 'error':
-        console.error('Gemini error:', message.error);
-        setConnectionError(message.error || 'Unknown error');
-        break;
-    }
-  }, [addMessage, isWhisperMode, playAudio]);
-
-  /**
-   * Handle control messages
-   */
-  const handleControlMessage = useCallback((control: string) => {
-    switch (control) {
-      case 'connected':
-        console.log('Gemini session ready');
-        break;
-
-      case 'turn_complete':
-        console.log('AI turn complete');
-        // Reset whisper mode after response
-        setIsWhisperMode(false);
-        break;
-
-      case 'disconnected':
-        setIsConnected(false);
-        break;
-    }
-  }, []);
-
-  /**
-   * Send audio chunk directly to Gemini (called from audio manager callback)
-   */
-  const sendAudioChunk = useCallback((base64Audio: string) => {
-    if (wsRef.current?.isConnected) {
-      console.log('Sending audio chunk to Gemini, size:', base64Audio.length);
-      wsRef.current.sendAudio(base64Audio);
-    } else {
-      console.warn('Cannot send audio: WebSocket not connected');
-    }
-  }, []);
-
-  /**
-   * Start recording audio (Push-to-Talk mode)
-   * Sends activityStart to Gemini, then streams audio
-   */
-  const startRecording = useCallback(async (whisperMode: boolean = false) => {
-    if (!isConnected) {
-      console.warn('Not connected to Gemini');
-      return;
-    }
-
-    setIsWhisperMode(whisperMode);
-    setIsRecording(true);  // Track recording state
-    clearChunks();
+    clientRef.current = client;
+    setCanResume(client.canResume);
 
     try {
-      // Signal start of speech to Gemini (manual VAD)
-      if (wsRef.current?.isConnected) {
-        wsRef.current.sendControl('activity_start');
-      }
-
-      // Start recording with direct audio callback
-      const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
-      await audioManager.initialize();
-      await audioManager.startRecording((base64Data: string) => {
-        // Send audio directly to Gemini as it arrives
-        sendAudioChunk(base64Data);
-      });
+      await client.connect();
     } catch (error) {
-      console.error('Failed to start recording:', error);
-      setIsRecording(false);  // Reset on error
+      console.error('[Gemini] Connection failed:', error);
+      setConnectionError((error as Error).message);
+      setIsConnecting(false);
     }
-  }, [isConnected, clearChunks, sendAudioChunk]);
+  }, [startAudioStreaming, stopAudioStreaming, playAudioResponse, addMessage]);
 
   /**
-   * Stop recording and finalize turn (Push-to-Talk mode)
-   * Sends activityEnd to signal end of speech
+   * Pause session - keeps session handle for resume
    */
-  const stopRecording = useCallback(async () => {
-    console.log('stopRecording called, isRecording:', isRecording);
+  const pauseSession = useCallback(async () => {
+    if (!clientRef.current) return;
 
-    // Stop the audio manager
-    const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
-    audioManager.stopRecording();
+    console.log('[Gemini] Pausing session...');
+    console.log('[Gemini] Current message count:', messages.length);
+    await stopAudioStreaming();
+    await clientRef.current.pause();
 
-    // Update recording state
-    setIsRecording(false);
+    setIsPaused(true);
+    setIsConnected(false);
+    setIsListening(false);
+    setCanResume(true);
 
-    // Also call the hook's stop (for state tracking)
-    stopAudioRecording();
+    // Finalize current session in Firebase
+    if (sessionIdRef.current) {
+      await finalizeSessionUsage(
+        sessionIdRef.current,
+        userIdRef.current,
+        clientRef.current.currentSessionHandle || undefined
+      );
+    }
+    console.log('[Gemini] Session paused. Messages preserved:', messages.length);
+  }, [stopAudioStreaming, messages.length]);
 
-    // Add placeholder message for user turn
-    addMessage(
-      isWhisperMode ? '[Speaking in Ukrainian...]' : '[Speaking...]',
-      true,
-      isWhisperMode
+  /**
+   * Resume a paused session
+   */
+  const resumeSession = useCallback(async () => {
+    if (!clientRef.current) return;
+
+    console.log('[Gemini] Resuming session...');
+    console.log('[Gemini] Messages before resume:', messages.length);
+    console.log('[Gemini] Session handle available:', clientRef.current.currentSessionHandle ? 'yes' : 'no');
+
+    // Create new session tracking
+    sessionIdRef.current = await createSessionUsage(
+      userIdRef.current,
+      clientRef.current.currentSessionHandle || undefined
     );
 
-    // Signal end of speech to Gemini (manual VAD)
-    if (wsRef.current?.isConnected) {
-      console.log('Sending activity_end to Gemini');
-      wsRef.current.sendControl('activity_end');
-      // Also send audioStreamEnd to flush any cached audio
-      wsRef.current.sendControl('audio_stream_end');
-    }
-  }, [stopAudioRecording, isWhisperMode, addMessage, isRecording]);
+    // Reset token usage for new session (but NOT messages!)
+    setTokenUsage({ inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+
+    setIsConnecting(true);
+    await clientRef.current.resume();
+    console.log('[Gemini] Resume initiated. Messages still:', messages.length);
+  }, [messages.length]);
 
   /**
-   * Stop/interrupt the AI response
-   * Allows user to cut off AI mid-sentence
+   * Toggle mute state
    */
-  const stopConversation = useCallback(async () => {
-    // Stop any ongoing recording first
-    try {
-      const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
-      audioManager.stopRecording();
-    } catch {
-      // Ignore if not recording
-    }
-    setIsRecording(false);
-    stopAudioRecording();
-
-    // Send interrupt signal to stop AI response
-    if (wsRef.current?.isConnected) {
-      wsRef.current.sendControl('interrupt');
-    }
-
-    console.log('Conversation interrupted by user');
-  }, [stopAudioRecording]);
+  const toggleMute = useCallback(() => {
+    setIsMuted(prev => {
+      const newMuted = !prev;
+      console.log(`[Audio] ${newMuted ? 'Muted' : 'Unmuted'}`);
+      return newMuted;
+    });
+  }, []);
 
   /**
    * Send text message
    */
-  const sendTextMessage = useCallback((text: string, isWhisper: boolean = false) => {
-    if (!isConnected || !wsRef.current) {
-      console.warn('Not connected to Gemini');
+  const sendTextMessage = useCallback((text: string) => {
+    if (!isConnected || !clientRef.current) {
+      console.warn('[Gemini] Not connected');
       return;
     }
 
-    // Add user message
-    addMessage(text, true, isWhisper);
-    setIsWhisperMode(isWhisper);
-
-    // Send to Gemini
-    wsRef.current.sendText(text);
+    addMessage(text, true, false);
+    clientRef.current.sendText(text);
   }, [isConnected, addMessage]);
 
   /**
@@ -356,30 +375,47 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
   /**
    * Reconnect to Gemini
    */
-  const reconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.disconnect();
-      wsRef.current = null;
+  const reconnect = useCallback(async () => {
+    if (clientRef.current) {
+      await clientRef.current.disconnect();
+      clientRef.current = null;
     }
-    connect();
-  }, [connect]);
+    await stopAudioStreaming();
+    await connect();
+  }, [connect, stopAudioStreaming]);
+
+  /**
+   * Start a completely new session (clear stored handle)
+   */
+  const startNewSession = useCallback(async () => {
+    // Finalize old session
+    if (sessionIdRef.current && clientRef.current) {
+      await finalizeSessionUsage(
+        sessionIdRef.current,
+        userIdRef.current,
+        clientRef.current.currentSessionHandle || undefined
+      );
+    }
+
+    // Clear stored session handle
+    if (clientRef.current) {
+      clientRef.current.clearStoredSessionHandle();
+    }
+
+    // Reset state
+    clearMessages();
+    setTokenUsage({ inputTokens: 0, outputTokens: 0, totalTokens: 0 });
+    setCanResume(false);
+
+    // Reconnect fresh
+    await reconnect();
+  }, [clearMessages, reconnect]);
 
   /**
    * Update system prompt with new role
    */
   const updateSystemPrompt = useCallback((role: AIRole) => {
     roleRef.current = role;
-
-    // Send config update to proxy
-    if (wsRef.current?.isConnected) {
-      const systemPrompt = generateSystemPrompt(role);
-      wsRef.current.sendText(JSON.stringify({
-        type: 'config',
-        systemInstruction: systemPrompt
-      }));
-    }
-
-    // Reconnect to apply new system prompt
     reconnect();
   }, [reconnect]);
 
@@ -390,12 +426,23 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
     connect();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.disconnect();
-        wsRef.current = null;
+      stopAudioStreaming();
+
+      // Finalize session on unmount
+      if (sessionIdRef.current && clientRef.current) {
+        finalizeSessionUsage(
+          sessionIdRef.current,
+          userIdRef.current,
+          clientRef.current.currentSessionHandle || undefined
+        );
+      }
+
+      if (clientRef.current) {
+        clientRef.current.disconnect();
+        clientRef.current = null;
       }
     };
-  }, [connect]);
+  }, []);
 
   /**
    * Update role ref when initialRole changes
@@ -410,25 +457,33 @@ export function useGeminiChat(initialRole?: AIRole): UseGeminiChatResult {
     // Connection state
     isConnected,
     isConnecting,
-    connectionError: connectionError || recorderError || playerError,
+    connectionError,
 
-    // Recording state
-    isRecording,
-    isWhisperMode,
+    // Listening state
+    isListening,
+    isMuted,
+
+    // Pause state
+    isPaused,
+    canResume,
 
     // Playback state
     isPlaying,
+
+    // Token usage
+    tokenUsage,
 
     // Messages
     messages,
 
     // Actions
-    startRecording,
-    stopRecording,
-    stopConversation,
+    toggleMute,
+    pauseSession,
+    resumeSession,
     sendTextMessage,
     clearMessages,
     reconnect,
+    startNewSession,
     updateSystemPrompt
   };
 }

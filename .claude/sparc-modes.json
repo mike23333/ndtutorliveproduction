@@ -1,0 +1,34 @@
+{
+  "modes": {
+    "spec-pseudocode": {
+      "name": "Specification & Pseudocode",
+      "description": "Requirements analysis and algorithm design",
+      "agents": ["specification", "pseudocode"],
+      "output": "specification document with pseudocode"
+    },
+    "architect": {
+      "name": "Architecture Design",
+      "description": "System architecture and component design",
+      "agents": ["architecture"],
+      "output": "architecture document"
+    },
+    "tdd": {
+      "name": "Test-Driven Development",
+      "description": "Write tests first, then implementation",
+      "agents": ["tester", "coder"],
+      "output": "tests and implementation"
+    },
+    "integration": {
+      "name": "Integration",
+      "description": "Integrate components and validate",
+      "agents": ["coder", "tester", "reviewer"],
+      "output": "integrated solution"
+    },
+    "review": {
+      "name": "Code Review",
+      "description": "Review code quality and patterns",
+      "agents": ["reviewer", "code-analyzer"],
+      "output": "review report"
+    }
+  }
+}

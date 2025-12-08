@@ -105,19 +105,19 @@ export default function ChatPage() {
   const [progress, setProgress] = useState(15);
   const [vocabWords, setVocabWords] = useState<VocabWord[]>([]);
 
-  // Initialize Gemini chat hook
+  // Initialize Gemini chat hook (direct connection with ephemeral tokens)
   const {
     isConnected,
     isConnecting,
     connectionError,
-    isRecording,
-    isWhisperMode,
+    isListening,
+    isMuted,
     isPlaying,
+    isPaused,
+    canResume,
     messages: geminiMessages,
-    startRecording,
-    stopRecording,
-    stopConversation,
-    sendTextMessage,
+    pauseSession,
+    resumeSession,
     reconnect
   } = useGeminiChat(aiRole || undefined);
 
@@ -171,35 +171,20 @@ export default function ChatPage() {
     setProgress(Math.min(15 + usedCount * 25, 100));
   }, [vocabWords]);
 
+  // Derive connection state for LiveButton
+  const getConnectionState = (): 'disconnected' | 'connecting' | 'listening' | 'ai_speaking' | 'muted' | 'paused' => {
+    if (isPaused) return 'paused';
+    if (!isConnected && !isConnecting) return 'disconnected';
+    if (isConnecting) return 'connecting';
+    if (isMuted) return 'muted';
+    if (isPlaying) return 'ai_speaking';
+    if (isListening) return 'listening';
+    return 'disconnected';
+  };
+
+  const connectionState = getConnectionState();
+
   // Event handlers
-  const handleWhisperStart = async () => {
-    if (!isConnected) return;
-    await startRecording(true);
-  };
-
-  const handleWhisperEnd = () => {
-    stopRecording();
-  };
-
-  const handleMicPress = async () => {
-    if (!isConnected) {
-      reconnect();
-      return;
-    }
-
-    if (isRecording) {
-      stopRecording();
-    } else {
-      await startRecording(false);
-    }
-  };
-
-  const handleHint = () => {
-    if (isConnected) {
-      sendTextMessage("Please give me a hint about what I could say next.", false);
-    }
-  };
-
   const handleSettings = () => {
     console.log('Settings clicked');
   };
@@ -276,8 +261,8 @@ export default function ChatPage() {
 
       {/* Mode indicator */}
       <ModeIndicator
-        isWhisperMode={isWhisperMode}
-        isRecording={isRecording}
+        isWhisperMode={false}
+        isRecording={isListening && !isMuted}
         isPlaying={isPlaying}
       />
 
@@ -294,9 +279,9 @@ export default function ChatPage() {
             color: AppColors.textSecondary,
             padding: '40px 20px',
           }}>
-            <p>Press the microphone to start speaking!</p>
+            <p>Start speaking - I'm listening!</p>
             <p style={{ fontSize: '12px', marginTop: '8px' }}>
-              Hold the 🇺🇦 button to ask questions in Ukrainian
+              Tap the button to mute/unmute your microphone
             </p>
           </div>
         )}
@@ -316,17 +301,11 @@ export default function ChatPage() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Bottom Control Bar - now includes status indicator and stop button */}
+      {/* Bottom Control Bar - single button */}
       <ChatControlBar
-        isRecording={isRecording}
-        isWhisperMode={isWhisperMode}
-        isConnected={isConnected}
+        connectionState={connectionState}
         isPlaying={isPlaying}
-        onMicPress={handleMicPress}
-        onWhisperStart={handleWhisperStart}
-        onWhisperEnd={handleWhisperEnd}
-        onHint={handleHint}
-        onStop={stopConversation}
+        onStop={handleClose}
       />
     </div>
   );

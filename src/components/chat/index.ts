@@ -6,11 +6,5 @@
 export { ChatBubble } from './ChatBubble';
 export { ScenarioHeader } from './ScenarioHeader';
 export { VocabTracker, type VocabWord } from './VocabTracker';
-export {
-  MicButton,
-  WhisperButton,
-  HintButton,
-  StopButton,
-  ModeIndicator,
-  ChatControlBar
-} from './ChatControls';
+export { ModeIndicator } from './ModeIndicator';
+export { ChatControlBar } from './ChatControls';
