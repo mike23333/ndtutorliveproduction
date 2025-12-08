@@ -36,6 +36,11 @@ export interface UserDocument {
   level?: ProficiencyLevel;
   classCode?: string;
   groupIds?: string[];
+  // Aggregate stats for fast UI reads (denormalized)
+  totalStars?: number;
+  totalSessions?: number;
+  totalPracticeTime?: number; // in seconds
+  lastSessionAt?: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -62,9 +67,15 @@ export interface MissionDocument {
   tone: ConversationTone;
   vocabList: VocabularyItem[];
   imageUrl?: string;
+  imageStoragePath?: string; // Firebase Storage path for cleanup
   groupId?: string;
   targetLevel?: ProficiencyLevel;
   isActive: boolean;
+  // New fields for enhanced lesson creation
+  systemPrompt?: string; // Full system prompt (replaces scenario usage)
+  durationMinutes?: number; // Session time limit
+  functionCallingEnabled?: boolean; // Whether to enable function calling
+  functionCallingInstructions?: string; // Custom instructions for function calling
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -194,3 +205,92 @@ export type UpdateSessionInput = Partial<Omit<SessionDocument, 'id' | 'createdAt
 export type UpdateGroupInput = Partial<Omit<GroupDocument, 'id' | 'createdAt'>> & {
   id: string;
 };
+
+// ==================== NEW DOCUMENT TYPES ====================
+
+/**
+ * Prompt Template Document
+ * Collection: promptTemplates
+ * Allows teachers to save and reuse system prompts
+ */
+export interface PromptTemplateDocument {
+  id: string;
+  teacherId: string;
+  name: string;
+  systemPrompt: string;
+  defaultDurationMinutes?: number;
+  functionCallingInstructions?: string;
+  isDefault: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export type CreatePromptTemplateInput = Omit<PromptTemplateDocument, 'id' | 'createdAt' | 'updatedAt' | 'isDefault'> & {
+  id?: string;
+  isDefault?: boolean;
+};
+
+export type UpdatePromptTemplateInput = Partial<Omit<PromptTemplateDocument, 'id' | 'createdAt'>> & {
+  id: string;
+};
+
+/**
+ * Struggle Item Document
+ * Collection: users/{userId}/struggles
+ * Tracks words/concepts student struggled with for review lessons
+ */
+export interface StruggleDocument {
+  id: string;
+  userId: string;
+  sessionId: string;
+  missionId: string | null;
+  word: string;
+  struggleType: 'pronunciation' | 'meaning' | 'usage' | 'grammar';
+  context: string;
+  severity: 'minor' | 'moderate' | 'significant';
+  timestamp: string; // ISO timestamp from Gemini
+  createdAt: Timestamp;
+  // Review tracking for weekly review lessons
+  reviewCount: number;
+  lastReviewedAt: Timestamp | null;
+  mastered: boolean;
+}
+
+/**
+ * User Profile Preference
+ * Single preference entry in user profile
+ */
+export interface UserProfilePreference {
+  category: string;
+  value: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  confidence: number;
+  updatedAt: Timestamp;
+}
+
+/**
+ * User Profile Document
+ * Collection: users/{userId}/profile/preferences
+ * Stores learned preferences about the user
+ */
+export interface UserProfileDocument {
+  preferences: UserProfilePreference[];
+  lastUpdated: Timestamp;
+}
+
+/**
+ * Session Summary Document
+ * Stores the final summary from show_session_summary function call
+ */
+export interface SessionSummaryDocument {
+  sessionId: string;
+  userId: string;
+  missionId: string;
+  didWell: string[];
+  workOn: string[];
+  stars: 1 | 2 | 3 | 4 | 5;
+  summaryText: string;
+  encouragement?: string;
+  durationSeconds: number;
+  createdAt: Timestamp;
+}

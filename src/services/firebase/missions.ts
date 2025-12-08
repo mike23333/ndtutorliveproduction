@@ -40,20 +40,40 @@ export const createMission = async (
   try {
     const missionRef = doc(collection(db, MISSIONS_COLLECTION));
 
+    // Build mission object, excluding undefined values (Firestore doesn't accept undefined)
     const mission: MissionDocument = {
-      ...missionData,
       id: missionRef.id,
+      teacherId: missionData.teacherId,
+      teacherName: missionData.teacherName,
+      title: missionData.title,
+      scenario: missionData.scenario,
+      tone: missionData.tone,
+      vocabList: missionData.vocabList || [],
       isActive: missionData.isActive ?? true,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
 
+    // Only add optional fields if they have values
+    if (missionData.imageUrl) mission.imageUrl = missionData.imageUrl;
+    if (missionData.imageStoragePath) mission.imageStoragePath = missionData.imageStoragePath;
+    if (missionData.groupId) mission.groupId = missionData.groupId;
+    if (missionData.targetLevel) mission.targetLevel = missionData.targetLevel;
+    if (missionData.systemPrompt) mission.systemPrompt = missionData.systemPrompt;
+    if (missionData.durationMinutes !== undefined) mission.durationMinutes = missionData.durationMinutes;
+    if (missionData.functionCallingEnabled !== undefined) mission.functionCallingEnabled = missionData.functionCallingEnabled;
+    if (missionData.functionCallingInstructions) mission.functionCallingInstructions = missionData.functionCallingInstructions;
+
+    console.log('[missions] Creating mission:', mission.title, 'for teacher:', mission.teacherId);
     await setDoc(missionRef, mission);
+    console.log('[missions] Mission created successfully:', missionRef.id);
 
     return mission;
-  } catch (error) {
-    console.error('Error creating mission:', error);
-    throw error;
+  } catch (error: unknown) {
+    const errorCode = (error as { code?: string })?.code || 'unknown';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[missions] Failed to create mission:', errorCode, errorMessage);
+    throw new Error(`Firestore error (${errorCode}): ${errorMessage}`);
   }
 };
 
@@ -158,13 +178,28 @@ export const updateMission = async (
     const { id, ...updates } = missionData;
     const missionRef = doc(db, MISSIONS_COLLECTION, id);
 
+    // Clean the update object - remove undefined values (Firestore rejects undefined)
+    // Note: ignoreUndefinedProperties is set in firebase config, but this is extra safety
+    const cleanedUpdates: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanedUpdates[key] = value;
+      }
+    }
+
+    console.log('[missions] Updating mission:', id, 'with fields:', Object.keys(cleanedUpdates));
+
     await updateDoc(missionRef, {
-      ...updates,
+      ...cleanedUpdates,
       updatedAt: Timestamp.now(),
     });
-  } catch (error) {
-    console.error('Error updating mission:', error);
-    throw error;
+
+    console.log('[missions] Mission updated successfully:', id);
+  } catch (error: unknown) {
+    const errorCode = (error as { code?: string })?.code || 'unknown';
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[missions] Error updating mission:', errorCode, errorMessage, error);
+    throw new Error(`Firestore error (${errorCode}): ${errorMessage}`);
   }
 };
 

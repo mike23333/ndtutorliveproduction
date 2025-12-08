@@ -12,7 +12,7 @@
 
 import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
-import { getFirestore, Firestore } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, Firestore } from 'firebase/firestore';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Firebase configuration object
@@ -61,8 +61,17 @@ try {
   if (validateConfig()) {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
-    // Use the named database - try both ways
-    db = getFirestore(app);
+    // Initialize Firestore with ignoreUndefinedProperties to prevent update errors
+    // See: https://stackoverflow.com/questions/51143903/firestore-error-error-function-documentreference-update-called-with-invalid
+    try {
+      db = initializeFirestore(app, {
+        ignoreUndefinedProperties: true,
+      });
+    } catch (firestoreError) {
+      // If already initialized (HMR), just get the existing instance
+      console.log('Firestore already initialized, getting existing instance');
+      db = getFirestore(app);
+    }
     storage = getStorage(app);
 
     console.log('Firebase initialized successfully');

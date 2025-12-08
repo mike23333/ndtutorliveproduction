@@ -58,6 +58,24 @@ export interface GeminiClientCallbacks {
   onUsageMetadata: (metadata: UsageMetadata) => void;
   onConnected: () => void;
   onDisconnected: () => void;
+  // Function calling callbacks
+  onToolCall: (functionCalls: GeminiFunctionCall[]) => Promise<GeminiFunctionResponse[]>;
+}
+
+// Function calling types for Gemini Live API
+export interface GeminiFunctionCall {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface GeminiFunctionResponse {
+  id: string;
+  name: string;
+  response: {
+    result: string;
+    error?: string;
+  };
 }
 
 // Client configuration
@@ -66,4 +84,7 @@ export interface GeminiClientConfig {
   systemPrompt?: string;
   sessionHandle?: string;
   callbacks: Partial<GeminiClientCallbacks>;
+  // Function calling options
+  enableFunctionCalling?: boolean;
+  functionCallingInstructions?: string;
 }

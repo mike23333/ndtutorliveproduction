@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
-import { createMission, getAllMissions, deleteMission } from '../services/firebase/missions';
-import { MissionDocument, ConversationTone, ProficiencyLevel } from '../types/firestore';
+import { createMission, getAllMissions, deleteMission, updateMission } from '../services/firebase/missions';
+import { MissionDocument } from '../types/firestore';
+import type { PromptTemplateDocument } from '../types/firestore';
 import { useAuth } from '../hooks/useAuth';
 import {
   PlusIcon,
@@ -17,14 +18,20 @@ import {
   CopyIcon,
   ArrowLeftIcon,
 } from '../theme/icons';
+import { uploadLessonImage, validateImageFile, deleteLessonImage } from '../services/firebase/storage';
+import {
+  getPromptTemplatesForTeacher,
+  createPromptTemplate,
+} from '../services/firebase/promptTemplates';
 
 // Types
 interface LessonData {
   id: string;
   title: string;
-  description: string;
-  targetVocab: string[];
+  systemPrompt: string;
+  durationMinutes: number;
   imageUrl: string | null;
+  functionCallingEnabled: boolean;
   assignedGroups: string[];
   status: 'draft' | 'published';
   completionRate: number;
@@ -165,128 +172,56 @@ const SelectField: React.FC<SelectFieldProps> = ({
   </div>
 );
 
-// Vocab Input Component
-interface VocabInputProps {
-  vocab: string[];
-  onAdd: (word: string) => void;
-  onRemove: (index: number) => void;
-}
-
-const VocabInput: React.FC<VocabInputProps> = ({ vocab, onAdd, onRemove }) => {
-  const [inputValue, setInputValue] = useState('');
-
-  const handleAdd = () => {
-    if (inputValue.trim()) {
-      onAdd(inputValue.trim());
-      setInputValue('');
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleAdd();
-    }
-  };
-
-  return (
-    <div style={{ marginBottom: 'clamp(12px, 3vw, 16px)' }}>
-      <label
-        style={{
-          display: 'block',
-          fontSize: 'clamp(12px, 2.5vw, 14px)',
-          fontWeight: 500,
-          color: AppColors.textSecondary,
-          marginBottom: 'clamp(4px, 1vw, 6px)',
-        }}
-      >
-        Target Vocabulary
-      </label>
-      <div style={{ display: 'flex', gap: 'clamp(6px, 1.5vw, 8px)', marginBottom: 'clamp(8px, 2vw, 10px)' }}>
-        <input
-          type="text"
-          placeholder="Add a word..."
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyPress={handleKeyPress}
-          style={{
-            flex: 1,
-            height: 'clamp(36px, 7vw, 42px)',
-            background: AppColors.surfaceLight,
-            border: `1px solid ${AppColors.borderColor}`,
-            borderRadius: 'clamp(8px, 2vw, 12px)',
-            padding: '0 clamp(10px, 2.5vw, 14px)',
-            color: AppColors.textPrimary,
-            fontSize: 'clamp(14px, 3vw, 16px)',
-          }}
-        />
-        <button
-          onClick={handleAdd}
-          style={{
-            width: 'clamp(36px, 7vw, 42px)',
-            height: 'clamp(36px, 7vw, 42px)',
-            background: `linear-gradient(135deg, ${AppColors.accentPurple} 0%, ${AppColors.accentBlue} 100%)`,
-            border: 'none',
-            borderRadius: 'clamp(8px, 2vw, 12px)',
-            color: AppColors.textDark,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <PlusIcon size={18} />
-        </button>
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'clamp(6px, 1.5vw, 8px)' }}>
-        {vocab.map((word, index) => (
-          <div
-            key={index}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'clamp(4px, 1vw, 6px)',
-              background: AppColors.surfaceMedium,
-              borderRadius: 'clamp(14px, 3vw, 18px)',
-              padding: 'clamp(4px, 1vw, 6px) clamp(10px, 2.5vw, 12px)',
-            }}
-          >
-            <span style={{ fontSize: 'clamp(12px, 2.5vw, 14px)', color: AppColors.textPrimary }}>{word}</span>
-            <button
-              onClick={() => onRemove(index)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: AppColors.textSecondary,
-                cursor: 'pointer',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              <XIcon size={14} />
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// Image Upload Component
+// Image Upload Component (with Firebase Storage)
 interface ImageUploadProps {
   imageUrl: string | null;
-  onUpload: (url: string) => void;
+  storagePath: string | null;
+  onUpload: (url: string, storagePath: string) => void;
+  onRemove: () => void;
+  teacherId: string;
+  isUploading: boolean;
+  setIsUploading: (uploading: boolean) => void;
 }
 
-const ImageUpload: React.FC<ImageUploadProps> = ({ imageUrl, onUpload }) => {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+const ImageUpload: React.FC<ImageUploadProps> = ({
+  imageUrl,
+  storagePath,
+  onUpload,
+  onRemove,
+  teacherId,
+  isUploading,
+  setIsUploading,
+}) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      // In production, upload to storage and get URL
-      const fakeUrl = URL.createObjectURL(file);
-      onUpload(fakeUrl);
+    if (!file) return;
+
+    if (!validateImageFile(file)) {
+      alert('Please select a valid image file (max 5MB, jpg/png/gif/webp)');
+      return;
     }
+
+    setIsUploading(true);
+    try {
+      const result = await uploadLessonImage(file, teacherId);
+      onUpload(result.downloadUrl, result.storagePath);
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    if (storagePath) {
+      try {
+        await deleteLessonImage(storagePath);
+      } catch (error) {
+        console.error('Failed to delete image:', error);
+      }
+    }
+    onRemove();
   };
 
   return (
@@ -318,7 +253,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ imageUrl, onUpload }) => {
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
           <button
-            onClick={() => onUpload('')}
+            onClick={handleRemove}
             style={{
               position: 'absolute',
               top: 'clamp(6px, 1.5vw, 8px)',
@@ -350,20 +285,22 @@ const ImageUpload: React.FC<ImageUploadProps> = ({ imageUrl, onUpload }) => {
             background: AppColors.surfaceLight,
             border: `2px dashed ${AppColors.borderColor}`,
             borderRadius: 'clamp(8px, 2vw, 12px)',
-            cursor: 'pointer',
+            cursor: isUploading ? 'wait' : 'pointer',
+            opacity: isUploading ? 0.6 : 1,
           }}
         >
           <div style={{ color: AppColors.textSecondary, marginBottom: 'clamp(6px, 1.5vw, 8px)' }}>
             <ImageIcon size={32} />
           </div>
           <span style={{ fontSize: 'clamp(12px, 2.5vw, 14px)', color: AppColors.textSecondary }}>
-            Click to upload image
+            {isUploading ? 'Uploading...' : 'Click to upload image'}
           </span>
           <input
             type="file"
             accept="image/*"
             onChange={handleFileChange}
             style={{ display: 'none' }}
+            disabled={isUploading}
           />
         </label>
       )}
@@ -404,7 +341,7 @@ const LessonListCard: React.FC<LessonListCardProps> = ({
       }}
     >
       <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 1.5vw, 8px)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(6px, 1.5vw, 8px)', flexWrap: 'wrap' }}>
           <h3
             style={{
               fontSize: 'clamp(14px, 3vw, 16px)',
@@ -427,15 +364,30 @@ const LessonListCard: React.FC<LessonListCardProps> = ({
           >
             {lesson.status === 'published' ? 'Published' : 'Draft'}
           </span>
+          <span
+            style={{
+              fontSize: 'clamp(10px, 2vw, 11px)',
+              padding: 'clamp(2px, 0.5vw, 3px) clamp(6px, 1.5vw, 8px)',
+              borderRadius: 'clamp(8px, 2vw, 10px)',
+              background: AppColors.surfaceMedium,
+              color: AppColors.textSecondary,
+            }}
+          >
+            {lesson.durationMinutes} min
+          </span>
         </div>
         <p
           style={{
             fontSize: 'clamp(12px, 2.5vw, 13px)',
             color: AppColors.textSecondary,
             margin: 'clamp(4px, 1vw, 6px) 0 0 0',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            maxWidth: '100%',
           }}
         >
-          {lesson.description}
+          {lesson.systemPrompt.slice(0, 100)}...
         </p>
       </div>
       <div style={{ display: 'flex', gap: 'clamp(4px, 1vw, 6px)' }}>
@@ -494,7 +446,7 @@ const LessonListCard: React.FC<LessonListCardProps> = ({
     </div>
 
     {/* Progress bar */}
-    <div style={{ marginBottom: 'clamp(6px, 1.5vw, 8px)' }}>
+    <div>
       <div
         style={{
           display: 'flex',
@@ -526,37 +478,6 @@ const LessonListCard: React.FC<LessonListCardProps> = ({
           }}
         />
       </div>
-    </div>
-
-    {/* Vocab tags */}
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'clamp(4px, 1vw, 6px)' }}>
-      {lesson.targetVocab.slice(0, 4).map((word, index) => (
-        <span
-          key={index}
-          style={{
-            fontSize: 'clamp(10px, 2vw, 11px)',
-            padding: 'clamp(2px, 0.5vw, 3px) clamp(6px, 1.5vw, 8px)',
-            background: AppColors.surfaceMedium,
-            borderRadius: 'clamp(8px, 2vw, 10px)',
-            color: AppColors.textSecondary,
-          }}
-        >
-          {word}
-        </span>
-      ))}
-      {lesson.targetVocab.length > 4 && (
-        <span
-          style={{
-            fontSize: 'clamp(10px, 2vw, 11px)',
-            padding: 'clamp(2px, 0.5vw, 3px) clamp(6px, 1.5vw, 8px)',
-            background: AppColors.surfaceMedium,
-            borderRadius: 'clamp(8px, 2vw, 10px)',
-            color: AppColors.textSecondary,
-          }}
-        >
-          +{lesson.targetVocab.length - 4} more
-        </span>
-      )}
     </div>
   </div>
 );
@@ -652,27 +573,24 @@ const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'lessons' | 'analytics'>('lessons');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [lessons, setLessons] = useState<LessonData[]>([]);
-  const [, setLoading] = useState(true);
-  const [, setSaving] = useState(false);
+  const [_loading, setLoading] = useState(true); // TODO: Add loading indicator
+  const [saving, setSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Form state
+  // Form state - New simplified structure
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('conversation');
-  const [targetLevel, setTargetLevel] = useState<ProficiencyLevel>('A2');
-  const [vocab, setVocab] = useState<string[]>([]);
+  const [systemPrompt, setSystemPrompt] = useState('');
+  const [durationMinutes, setDurationMinutes] = useState(15);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageStoragePath, setImageStoragePath] = useState<string | null>(null);
 
-  // CEFR Level options
-  const levelOptions: { value: ProficiencyLevel; label: string; description: string }[] = [
-    { value: 'A1', label: 'A1 - Beginner', description: 'Basic phrases and expressions' },
-    { value: 'A2', label: 'A2 - Elementary', description: 'Simple everyday situations' },
-    { value: 'B1', label: 'B1 - Intermediate', description: 'Main points of familiar topics' },
-    { value: 'B2', label: 'B2 - Upper Intermediate', description: 'Complex texts and discussions' },
-    { value: 'C1', label: 'C1 - Advanced', description: 'Demanding, longer texts' },
-    { value: 'C2', label: 'C2 - Proficient', description: 'Near-native fluency' },
-  ];
+  // Prompt templates
+  const [promptTemplates, setPromptTemplates] = useState<PromptTemplateDocument[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
 
   // Fetch lessons from Firestore
   useEffect(() => {
@@ -682,9 +600,10 @@ const TeacherDashboard: React.FC = () => {
         const mappedLessons: LessonData[] = missions.map((m: MissionDocument) => ({
           id: m.id,
           title: m.title,
-          description: m.scenario,
-          targetVocab: m.vocabList.map(v => v.word),
+          systemPrompt: m.systemPrompt || m.scenario || '',
+          durationMinutes: m.durationMinutes || 15,
           imageUrl: m.imageUrl || null,
+          functionCallingEnabled: m.functionCallingEnabled ?? true,
           assignedGroups: m.groupId ? [m.groupId] : [],
           status: m.isActive ? 'published' as const : 'draft' as const,
           completionRate: 0,
@@ -702,67 +621,162 @@ const TeacherDashboard: React.FC = () => {
     fetchLessons();
   }, []);
 
-  const handleAddVocab = (word: string) => {
-    setVocab([...vocab, word]);
+  // Fetch prompt templates for this teacher
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      if (!user?.uid) return;
+      try {
+        const templates = await getPromptTemplatesForTeacher(user.uid);
+        setPromptTemplates(templates);
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+      }
+    };
+
+    fetchTemplates();
+  }, [user?.uid]);
+
+  // Handle template selection
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (templateId) {
+      const template = promptTemplates.find(t => t.id === templateId);
+      if (template) {
+        setSystemPrompt(template.systemPrompt);
+        if (template.defaultDurationMinutes) {
+          setDurationMinutes(template.defaultDurationMinutes);
+        }
+      }
+    }
   };
 
-  const handleRemoveVocab = (index: number) => {
-    setVocab(vocab.filter((_, i) => i !== index));
+  // Save current prompt as template
+  const handleSaveTemplate = async () => {
+    if (!user?.uid || !newTemplateName.trim() || !systemPrompt.trim()) {
+      alert('Please provide a template name and system prompt');
+      return;
+    }
+
+    try {
+      const newTemplate = await createPromptTemplate({
+        teacherId: user.uid,
+        name: newTemplateName.trim(),
+        systemPrompt: systemPrompt,
+        defaultDurationMinutes: durationMinutes,
+      });
+      setPromptTemplates(prev => [...prev, newTemplate]);
+      setShowSaveTemplateModal(false);
+      setNewTemplateName('');
+      alert('Template saved successfully!');
+    } catch (error: unknown) {
+      console.error('Error saving template:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to save template: ${errorMessage}`);
+    }
   };
 
-  const handleCreateLesson = async () => {
-    if (!title.trim() || !description.trim()) {
-      alert('Please fill in title and description');
+  // Reset form
+  const resetForm = () => {
+    setTitle('');
+    setSystemPrompt('');
+    setDurationMinutes(15);
+    setImageUrl(null);
+    setImageStoragePath(null);
+    setSelectedTemplateId('');
+    setEditingLessonId(null);
+  };
+
+  // Handle edit lesson - populate form with existing data
+  const handleEditLesson = (lessonId: string) => {
+    const lesson = lessons.find(l => l.id === lessonId);
+    if (!lesson) return;
+
+    setTitle(lesson.title);
+    setSystemPrompt(lesson.systemPrompt);
+    setDurationMinutes(lesson.durationMinutes);
+    setImageUrl(lesson.imageUrl);
+    setImageStoragePath(null); // We don't have this in LessonData, but that's ok
+    setSelectedTemplateId('');
+    setEditingLessonId(lessonId);
+    setShowCreateModal(true);
+  };
+
+  const handleSaveLesson = async () => {
+    if (!title.trim() || !systemPrompt.trim()) {
+      alert('Please fill in title and system prompt');
       return;
     }
 
     setSaving(true);
     try {
-      // Map category to tone
-      const toneMap: Record<string, ConversationTone> = {
-        conversation: 'friendly',
-        vocabulary: 'encouraging',
-        grammar: 'formal',
-        pronunciation: 'challenging',
-      };
+      if (editingLessonId) {
+        // Update existing lesson - build update object without undefined values
+        const updateData: Record<string, unknown> = {
+          id: editingLessonId,
+          title: title.trim(),
+          scenario: systemPrompt.trim(),
+          systemPrompt: systemPrompt.trim(),
+          durationMinutes: durationMinutes,
+          functionCallingEnabled: true, // Always enabled
+        };
 
-      const newMission = await createMission({
-        teacherId: user?.uid || 'anonymous',
-        teacherName: user?.displayName || 'Teacher',
-        title: title.trim(),
-        scenario: description.trim(),
-        tone: toneMap[category] || 'friendly',
-        vocabList: vocab.map(word => ({ word })),
-        imageUrl: imageUrl || undefined,
-        targetLevel: targetLevel,
-        isActive: true,
-      });
+        // Only include optional fields if they have values
+        if (imageUrl) updateData.imageUrl = imageUrl;
+        if (imageStoragePath) updateData.imageStoragePath = imageStoragePath;
 
-      // Add to local state
-      setLessons(prev => [{
-        id: newMission.id,
-        title: newMission.title,
-        description: newMission.scenario,
-        targetVocab: newMission.vocabList.map(v => v.word),
-        imageUrl: newMission.imageUrl || null,
-        assignedGroups: newMission.groupId ? [newMission.groupId] : [],
-        status: 'published',
-        completionRate: 0,
-        studentsCompleted: 0,
-        totalStudents: 0,
-      }, ...prev]);
+        await updateMission(updateData as Parameters<typeof updateMission>[0]);
+
+        // Update local state
+        setLessons(prev => prev.map(l =>
+          l.id === editingLessonId
+            ? {
+                ...l,
+                title: title.trim(),
+                systemPrompt: systemPrompt.trim(),
+                durationMinutes: durationMinutes,
+                imageUrl: imageUrl,
+              }
+            : l
+        ));
+      } else {
+        // Create new lesson
+        const newMission = await createMission({
+          teacherId: user?.uid || 'anonymous',
+          teacherName: user?.displayName || 'Teacher',
+          title: title.trim(),
+          scenario: systemPrompt.trim(), // Keep for backwards compatibility
+          systemPrompt: systemPrompt.trim(),
+          durationMinutes: durationMinutes,
+          tone: 'friendly', // Default tone
+          vocabList: [], // No more vocab
+          imageUrl: imageUrl || undefined,
+          imageStoragePath: imageStoragePath || undefined,
+          functionCallingEnabled: true, // Always enabled
+          isActive: true,
+        });
+
+        // Add to local state
+        setLessons(prev => [{
+          id: newMission.id,
+          title: newMission.title,
+          systemPrompt: newMission.systemPrompt || newMission.scenario,
+          durationMinutes: newMission.durationMinutes || 15,
+          imageUrl: newMission.imageUrl || null,
+          functionCallingEnabled: newMission.functionCallingEnabled ?? true,
+          assignedGroups: newMission.groupId ? [newMission.groupId] : [],
+          status: 'published',
+          completionRate: 0,
+          studentsCompleted: 0,
+          totalStudents: 0,
+        }, ...prev]);
+      }
 
       setShowCreateModal(false);
-      // Reset form
-      setTitle('');
-      setDescription('');
-      setCategory('conversation');
-      setTargetLevel('A2');
-      setVocab([]);
-      setImageUrl(null);
-    } catch (error) {
-      console.error('Error creating lesson:', error);
-      alert('Failed to create lesson. Please try again.');
+      resetForm();
+    } catch (error: unknown) {
+      console.error('Error saving lesson:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to save lesson: ${errorMessage}`);
     } finally {
       setSaving(false);
     }
@@ -933,9 +947,17 @@ const TeacherDashboard: React.FC = () => {
               <LessonListCard
                 key={lesson.id}
                 lesson={lesson}
-                onEdit={() => console.log('Edit', lesson.id)}
+                onEdit={() => handleEditLesson(lesson.id)}
                 onDelete={() => handleDeleteLesson(lesson.id)}
-                onDuplicate={() => console.log('Duplicate', lesson.id)}
+                onDuplicate={() => {
+                  // Duplicate by opening create modal with copied data
+                  setTitle(lesson.title + ' (Copy)');
+                  setSystemPrompt(lesson.systemPrompt);
+                  setDurationMinutes(lesson.durationMinutes);
+                  setImageUrl(lesson.imageUrl);
+                  setEditingLessonId(null); // Not editing, creating new
+                  setShowCreateModal(true);
+                }}
               />
             ))}
           </div>
@@ -970,7 +992,7 @@ const TeacherDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* Create Lesson Modal */}
+      {/* Create/Edit Lesson Modal */}
       {showCreateModal && (
         <div
           style={{
@@ -985,7 +1007,10 @@ const TeacherDashboard: React.FC = () => {
             justifyContent: 'center',
             zIndex: 1000,
           }}
-          onClick={() => setShowCreateModal(false)}
+          onClick={() => {
+            setShowCreateModal(false);
+            resetForm();
+          }}
         >
           <div
             style={{
@@ -1015,10 +1040,13 @@ const TeacherDashboard: React.FC = () => {
                   margin: 0,
                 }}
               >
-                Create New Lesson
+                {editingLessonId ? 'Edit Lesson' : 'Create New Lesson'}
               </h2>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetForm();
+                }}
                 style={{
                   background: AppColors.surfaceLight,
                   border: 'none',
@@ -1043,26 +1071,74 @@ const TeacherDashboard: React.FC = () => {
               value={title}
               onChange={setTitle}
             />
-            <InputField
-              label="Description"
-              placeholder="Describe what students will learn..."
-              value={description}
-              onChange={setDescription}
-              multiline
-            />
-            <SelectField
-              label="Category"
-              options={[
-                { value: 'conversation', label: 'Conversation' },
-                { value: 'vocabulary', label: 'Vocabulary' },
-                { value: 'grammar', label: 'Grammar' },
-                { value: 'pronunciation', label: 'Pronunciation' },
-              ]}
-              value={category}
-              onChange={setCategory}
-            />
 
-            {/* Level Selection */}
+            {/* Prompt Template Selector */}
+            {promptTemplates.length > 0 && (
+              <SelectField
+                label="Load from Template"
+                options={[
+                  { value: '', label: 'Start from scratch' },
+                  ...promptTemplates.map(t => ({ value: t.id, label: t.name })),
+                ]}
+                value={selectedTemplateId}
+                onChange={handleTemplateSelect}
+              />
+            )}
+
+            {/* System Prompt - Main input */}
+            <div style={{ marginBottom: 'clamp(12px, 3vw, 16px)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'clamp(4px, 1vw, 6px)' }}>
+                <label
+                  style={{
+                    fontSize: 'clamp(12px, 2.5vw, 14px)',
+                    fontWeight: 500,
+                    color: AppColors.textSecondary,
+                  }}
+                >
+                  System Prompt
+                </label>
+                <button
+                  onClick={() => setShowSaveTemplateModal(true)}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    color: AppColors.accentPurple,
+                    fontSize: 'clamp(11px, 2.2vw, 12px)',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                  }}
+                >
+                  Save as Template
+                </button>
+              </div>
+              <textarea
+                placeholder="Enter the complete system prompt for Gemini. This defines how the AI will behave during the lesson..."
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                style={{
+                  width: '100%',
+                  minHeight: 'clamp(150px, 30vw, 200px)',
+                  background: AppColors.surfaceLight,
+                  border: `1px solid ${AppColors.borderColor}`,
+                  borderRadius: 'clamp(8px, 2vw, 12px)',
+                  padding: 'clamp(10px, 2.5vw, 14px)',
+                  color: AppColors.textPrimary,
+                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                  fontFamily: 'monospace',
+                }}
+              />
+              <p style={{
+                fontSize: 'clamp(11px, 2.2vw, 12px)',
+                color: AppColors.textSecondary,
+                margin: 'clamp(4px, 1vw, 6px) 0 0 0',
+              }}>
+                This is the full instruction set for the AI tutor. Include personality, scenario, and teaching style.
+              </p>
+            </div>
+
+            {/* Duration */}
             <div style={{ marginBottom: 'clamp(12px, 3vw, 16px)' }}>
               <label
                 style={{
@@ -1070,51 +1146,55 @@ const TeacherDashboard: React.FC = () => {
                   fontSize: 'clamp(12px, 2.5vw, 14px)',
                   fontWeight: 500,
                   color: AppColors.textSecondary,
-                  marginBottom: 'clamp(6px, 1.5vw, 8px)',
+                  marginBottom: 'clamp(4px, 1vw, 6px)',
                 }}
               >
-                Target Level (CEFR)
+                Session Duration (minutes)
               </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'clamp(6px, 1.5vw, 8px)' }}>
-                {levelOptions.map((level) => (
-                  <button
-                    key={level.value}
-                    type="button"
-                    onClick={() => setTargetLevel(level.value)}
-                    style={{
-                      padding: 'clamp(8px, 2vw, 10px) clamp(12px, 3vw, 16px)',
-                      background: targetLevel === level.value ? AppColors.accentPurple : AppColors.surfaceLight,
-                      border: `1px solid ${targetLevel === level.value ? AppColors.accentPurple : AppColors.borderColor}`,
-                      borderRadius: 'clamp(6px, 1.5vw, 8px)',
-                      color: targetLevel === level.value ? AppColors.textDark : AppColors.textSecondary,
-                      fontSize: 'clamp(12px, 2.5vw, 14px)',
-                      fontWeight: targetLevel === level.value ? 600 : 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                    }}
-                    title={level.description}
-                  >
-                    {level.value}
-                  </button>
-                ))}
-              </div>
-              <p style={{
-                fontSize: 'clamp(11px, 2.5vw, 12px)',
-                color: AppColors.textSecondary,
-                marginTop: 'clamp(4px, 1vw, 6px)',
-                margin: 'clamp(4px, 1vw, 6px) 0 0 0',
-              }}>
-                {levelOptions.find(l => l.value === targetLevel)?.description}
-              </p>
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={durationMinutes}
+                onChange={(e) => setDurationMinutes(Math.min(60, Math.max(1, parseInt(e.target.value) || 15)))}
+                style={{
+                  width: '120px',
+                  height: 'clamp(40px, 8vw, 48px)',
+                  background: AppColors.surfaceLight,
+                  border: `1px solid ${AppColors.borderColor}`,
+                  borderRadius: 'clamp(8px, 2vw, 12px)',
+                  padding: '0 clamp(10px, 2.5vw, 14px)',
+                  color: AppColors.textPrimary,
+                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  textAlign: 'center',
+                }}
+              />
             </div>
 
-            <VocabInput vocab={vocab} onAdd={handleAddVocab} onRemove={handleRemoveVocab} />
-            <ImageUpload imageUrl={imageUrl} onUpload={setImageUrl} />
+            {/* Image Upload */}
+            <ImageUpload
+              imageUrl={imageUrl}
+              storagePath={imageStoragePath}
+              onUpload={(url, path) => {
+                setImageUrl(url);
+                setImageStoragePath(path);
+              }}
+              onRemove={() => {
+                setImageUrl(null);
+                setImageStoragePath(null);
+              }}
+              teacherId={user?.uid || 'anonymous'}
+              isUploading={isUploading}
+              setIsUploading={setIsUploading}
+            />
 
             {/* Actions */}
             <div style={{ display: 'flex', gap: 'clamp(10px, 2.5vw, 12px)', marginTop: 'clamp(20px, 5vw, 28px)' }}>
               <button
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetForm();
+                }}
                 style={{
                   flex: 1,
                   padding: 'clamp(12px, 3vw, 16px)',
@@ -1127,10 +1207,11 @@ const TeacherDashboard: React.FC = () => {
                   cursor: 'pointer',
                 }}
               >
-                Save as Draft
+                Cancel
               </button>
               <button
-                onClick={handleCreateLesson}
+                onClick={handleSaveLesson}
+                disabled={saving || isUploading}
                 style={{
                   flex: 1,
                   padding: 'clamp(12px, 3vw, 16px)',
@@ -1140,10 +1221,95 @@ const TeacherDashboard: React.FC = () => {
                   color: AppColors.textDark,
                   fontSize: 'clamp(14px, 3vw, 16px)',
                   fontWeight: 600,
+                  cursor: saving || isUploading ? 'not-allowed' : 'pointer',
+                  opacity: saving || isUploading ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving...' : editingLessonId ? 'Update Lesson' : 'Create Lesson'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Template Modal */}
+      {showSaveTemplateModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+          }}
+          onClick={() => setShowSaveTemplateModal(false)}
+        >
+          <div
+            style={{
+              width: '90%',
+              maxWidth: '400px',
+              background: AppColors.surfaceDark,
+              borderRadius: 'clamp(12px, 3vw, 16px)',
+              padding: 'clamp(20px, 5vw, 28px)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              style={{
+                fontSize: 'clamp(16px, 3.5vw, 18px)',
+                fontWeight: 600,
+                marginBottom: 'clamp(16px, 4vw, 20px)',
+                margin: '0 0 clamp(16px, 4vw, 20px) 0',
+              }}
+            >
+              Save as Template
+            </h3>
+            <InputField
+              label="Template Name"
+              placeholder="e.g., Coffee Shop Roleplay"
+              value={newTemplateName}
+              onChange={setNewTemplateName}
+            />
+            <div style={{ display: 'flex', gap: 'clamp(8px, 2vw, 10px)', marginTop: 'clamp(16px, 4vw, 20px)' }}>
+              <button
+                onClick={() => {
+                  setShowSaveTemplateModal(false);
+                  setNewTemplateName('');
+                }}
+                style={{
+                  flex: 1,
+                  padding: 'clamp(10px, 2.5vw, 12px)',
+                  background: AppColors.surfaceLight,
+                  border: `1px solid ${AppColors.borderColor}`,
+                  borderRadius: 'clamp(8px, 2vw, 10px)',
+                  color: AppColors.textPrimary,
+                  fontSize: 'clamp(14px, 3vw, 15px)',
+                  fontWeight: 500,
                   cursor: 'pointer',
                 }}
               >
-                Publish Lesson
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveTemplate}
+                style={{
+                  flex: 1,
+                  padding: 'clamp(10px, 2.5vw, 12px)',
+                  background: `linear-gradient(135deg, ${AppColors.accentPurple} 0%, ${AppColors.accentBlue} 100%)`,
+                  border: 'none',
+                  borderRadius: 'clamp(8px, 2vw, 10px)',
+                  color: AppColors.textDark,
+                  fontSize: 'clamp(14px, 3vw, 15px)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Save
               </button>
             </div>
           </div>

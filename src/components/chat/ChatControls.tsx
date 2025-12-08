@@ -16,20 +16,7 @@ const StopIcon: React.FC<{ size?: number }> = ({ size = 24 }) => (
   </svg>
 );
 
-// Pause icon component
-const PauseIcon: React.FC<{ size?: number }> = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <rect x="6" y="4" width="4" height="16" rx="1" />
-    <rect x="14" y="4" width="4" height="16" rx="1" />
-  </svg>
-);
-
-// Play icon component
-const PlayIcon: React.FC<{ size?: number }> = ({ size = 24 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-    <path d="M8 5v14l11-7z" />
-  </svg>
-);
+// Note: PauseIcon and PlayIcon removed - can be re-added when pause/resume UI is enabled
 
 // Connection state type
 type ConnectionState = 'disconnected' | 'connecting' | 'listening' | 'ai_speaking' | 'muted' | 'paused';
@@ -53,11 +40,7 @@ interface ChatControlBarProps {
 export const ChatControlBar: React.FC<ChatControlBarProps> = ({
   connectionState,
   isPlaying = false,
-  isPaused = false,
-  canResume = false,
   onStop,
-  onPause,
-  onResume
 }) => {
   const isConnected = connectionState !== 'disconnected' && connectionState !== 'connecting' && connectionState !== 'paused';
   const isLive = connectionState === 'listening' || connectionState === 'ai_speaking';

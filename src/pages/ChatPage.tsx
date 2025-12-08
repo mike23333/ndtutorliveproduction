@@ -5,11 +5,12 @@
  * with AI roleplay characters and tutor mode support.
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
+import { useUserId } from '../hooks/useAuth';
 import type { AIRole, StudentLevel, ToneType, PersonaType } from '../types/ai-role';
 import { LEVEL_CONFIGS } from '../types/ai-role';
 
@@ -22,6 +23,10 @@ import {
   ChatControlBar,
   type VocabWord
 } from '../components/chat';
+
+// Session timer and summary components
+import { SessionTimerCompact } from '../components/chat/SessionTimer';
+import { StarAnimation } from '../components/chat/StarAnimation';
 
 // Role icons mapping
 const ROLE_ICONS: Record<string, React.ReactNode> = {
@@ -43,6 +48,11 @@ interface RoleConfig {
   tone: string;
   level: string;
   color: string;
+  // New fields for enhanced sessions
+  systemPrompt?: string;
+  durationMinutes?: number;
+  functionCallingEnabled?: boolean;
+  functionCallingInstructions?: string;
 }
 
 // Message type for chat display
@@ -59,11 +69,15 @@ interface Message {
  */
 function convertToAIRole(config: RoleConfig, targetVocab: string[]): AIRole {
   const level = (config.level || 'B1') as StudentLevel;
+  // Use systemPrompt if provided, otherwise generate from scenario
+  const systemPrompt = config.systemPrompt ||
+    `You are ${config.name}. ${config.scenario ? `Scenario: ${config.scenario}` : ''}`;
+
   return {
     id: config.id,
     name: config.name,
     persona: config.persona as PersonaType,
-    systemPrompt: `You are ${config.name}. ${config.scenario ? `Scenario: ${config.scenario}` : ''}`,
+    systemPrompt,
     tone: (config.tone?.toLowerCase() || 'friendly') as ToneType,
     level,
     levelConfig: LEVEL_CONFIGS[level],
@@ -72,6 +86,10 @@ function convertToAIRole(config: RoleConfig, targetVocab: string[]): AIRole {
     isCustom: false,
     icon: config.icon,
     color: config.color,
+    // New fields for function calling
+    functionCallingEnabled: config.functionCallingEnabled ?? true,
+    functionCallingInstructions: config.functionCallingInstructions,
+    durationMinutes: config.durationMinutes,
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -98,6 +116,7 @@ export default function ChatPage() {
   const navigate = useNavigate();
   useParams(); // roleId available from URL if needed
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const userId = useUserId(); // Get authenticated user ID
 
   // State
   const [roleConfig, setRoleConfig] = useState<RoleConfig | null>(null);
@@ -114,12 +133,16 @@ export default function ChatPage() {
     isMuted,
     isPlaying,
     isPaused,
-    canResume,
     messages: geminiMessages,
-    pauseSession,
-    resumeSession,
-    reconnect
-  } = useGeminiChat(aiRole || undefined);
+    sessionSummary,
+    reconnect,
+    triggerSessionEnd,
+    clearSessionSummary
+  } = useGeminiChat(aiRole || undefined, userId || undefined);
+
+  // Session timer state
+  const [showSummary, setShowSummary] = useState(false);
+  const sessionDuration = roleConfig?.durationMinutes || 15;
 
   // Convert gemini messages to local Message format
   const messages: Message[] = useMemo(() => {
@@ -170,6 +193,35 @@ export default function ChatPage() {
     const usedCount = vocabWords.filter(v => v.used).length;
     setProgress(Math.min(15 + usedCount * 25, 100));
   }, [vocabWords]);
+
+  // Show summary modal when session summary is received
+  useEffect(() => {
+    if (sessionSummary) {
+      setShowSummary(true);
+    }
+  }, [sessionSummary]);
+
+  // Handle timer end - trigger session end
+  const handleTimerEnd = useCallback(() => {
+    console.log('[ChatPage] Timer ended, triggering session summary');
+    triggerSessionEnd();
+  }, [triggerSessionEnd]);
+
+  // Handle continue after summary - navigate home
+  const handleSummaryContinue = useCallback(() => {
+    setShowSummary(false);
+    clearSessionSummary();
+    // Save session data before navigating
+    const sessionData = {
+      roleConfig,
+      messages,
+      duration: sessionDuration * 60,
+      endTime: new Date().toISOString(),
+      summary: sessionSummary,
+    };
+    sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
+    navigate('/');
+  }, [clearSessionSummary, navigate, messages, roleConfig, sessionDuration, sessionSummary]);
 
   // Derive connection state for LiveButton
   const getConnectionState = (): 'disconnected' | 'connecting' | 'listening' | 'ai_speaking' | 'muted' | 'paused' => {
@@ -243,8 +295,8 @@ export default function ChatPage() {
 
       {/* Header with scenario info and connection status */}
       <ScenarioHeader
-        scenario={roleConfig.scenario}
-        tone={roleConfig.name}
+        scenario={roleConfig.name}
+        tone={roleConfig.tone || 'friendly'}
         level={roleConfig.level}
         progress={progress}
         icon={ROLE_ICONS[roleConfig.id] || <CoffeeIcon />}
@@ -255,6 +307,24 @@ export default function ChatPage() {
         onClose={handleClose}
         onReconnect={reconnect}
       />
+
+      {/* Session Timer - positioned in top-right corner */}
+      {/* Always render timer to preserve state during reconnects - just hide/pause when disconnected */}
+      {roleConfig.durationMinutes && roleConfig.durationMinutes > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: '16px',
+          right: '140px',
+          zIndex: 100,
+        }}>
+          <SessionTimerCompact
+            durationMinutes={roleConfig.durationMinutes}
+            onTimeUp={handleTimerEnd}
+            isPaused={isPaused}
+            isVisible={isConnected && !showSummary}
+          />
+        </div>
+      )}
 
       {/* Vocab tracker */}
       <VocabTracker words={vocabWords} />
@@ -307,6 +377,15 @@ export default function ChatPage() {
         isPlaying={isPlaying}
         onStop={handleClose}
       />
+
+      {/* Session Summary Modal */}
+      {sessionSummary && (
+        <StarAnimation
+          summary={sessionSummary}
+          onContinue={handleSummaryContinue}
+          isVisible={showSummary}
+        />
+      )}
     </div>
   );
 }

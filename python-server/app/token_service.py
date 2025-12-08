@@ -95,9 +95,58 @@ class TokenService:
             }
 
             if system_prompt:
-                live_config['system_instruction'] = {
-                    'parts': [{'text': system_prompt}]
-                }
+                # Live API expects system_instruction as a simple string
+                live_config['system_instruction'] = system_prompt
+
+            # Add function calling tools for autonomous tracking
+            live_config['tools'] = [{
+                'function_declarations': [
+                    {
+                        'name': 'save_struggle_item',
+                        'description': 'Call this when student struggles with a word, phrase, or concept',
+                        'parameters': {
+                            'type': 'object',
+                            'properties': {
+                                'word': {'type': 'string', 'description': 'Word/phrase student struggled with'},
+                                'struggle_type': {'type': 'string', 'enum': ['pronunciation', 'meaning', 'usage', 'grammar']},
+                                'context': {'type': 'string', 'description': 'Brief context about the struggle'},
+                                'timestamp': {'type': 'string', 'description': 'ISO timestamp'},
+                                'severity': {'type': 'string', 'enum': ['minor', 'moderate', 'significant']}
+                            },
+                            'required': ['word', 'struggle_type', 'context', 'timestamp']
+                        }
+                    },
+                    {
+                        'name': 'update_user_profile',
+                        'description': 'Call this when you learn about student preferences or interests',
+                        'parameters': {
+                            'type': 'object',
+                            'properties': {
+                                'category': {'type': 'string', 'enum': ['topic', 'interest', 'learning_style', 'difficulty_preference']},
+                                'value': {'type': 'string', 'description': 'The preference value'},
+                                'sentiment': {'type': 'string', 'enum': ['positive', 'negative', 'neutral']},
+                                'confidence': {'type': 'number', 'description': 'Confidence 0-1'}
+                            },
+                            'required': ['category', 'value', 'sentiment']
+                        }
+                    },
+                    {
+                        'name': 'show_session_summary',
+                        'description': 'Call this at session end to display a summary for the student',
+                        'parameters': {
+                            'type': 'object',
+                            'properties': {
+                                'did_well': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Things student did well'},
+                                'work_on': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Areas to practice'},
+                                'stars': {'type': 'integer', 'description': 'Rating 1-5'},
+                                'summary_text': {'type': 'string', 'description': 'Encouraging summary'},
+                                'encouragement': {'type': 'string', 'description': 'Optional motivation'}
+                            },
+                            'required': ['did_well', 'work_on', 'stars', 'summary_text']
+                        }
+                    }
+                ]
+            }]
 
             token_config['live_connect_constraints'] = {
                 'model': config.GEMINI_MODEL,

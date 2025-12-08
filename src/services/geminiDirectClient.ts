@@ -12,7 +12,7 @@
 
 import { GoogleGenAI, Modality } from '@google/genai';
 import { getTokenService } from './tokenService';
-import type { GeminiClientConfig, UsageMetadata, GeminiClientCallbacks } from '../types/gemini';
+import type { GeminiClientConfig, UsageMetadata, GeminiClientCallbacks, GeminiFunctionCall, GeminiFunctionResponse } from '../types/gemini';
 
 // Session handle storage keys
 const SESSION_HANDLE_KEY = 'gemini_direct_session_handle';
@@ -113,7 +113,7 @@ export class GeminiDirectClient {
    * Build the Live API configuration
    */
   private buildLiveConfig(): any {
-    return {
+    const config: any = {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
         voiceConfig: {
@@ -137,15 +137,15 @@ export class GeminiDirectClient {
       contextWindowCompression: {
         slidingWindow: {}
       },
-      // System instruction if provided
-      ...(this.config.systemPrompt && {
-        systemInstruction: {
-          parts: [{ text: this.config.systemPrompt }]
-        }
-      }),
       // Enable affective dialog for emotion-aware responses
       enableAffectiveDialog: true
     };
+
+    // NOTE: System instruction AND function calling tools are already baked
+    // into the ephemeral token by the Python backend (token_service.py).
+    // We don't pass them here to avoid conflicts with locked token config.
+
+    return config;
   }
 
   /**
@@ -219,6 +219,85 @@ export class GeminiDirectClient {
       this.tokenUsage.totalTokens += metadata.totalTokens;
 
       this.callbacks.onUsageMetadata?.(metadata);
+    }
+
+    // Tool calls (function calling) - Gemini wants us to execute a function
+    if (message.toolCall) {
+      console.log('[GeminiClient] Tool call received:', message.toolCall);
+      this.handleToolCall(message.toolCall);
+    }
+  }
+
+  /**
+   * Handle tool/function calls from Gemini
+   */
+  private async handleToolCall(toolCall: any): Promise<void> {
+    if (!toolCall.functionCalls || !Array.isArray(toolCall.functionCalls)) {
+      console.warn('[GeminiClient] Invalid tool call format:', toolCall);
+      return;
+    }
+
+    // Convert to our typed format
+    const functionCalls: GeminiFunctionCall[] = toolCall.functionCalls.map((fc: any) => ({
+      id: fc.id,
+      name: fc.name,
+      args: fc.args || {},
+    }));
+
+    console.log('[GeminiClient] Processing', functionCalls.length, 'function call(s):',
+      functionCalls.map(fc => fc.name).join(', '));
+
+    // Check if we have a handler
+    if (!this.callbacks.onToolCall) {
+      console.warn('[GeminiClient] No onToolCall handler registered, sending empty responses');
+      // Send empty responses so Gemini doesn't hang
+      const emptyResponses: GeminiFunctionResponse[] = functionCalls.map(fc => ({
+        id: fc.id,
+        name: fc.name,
+        response: { result: 'No handler registered' }
+      }));
+      await this.sendToolResponse(emptyResponses);
+      return;
+    }
+
+    try {
+      // Call the handler and get responses
+      const responses = await this.callbacks.onToolCall(functionCalls);
+
+      // Send responses back to Gemini
+      await this.sendToolResponse(responses);
+    } catch (error) {
+      console.error('[GeminiClient] Error in onToolCall handler:', error);
+
+      // Send error responses
+      const errorResponses: GeminiFunctionResponse[] = functionCalls.map(fc => ({
+        id: fc.id,
+        name: fc.name,
+        response: { result: 'Error', error: String(error) }
+      }));
+      await this.sendToolResponse(errorResponses);
+    }
+  }
+
+  /**
+   * Send tool/function responses back to Gemini
+   */
+  async sendToolResponse(responses: GeminiFunctionResponse[]): Promise<void> {
+    if (!this.session || !this.isConnected) {
+      console.warn('[GeminiClient] Cannot send tool response - not connected');
+      return;
+    }
+
+    try {
+      console.log('[GeminiClient] Sending tool responses:', responses.map(r => r.name).join(', '));
+
+      await this.session.sendToolResponse({
+        functionResponses: responses
+      });
+
+      console.log('[GeminiClient] Tool responses sent successfully');
+    } catch (error) {
+      console.error('[GeminiClient] Error sending tool response:', error);
     }
   }
 

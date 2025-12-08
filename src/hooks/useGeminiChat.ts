@@ -11,14 +11,24 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { GeminiDirectClient } from '../services/geminiDirectClient';
-import { generateSystemPrompt } from '../services/promptGenerator';
+import { DEFAULT_FUNCTION_CALLING_INSTRUCTIONS } from '../types/functions';
 import {
   createSessionUsage,
   updateSessionUsage,
   finalizeSessionUsage
 } from '../services/firebase/tokenUsage';
+import {
+  saveStruggleItem,
+  updateUserPreference,
+  saveSessionSummary,
+} from '../services/firebase/sessionData';
 import type { AIRole } from '../types/ai-role';
-import type { UsageMetadata } from '../types/gemini';
+import type { UsageMetadata, GeminiFunctionCall, GeminiFunctionResponse } from '../types/gemini';
+import type {
+  SaveStruggleItemParams,
+  UpdateUserProfileParams,
+  ShowSessionSummaryParams,
+} from '../types/functions';
 
 export interface ChatMessage {
   id: number;
@@ -52,6 +62,12 @@ export interface UseGeminiChatResult {
   // Messages
   messages: ChatMessage[];
 
+  // Session summary (from function call)
+  sessionSummary: ShowSessionSummaryParams | null;
+
+  // Session timing
+  sessionStartTime: Date | null;
+
   // Actions
   toggleMute: () => void;
   pauseSession: () => Promise<void>;
@@ -61,6 +77,8 @@ export interface UseGeminiChatResult {
   reconnect: () => void;
   startNewSession: () => void;
   updateSystemPrompt: (role: AIRole) => void;
+  triggerSessionEnd: () => void;
+  clearSessionSummary: () => void;
 }
 
 export function useGeminiChat(
@@ -93,6 +111,12 @@ export function useGeminiChat(
   // Chat state
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
+  // Session summary state (from show_session_summary function call)
+  const [sessionSummary, setSessionSummary] = useState<ShowSessionSummaryParams | null>(null);
+
+  // Session timing
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+
   // Refs
   const clientRef = useRef<GeminiDirectClient | null>(null);
   const roleRef = useRef<AIRole | undefined>(initialRole);
@@ -100,6 +124,7 @@ export function useGeminiChat(
   const isStreamingRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const userIdRef = useRef(userId || `user_${Date.now()}`);
+  const missionIdRef = useRef<string | null>(null);
 
   /**
    * Generate next message ID
@@ -201,6 +226,143 @@ export function useGeminiChat(
   }, []);
 
   /**
+   * Handle function calls from Gemini
+   */
+  const handleToolCalls = useCallback(async (
+    functionCalls: GeminiFunctionCall[]
+  ): Promise<GeminiFunctionResponse[]> => {
+    const responses: GeminiFunctionResponse[] = [];
+
+    for (const fc of functionCalls) {
+      console.log('[Function] Processing:', fc.name, fc.args);
+
+      try {
+        switch (fc.name) {
+          case 'save_struggle_item': {
+            const params = fc.args as unknown as SaveStruggleItemParams;
+            if (sessionIdRef.current) {
+              await saveStruggleItem(
+                sessionIdRef.current,
+                userIdRef.current,
+                params,
+                missionIdRef.current || undefined
+              );
+            }
+            responses.push({
+              id: fc.id,
+              name: fc.name,
+              response: { result: 'Struggle item saved successfully' }
+            });
+            break;
+          }
+
+          case 'update_user_profile': {
+            const params = fc.args as unknown as UpdateUserProfileParams;
+            await updateUserPreference(userIdRef.current, params);
+            responses.push({
+              id: fc.id,
+              name: fc.name,
+              response: { result: 'User profile updated successfully' }
+            });
+            break;
+          }
+
+          case 'show_session_summary': {
+            const params = fc.args as unknown as ShowSessionSummaryParams;
+            console.log('[Function] Session summary received:', params);
+
+            // Calculate session duration
+            const durationSeconds = sessionStartTime
+              ? Math.floor((Date.now() - sessionStartTime.getTime()) / 1000)
+              : 0;
+
+            // Save to Firestore
+            if (sessionIdRef.current) {
+              await saveSessionSummary(
+                sessionIdRef.current,
+                userIdRef.current,
+                missionIdRef.current || '',
+                durationSeconds,
+                params
+              );
+            }
+
+            // Set state to trigger UI modal
+            setSessionSummary(params);
+
+            responses.push({
+              id: fc.id,
+              name: fc.name,
+              response: { result: 'Session summary displayed' }
+            });
+
+            // Disconnect after summary is complete - session is over
+            console.log('[Function] Session complete, disconnecting...');
+            setTimeout(async () => {
+              await stopAudioStreaming();
+              if (clientRef.current) {
+                await clientRef.current.disconnect();
+                setIsConnected(false);
+                setIsListening(false);
+              }
+            }, 500); // Small delay to ensure response is sent
+
+            break;
+          }
+
+          default:
+            console.warn('[Function] Unknown function:', fc.name);
+            responses.push({
+              id: fc.id,
+              name: fc.name,
+              response: { result: 'Unknown function', error: 'Function not implemented' }
+            });
+        }
+      } catch (error) {
+        console.error('[Function] Error processing', fc.name, ':', error);
+        responses.push({
+          id: fc.id,
+          name: fc.name,
+          response: { result: 'Error', error: String(error) }
+        });
+      }
+    }
+
+    return responses;
+  }, [sessionStartTime, stopAudioStreaming]);
+
+  /**
+   * Trigger end of session - sends prompt to Gemini to summarize
+   */
+  const triggerSessionEnd = useCallback(() => {
+    if (!isConnected || !clientRef.current) {
+      console.warn('[Gemini] Cannot trigger session end - not connected');
+      return;
+    }
+
+    console.log('[Gemini] Triggering session end...');
+
+    const endPrompt = `The tutoring session is now ending. Please provide a session summary by calling the show_session_summary function.
+
+Include in your summary:
+1. 2-4 specific things the student did well during our conversation
+2. 2-3 areas they should focus on practicing
+3. A star rating from 1-5 based on their overall performance
+4. A brief encouraging summary paragraph
+
+Base your assessment on our entire conversation. Call the show_session_summary function now.`;
+
+    clientRef.current.sendText(endPrompt);
+  }, [isConnected]);
+
+  /**
+   * Clear session summary (after modal is closed)
+   */
+  const clearSessionSummary = useCallback(() => {
+    setSessionSummary(null);
+  }, []);
+
+  /**
    * Initialize and connect to Gemini
    */
   const connect = useCallback(async () => {
@@ -212,18 +374,37 @@ export function useGeminiChat(
     setIsConnecting(true);
     setConnectionError(null);
 
-    // Build system prompt
-    const systemPrompt = roleRef.current
-      ? generateSystemPrompt(roleRef.current)
-      : undefined;
+    // Use the raw system prompt from the role (teacher's custom prompt)
+    // Only append function calling instructions if enabled
+    let systemPrompt: string | undefined;
+    if (roleRef.current?.systemPrompt) {
+      systemPrompt = roleRef.current.systemPrompt;
+
+      // Append function calling instructions if enabled
+      if (roleRef.current.functionCallingEnabled !== false) {
+        const fcInstructions = roleRef.current.functionCallingInstructions || DEFAULT_FUNCTION_CALLING_INSTRUCTIONS;
+        systemPrompt += '\n\n# FUNCTION CALLING\n' + fcInstructions;
+      }
+
+      console.log('[Gemini] Using system prompt:', systemPrompt.substring(0, 200) + '...');
+    }
 
     // Create session in Firebase
     sessionIdRef.current = await createSessionUsage(userIdRef.current);
+
+    // Store mission ID from role if available
+    if (roleRef.current?.missionId) {
+      missionIdRef.current = roleRef.current.missionId;
+    }
+
+    // Determine if function calling should be enabled
+    const enableFunctionCalling = roleRef.current?.functionCallingEnabled !== false;
 
     // Create the direct client
     const client = new GeminiDirectClient({
       userId: userIdRef.current,
       systemPrompt,
+      enableFunctionCalling,
       callbacks: {
         onConnected: () => {
           console.log('[Gemini] Connected');
@@ -231,6 +412,7 @@ export function useGeminiChat(
           setIsConnecting(false);
           setConnectionError(null);
           setIsPaused(false);
+          setSessionStartTime(new Date());
           startAudioStreaming();
         },
         onDisconnected: () => {
@@ -273,7 +455,8 @@ export function useGeminiChat(
           if (sessionIdRef.current) {
             updateSessionUsage(sessionIdRef.current, metadata);
           }
-        }
+        },
+        onToolCall: handleToolCalls
       }
     });
 
@@ -420,9 +603,19 @@ export function useGeminiChat(
   }, [reconnect]);
 
   /**
-   * Connect on mount
+   * Connect when role is available
    */
   useEffect(() => {
+    // Only connect when we have a valid role with systemPrompt
+    if (!initialRole?.systemPrompt) {
+      console.log('[Gemini] Waiting for role with systemPrompt...');
+      return;
+    }
+
+    // Update role ref BEFORE connecting
+    roleRef.current = initialRole;
+    console.log('[Gemini] Role set, connecting with systemPrompt:', initialRole.systemPrompt.substring(0, 100) + '...');
+
     connect();
 
     return () => {
@@ -442,7 +635,7 @@ export function useGeminiChat(
         clientRef.current = null;
       }
     };
-  }, []);
+  }, [initialRole?.systemPrompt]);
 
   /**
    * Update role ref when initialRole changes
@@ -476,6 +669,12 @@ export function useGeminiChat(
     // Messages
     messages,
 
+    // Session summary (from function call)
+    sessionSummary,
+
+    // Session timing
+    sessionStartTime,
+
     // Actions
     toggleMute,
     pauseSession,
@@ -484,6 +683,8 @@ export function useGeminiChat(
     clearMessages,
     reconnect,
     startNewSession,
-    updateSystemPrompt
+    updateSystemPrompt,
+    triggerSessionEnd,
+    clearSessionSummary
   };
 }

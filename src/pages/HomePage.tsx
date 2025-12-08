@@ -3,8 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { PlayIcon, ClockIcon, StarIcon, SearchIcon, UserIcon, FireIcon } from '../theme/icons';
 import { getAllActiveMissions } from '../services/firebase/missions';
+import { getUserStarStats } from '../services/firebase/sessionData';
 import { MissionDocument, ProficiencyLevel } from '../types/firestore';
 import { useAuth } from '../hooks/useAuth';
+
+// User stats from Firestore
+interface UserStats {
+  totalSessions: number;
+  totalStars: number;
+  averageStars: number;
+  totalPracticeTime: number;
+}
 
 // Types for display
 interface Lesson {
@@ -13,12 +22,18 @@ interface Lesson {
   description: string;
   image: string;
   duration: string;
+  durationMinutes?: number;
   level: string;
   category: string;
   stars: number;
   totalStars: number;
   isNew: boolean;
   isLocked: boolean;
+  // New fields for enhanced lessons
+  systemPrompt?: string;
+  functionCallingEnabled?: boolean;
+  functionCallingInstructions?: string;
+  tone?: string;
 }
 
 // Convert MissionDocument to Lesson display format
@@ -31,18 +46,31 @@ const missionToLesson = (mission: MissionDocument, index: number): Lesson => {
     challenging: 'Advanced',
   };
 
+  // Format duration for display
+  const durationMinutes = mission.durationMinutes || 5;
+  const durationDisplay = `${durationMinutes} min`;
+
+  // For description, show a short preview (not the full system prompt)
+  const shortDescription = mission.title; // Just use title as description
+
   return {
     id: mission.id,
     title: mission.title,
-    description: mission.scenario,
+    description: shortDescription,
     image: mission.imageUrl || `https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=300&fit=crop`,
-    duration: '5 min',
-    level: mission.targetLevel || 'A2', // Already in CEFR format
+    duration: durationDisplay,
+    durationMinutes: mission.durationMinutes,
+    level: mission.targetLevel || 'A2',
     category: categoryMap[mission.tone] || 'Daily Life',
     stars: 0,
     totalStars: 5,
-    isNew: index < 2, // First 2 are marked as new
+    isNew: index < 2,
     isLocked: false,
+    // Pass through new fields for ChatPage
+    systemPrompt: mission.systemPrompt || mission.scenario,
+    functionCallingEnabled: mission.functionCallingEnabled,
+    functionCallingInstructions: mission.functionCallingInstructions,
+    tone: mission.tone,
   };
 };
 
@@ -521,6 +549,12 @@ export default function HomePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [lessons, setLessons] = useState<Lesson[]>(fallbackLessons);
   const [, setLoading] = useState(true);
+  const [userStats, setUserStats] = useState<UserStats>({
+    totalSessions: 0,
+    totalStars: 0,
+    averageStars: 0,
+    totalPracticeTime: 0,
+  });
   const carouselRef = useRef<HTMLDivElement>(null);
 
   // Get levels at or below user's level for filtering
@@ -565,6 +599,27 @@ export default function HomePage() {
     fetchLessons();
   }, [userDocument?.level]);
 
+  // Fetch user stats from Firestore
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (!user?.uid) return;
+
+      try {
+        const stats = await getUserStarStats(user.uid);
+        setUserStats({
+          totalSessions: stats.totalSessions,
+          totalStars: stats.totalStars,
+          averageStars: stats.averageStars,
+          totalPracticeTime: stats.totalPracticeTime,
+        });
+      } catch (error) {
+        console.error('Error fetching user stats:', error);
+      }
+    };
+
+    fetchStats();
+  }, [user?.uid]);
+
   // Filter lessons by category
   const filteredLessons = activeCategory === "All"
     ? lessons
@@ -596,11 +651,15 @@ export default function HomePage() {
       id: lesson.id,
       name: lesson.title,
       icon: '📚',
-      scenario: lesson.description,
+      scenario: lesson.description, // Short description for display
+      systemPrompt: lesson.systemPrompt, // Full prompt for Gemini
       persona: 'actor' as const,
-      tone: 'friendly',
+      tone: lesson.tone || 'friendly',
       level: lesson.level,
       color: '#8B5CF6',
+      durationMinutes: lesson.durationMinutes,
+      functionCallingEnabled: lesson.functionCallingEnabled ?? true,
+      functionCallingInstructions: lesson.functionCallingInstructions,
     };
     sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
 
@@ -752,7 +811,7 @@ export default function HomePage() {
               fontWeight: '700',
               color: AppColors.textPrimary,
             }}>
-              12
+              {userStats.totalSessions}
             </div>
             <div style={{
               fontSize: 'clamp(10px, 2.5vw, 13px)',
@@ -775,14 +834,14 @@ export default function HomePage() {
               fontWeight: '700',
               color: AppColors.successGreen,
             }}>
-              847
+              {Math.floor(userStats.totalPracticeTime / 60)}
             </div>
             <div style={{
               fontSize: 'clamp(10px, 2.5vw, 13px)',
               color: AppColors.textSecondary,
               marginTop: '4px',
             }}>
-              Words Spoken
+              Minutes Practiced
             </div>
           </div>
 
@@ -798,7 +857,7 @@ export default function HomePage() {
               fontWeight: '700',
               color: AppColors.whisperAmber,
             }}>
-              42
+              {userStats.totalStars}
             </div>
             <div style={{
               fontSize: 'clamp(10px, 2.5vw, 13px)',

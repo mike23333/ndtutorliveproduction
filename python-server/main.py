@@ -110,6 +110,20 @@ async def create_token(request: TokenRequest):
         )
 
         print(f"[Token] Created token for user {request.userId}", flush=True)
+        if request.systemPrompt:
+            print(f"[Token] System prompt length: {len(request.systemPrompt)} chars", flush=True)
+            print(f"[Token] System prompt (first 300 chars): {request.systemPrompt[:300]}...", flush=True)
+            # Check if function calling instructions are included
+            if "FUNCTION CALLING" in request.systemPrompt:
+                print(f"[Token] ✅ Function calling instructions INCLUDED", flush=True)
+                # Show function calling section
+                fc_index = request.systemPrompt.find("# FUNCTION CALLING")
+                if fc_index >= 0:
+                    print(f"[Token] Function calling section: {request.systemPrompt[fc_index:fc_index+500]}...", flush=True)
+            else:
+                print(f"[Token] ⚠️ WARNING: No function calling instructions in prompt!", flush=True)
+        else:
+            print(f"[Token] ❌ WARNING: No system prompt provided!", flush=True)
 
         return TokenResponse(
             token=ephemeral_token.token,

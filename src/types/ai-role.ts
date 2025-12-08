@@ -58,6 +58,11 @@ export interface AIRole {
   id: string;
 
   /**
+   * Mission ID for tracking (from Firestore mission document)
+   */
+  missionId?: string;
+
+  /**
    * Display name for the role
    */
   name: string;
@@ -111,6 +116,21 @@ export interface AIRole {
    * Background color for the role card
    */
   color?: string;
+
+  /**
+   * Whether function calling is enabled for this role
+   */
+  functionCallingEnabled?: boolean;
+
+  /**
+   * Custom function calling instructions (uses default if not provided)
+   */
+  functionCallingInstructions?: string;
+
+  /**
+   * Session duration limit in minutes
+   */
+  durationMinutes?: number;
 
   /**
    * Creation timestamp

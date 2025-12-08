@@ -25,7 +25,7 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
   scenario,
   tone,
   level,
-  progress,
+  progress: _progress, // Reserved for future progress bar feature
   icon,
   isConnected,
   isConnecting,
@@ -136,22 +136,6 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
       </button>
     </div>
 
-    {/* Progress bar */}
-    <div style={{
-      width: '100%',
-      height: '6px',
-      backgroundColor: AppColors.surfaceMedium,
-      borderRadius: '999px',
-      overflow: 'hidden',
-    }}>
-      <div style={{
-        height: '100%',
-        width: `${progress}%`,
-        backgroundColor: AppColors.successGreen,
-        borderRadius: '999px',
-        transition: 'width 0.3s ease',
-      }}/>
-    </div>
   </div>
 );
 
