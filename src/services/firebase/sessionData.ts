@@ -25,6 +25,7 @@ import type {
   StruggleDocument,
   UserProfileDocument,
   SessionSummaryDocument,
+  ReviewLessonDocument,
 } from '../../types/firestore';
 
 // ==================== STRUGGLE ITEMS ====================
@@ -61,6 +62,7 @@ export const saveStruggleItem = async (
     reviewCount: 0,
     lastReviewedAt: null,
     mastered: false,
+    includedInReviews: [],
   };
 
   await setDoc(struggleRef, struggle);
@@ -392,4 +394,110 @@ export const getUserStarStats = async (
     totalPracticeTime: data.totalPracticeTime || 0,
     lastSessionAt: data.lastSessionAt?.toDate() || null,
   };
+};
+
+// ==================== REVIEW LESSONS ====================
+
+/**
+ * Get the most recent ready review lesson for a user
+ * Used by HomePage to display the WeeklyReviewCard
+ */
+export const getActiveReviewLesson = async (
+  userId: string
+): Promise<ReviewLessonDocument | null> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const { where, limit: lim } = await import('firebase/firestore');
+  const reviewsRef = collection(db, `users/${userId}/reviewLessons`);
+
+  const q = query(
+    reviewsRef,
+    where('status', '==', 'ready'),
+    orderBy('createdAt', 'desc'),
+    lim(1)
+  );
+
+  const snapshot = await getDocs(q);
+  if (snapshot.empty) return null;
+
+  return snapshot.docs[0].data() as ReviewLessonDocument;
+};
+
+/**
+ * Get all pending/ready review lessons for a user
+ */
+export const getPendingReviewLessons = async (
+  userId: string
+): Promise<ReviewLessonDocument[]> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const { where } = await import('firebase/firestore');
+  const reviewsRef = collection(db, `users/${userId}/reviewLessons`);
+
+  const q = query(
+    reviewsRef,
+    where('status', 'in', ['pending', 'ready']),
+    orderBy('createdAt', 'desc')
+  );
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map((doc) => doc.data() as ReviewLessonDocument);
+};
+
+/**
+ * Mark a review lesson as completed
+ * Called when user finishes a review session
+ */
+export const completeReviewLesson = async (
+  userId: string,
+  reviewId: string,
+  sessionId: string,
+  stars: number
+): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const reviewRef = doc(db, `users/${userId}/reviewLessons`, reviewId);
+
+  await updateDoc(reviewRef, {
+    status: 'completed',
+    completedAt: Timestamp.now(),
+    sessionId,
+    stars,
+  });
+
+  console.log('[SessionData] Marked review lesson as completed:', reviewId, 'with', stars, 'stars');
+};
+
+/**
+ * Skip a review lesson
+ * Called when user chooses to skip this week's review
+ */
+export const skipReviewLesson = async (
+  userId: string,
+  reviewId: string
+): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const reviewRef = doc(db, `users/${userId}/reviewLessons`, reviewId);
+
+  await updateDoc(reviewRef, {
+    status: 'skipped',
+  });
+
+  console.log('[SessionData] Skipped review lesson:', reviewId);
+};
+
+/**
+ * Get a specific review lesson by ID
+ */
+export const getReviewLesson = async (
+  userId: string,
+  reviewId: string
+): Promise<ReviewLessonDocument | null> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const reviewRef = doc(db, `users/${userId}/reviewLessons`, reviewId);
+  const snapshot = await getDoc(reviewRef);
+
+  return snapshot.exists() ? (snapshot.data() as ReviewLessonDocument) : null;
 };

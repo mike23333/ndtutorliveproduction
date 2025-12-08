@@ -11,6 +11,7 @@ import { AppColors, gradientBackground } from '../theme/colors';
 import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
 import { useUserId } from '../hooks/useAuth';
+import { completeReviewLesson } from '../services/firebase/sessionData';
 import type { AIRole, StudentLevel, ToneType, PersonaType } from '../types/ai-role';
 import { LEVEL_CONFIGS } from '../types/ai-role';
 
@@ -53,6 +54,9 @@ interface RoleConfig {
   durationMinutes?: number;
   functionCallingEnabled?: boolean;
   functionCallingInstructions?: string;
+  // Weekly review fields
+  isReviewLesson?: boolean;
+  reviewId?: string;
 }
 
 // Message type for chat display
@@ -208,9 +212,24 @@ export default function ChatPage() {
   }, [triggerSessionEnd]);
 
   // Handle continue after summary - navigate home
-  const handleSummaryContinue = useCallback(() => {
+  const handleSummaryContinue = useCallback(async () => {
     setShowSummary(false);
     clearSessionSummary();
+
+    // If this is a review lesson, mark it as completed
+    if (roleConfig?.isReviewLesson && roleConfig?.reviewId && userId && sessionSummary) {
+      try {
+        // Extract stars from summary (the AI gives a 1-5 rating)
+        const stars = sessionSummary.stars || 3;
+        // Generate a session ID for tracking
+        const sessionId = `review-session-${Date.now()}`;
+        await completeReviewLesson(userId, roleConfig.reviewId, sessionId, stars);
+        console.log('[ChatPage] Review lesson completed:', roleConfig.reviewId);
+      } catch (error) {
+        console.error('[ChatPage] Error completing review lesson:', error);
+      }
+    }
+
     // Save session data before navigating
     const sessionData = {
       roleConfig,
@@ -221,7 +240,7 @@ export default function ChatPage() {
     };
     sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
     navigate('/');
-  }, [clearSessionSummary, navigate, messages, roleConfig, sessionDuration, sessionSummary]);
+  }, [clearSessionSummary, navigate, messages, roleConfig, sessionDuration, sessionSummary, userId]);
 
   // Derive connection state for LiveButton
   const getConnectionState = (): 'disconnected' | 'connecting' | 'listening' | 'ai_speaking' | 'muted' | 'paused' => {

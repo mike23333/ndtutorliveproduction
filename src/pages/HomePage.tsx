@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { PlayIcon, ClockIcon, StarIcon, SearchIcon, UserIcon, FireIcon } from '../theme/icons';
 import { getAllActiveMissions } from '../services/firebase/missions';
-import { getUserStarStats } from '../services/firebase/sessionData';
-import { MissionDocument, ProficiencyLevel } from '../types/firestore';
+import { getUserStarStats, getActiveReviewLesson } from '../services/firebase/sessionData';
+import { MissionDocument, ProficiencyLevel, ReviewLessonDocument } from '../types/firestore';
 import { useAuth } from '../hooks/useAuth';
+import { WeeklyReviewCard } from '../components/WeeklyReviewCard';
 
 // User stats from Firestore
 interface UserStats {
@@ -555,6 +556,7 @@ export default function HomePage() {
     averageStars: 0,
     totalPracticeTime: 0,
   });
+  const [activeReview, setActiveReview] = useState<ReviewLessonDocument | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   // Get levels at or below user's level for filtering
@@ -620,6 +622,24 @@ export default function HomePage() {
     fetchStats();
   }, [user?.uid]);
 
+  // Fetch active weekly review
+  useEffect(() => {
+    const fetchReview = async () => {
+      if (!user?.uid) return;
+
+      console.log('[HomePage] Fetching review for user:', user.uid);
+      try {
+        const review = await getActiveReviewLesson(user.uid);
+        console.log('[HomePage] Review fetched:', review);
+        setActiveReview(review);
+      } catch (error) {
+        console.error('[HomePage] Error fetching active review:', error);
+      }
+    };
+
+    fetchReview();
+  }, [user?.uid]);
+
   // Filter lessons by category
   const filteredLessons = activeCategory === "All"
     ? lessons
@@ -665,6 +685,34 @@ export default function HomePage() {
 
     // Navigate to the chat page
     navigate(`/chat/${lesson.id}`);
+  };
+
+  // Handle review lesson click
+  const handleReviewClick = () => {
+    if (!activeReview) return;
+
+    // Store role config in session storage for ChatPage
+    // The generatedPrompt becomes the systemPrompt for the review conversation
+    const roleConfig = {
+      id: `review-${activeReview.id}`,
+      name: 'Weekly Review',
+      icon: '✨',
+      scenario: `Practice conversation with your struggle words from this week`,
+      systemPrompt: activeReview.generatedPrompt,
+      persona: 'tutor' as const,
+      tone: 'encouraging',
+      level: activeReview.userLevel,
+      color: '#8B5CF6',
+      durationMinutes: activeReview.estimatedMinutes,
+      functionCallingEnabled: true,
+      // Mark this as a review lesson for completion tracking
+      isReviewLesson: true,
+      reviewId: activeReview.id,
+    };
+    sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
+
+    // Navigate to the chat page with review ID
+    navigate(`/chat/review-${activeReview.id}`);
   };
 
   return (
@@ -713,6 +761,14 @@ export default function HomePage() {
       >
         {/* Header */}
         <Header userName={userDocument?.displayName || user?.displayName || 'Learner'} streakDays={7} />
+
+        {/* Weekly Review Card - shown prominently when available */}
+        {activeReview && (
+          <WeeklyReviewCard
+            review={activeReview}
+            onClick={handleReviewClick}
+          />
+        )}
 
         {/* Continue Learning */}
         {lessons.length > 0 && (

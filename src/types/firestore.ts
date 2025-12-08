@@ -254,6 +254,7 @@ export interface StruggleDocument {
   reviewCount: number;
   lastReviewedAt: Timestamp | null;
   mastered: boolean;
+  includedInReviews: string[]; // Array of review IDs this struggle was included in
 }
 
 /**
@@ -293,4 +294,40 @@ export interface SessionSummaryDocument {
   encouragement?: string;
   durationSeconds: number;
   createdAt: Timestamp;
+}
+
+/**
+ * Review Lesson Document
+ * Collection: users/{userId}/reviewLessons
+ * Generated weekly for personalized review practice based on student struggles
+ */
+export interface ReviewLessonDocument {
+  id: string;
+  userId: string;
+  weekStart: string; // ISO date (YYYY-MM-DD) for deduplication
+  status: 'pending' | 'ready' | 'completed' | 'skipped';
+  generatedPrompt: string; // Level-aware system prompt for Gemini Live API
+  targetStruggles: string[]; // Array of struggle IDs included
+  struggleWords: string[]; // Words/phrases for UI display
+  userLevel: ProficiencyLevel; // Student's level when review was generated
+  estimatedMinutes: number; // Usually 5
+  createdAt: Timestamp;
+  completedAt: Timestamp | null;
+  sessionId: string | null; // Session ID when completed
+  stars: number | null; // Stars earned upon completion (1-5)
+}
+
+/**
+ * System Template Document
+ * Collection: systemTemplates
+ * Stores editable system-wide templates (e.g., weekly review meta-prompt)
+ */
+export interface SystemTemplateDocument {
+  id: string;
+  name: string;
+  description?: string;
+  template: string; // Template with placeholders like {{level}}, {{struggles}}
+  placeholders: string[]; // List of available placeholders for UI
+  updatedAt: Timestamp;
+  updatedBy: string; // User ID of last editor
 }

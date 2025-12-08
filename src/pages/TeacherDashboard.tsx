@@ -17,7 +17,13 @@ import {
   TrashIcon,
   CopyIcon,
   ArrowLeftIcon,
+  SettingsIcon,
 } from '../theme/icons';
+import {
+  getWeeklyReviewTemplate,
+  updateWeeklyReviewTemplate,
+} from '../services/firebase/systemTemplates';
+import type { SystemTemplateDocument } from '../types/firestore';
 import { uploadLessonImage, validateImageFile, deleteLessonImage } from '../services/firebase/storage';
 import {
   getPromptTemplatesForTeacher,
@@ -571,13 +577,19 @@ const TabButton: React.FC<TabButtonProps> = ({ label, isActive, onClick, icon })
 const TeacherDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'lessons' | 'analytics'>('lessons');
+  const [activeTab, setActiveTab] = useState<'lessons' | 'analytics' | 'templates'>('lessons');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [lessons, setLessons] = useState<LessonData[]>([]);
   const [_loading, setLoading] = useState(true); // TODO: Add loading indicator
   const [saving, setSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  // System template state
+  const [reviewTemplate, setReviewTemplate] = useState<SystemTemplateDocument | null>(null);
+  const [editedTemplate, setEditedTemplate] = useState<string>('');
+  const [templateLoading, setTemplateLoading] = useState(false);
+  const [templateSaving, setTemplateSaving] = useState(false);
 
   // Form state - New simplified structure
   const [title, setTitle] = useState('');
@@ -635,6 +647,43 @@ const TeacherDashboard: React.FC = () => {
 
     fetchTemplates();
   }, [user?.uid]);
+
+  // Fetch weekly review template when templates tab is active
+  useEffect(() => {
+    const fetchReviewTemplate = async () => {
+      if (activeTab !== 'templates') return;
+
+      setTemplateLoading(true);
+      try {
+        const template = await getWeeklyReviewTemplate();
+        setReviewTemplate(template);
+        setEditedTemplate(template.template);
+      } catch (error) {
+        console.error('Error fetching review template:', error);
+      } finally {
+        setTemplateLoading(false);
+      }
+    };
+
+    fetchReviewTemplate();
+  }, [activeTab]);
+
+  // Save weekly review template
+  const handleSaveReviewTemplate = async () => {
+    if (!user?.uid || !editedTemplate.trim()) return;
+
+    setTemplateSaving(true);
+    try {
+      await updateWeeklyReviewTemplate(editedTemplate, user.uid);
+      setReviewTemplate(prev => prev ? { ...prev, template: editedTemplate } : prev);
+      alert('Template saved successfully!');
+    } catch (error) {
+      console.error('Error saving template:', error);
+      alert('Failed to save template. Please try again.');
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
 
   // Handle template selection
   const handleTemplateSelect = (templateId: string) => {
@@ -906,6 +955,12 @@ const TeacherDashboard: React.FC = () => {
             onClick={() => setActiveTab('analytics')}
             icon={<BarChartIcon size={16} />}
           />
+          <TabButton
+            label="Templates"
+            isActive={activeTab === 'templates'}
+            onClick={() => setActiveTab('templates')}
+            icon={<SettingsIcon size={16} />}
+          />
         </div>
 
         {/* Class Pulse Section */}
@@ -988,6 +1043,196 @@ const TeacherDashboard: React.FC = () => {
             <p style={{ fontSize: 'clamp(13px, 2.8vw, 14px)', color: AppColors.textSecondary }}>
               Track student progress, completion rates, and vocabulary mastery
             </p>
+          </div>
+        )}
+
+        {/* Templates Tab Content */}
+        {activeTab === 'templates' && (
+          <div>
+            <h2
+              style={{
+                fontSize: 'clamp(16px, 3.5vw, 18px)',
+                fontWeight: 600,
+                marginBottom: 'clamp(12px, 3vw, 16px)',
+              }}
+            >
+              System Templates
+            </h2>
+
+            {/* Weekly Review Meta-Prompt Editor */}
+            <div
+              style={{
+                background: AppColors.surfaceLight,
+                borderRadius: 'clamp(12px, 3vw, 16px)',
+                padding: 'clamp(16px, 4vw, 24px)',
+                marginBottom: 'clamp(16px, 4vw, 20px)',
+              }}
+            >
+              <div style={{ marginBottom: 'clamp(12px, 3vw, 16px)' }}>
+                <h3
+                  style={{
+                    fontSize: 'clamp(14px, 3vw, 16px)',
+                    fontWeight: 600,
+                    margin: '0 0 clamp(4px, 1vw, 6px) 0',
+                    color: AppColors.textPrimary,
+                  }}
+                >
+                  Weekly Review Generation Prompt
+                </h3>
+                <p
+                  style={{
+                    fontSize: 'clamp(12px, 2.5vw, 13px)',
+                    color: AppColors.textSecondary,
+                    margin: 0,
+                  }}
+                >
+                  This template is sent to Gemini to generate personalized weekly review conversations for students.
+                </p>
+              </div>
+
+              {/* Placeholder info */}
+              <div
+                style={{
+                  background: 'rgba(139, 92, 246, 0.1)',
+                  borderRadius: 'clamp(8px, 2vw, 10px)',
+                  padding: 'clamp(10px, 2.5vw, 14px)',
+                  marginBottom: 'clamp(12px, 3vw, 16px)',
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 'clamp(11px, 2.2vw, 12px)',
+                    color: AppColors.accentPurple,
+                    margin: '0 0 clamp(6px, 1.5vw, 8px) 0',
+                    fontWeight: 600,
+                  }}
+                >
+                  Available Placeholders:
+                </p>
+                <div style={{ display: 'flex', gap: 'clamp(6px, 1.5vw, 10px)', flexWrap: 'wrap' }}>
+                  <code
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: 'clamp(11px, 2.2vw, 12px)',
+                      color: AppColors.textPrimary,
+                    }}
+                  >
+                    {'{{level}}'}
+                  </code>
+                  <span style={{ fontSize: 'clamp(11px, 2.2vw, 12px)', color: AppColors.textSecondary }}>
+                    Student's CEFR level (A1-C2)
+                  </span>
+                </div>
+                <div style={{ display: 'flex', gap: 'clamp(6px, 1.5vw, 10px)', flexWrap: 'wrap', marginTop: '6px' }}>
+                  <code
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      fontSize: 'clamp(11px, 2.2vw, 12px)',
+                      color: AppColors.textPrimary,
+                    }}
+                  >
+                    {'{{struggles}}'}
+                  </code>
+                  <span style={{ fontSize: 'clamp(11px, 2.2vw, 12px)', color: AppColors.textSecondary }}>
+                    List of words the student struggled with
+                  </span>
+                </div>
+              </div>
+
+              {templateLoading ? (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    padding: 'clamp(20px, 5vw, 40px)',
+                    color: AppColors.textSecondary,
+                  }}
+                >
+                  Loading template...
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    value={editedTemplate}
+                    onChange={(e) => setEditedTemplate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      minHeight: 'clamp(250px, 40vh, 400px)',
+                      background: AppColors.surfaceMedium,
+                      border: `1px solid ${AppColors.borderColor}`,
+                      borderRadius: 'clamp(8px, 2vw, 12px)',
+                      padding: 'clamp(12px, 3vw, 16px)',
+                      color: AppColors.textPrimary,
+                      fontSize: 'clamp(12px, 2.5vw, 14px)',
+                      fontFamily: 'monospace',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                      lineHeight: 1.5,
+                    }}
+                  />
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginTop: 'clamp(12px, 3vw, 16px)',
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 'clamp(11px, 2.2vw, 12px)',
+                        color: AppColors.textSecondary,
+                      }}
+                    >
+                      {reviewTemplate?.updatedBy && (
+                        <>Last updated by: {reviewTemplate.updatedBy}</>
+                      )}
+                    </span>
+
+                    <div style={{ display: 'flex', gap: 'clamp(8px, 2vw, 12px)' }}>
+                      <button
+                        onClick={() => setEditedTemplate(reviewTemplate?.template || '')}
+                        disabled={editedTemplate === reviewTemplate?.template}
+                        style={{
+                          padding: 'clamp(8px, 2vw, 12px) clamp(16px, 4vw, 24px)',
+                          background: AppColors.surfaceMedium,
+                          border: `1px solid ${AppColors.borderColor}`,
+                          borderRadius: 'clamp(8px, 2vw, 10px)',
+                          color: AppColors.textSecondary,
+                          fontSize: 'clamp(13px, 2.8vw, 14px)',
+                          fontWeight: 500,
+                          cursor: editedTemplate === reviewTemplate?.template ? 'not-allowed' : 'pointer',
+                          opacity: editedTemplate === reviewTemplate?.template ? 0.5 : 1,
+                        }}
+                      >
+                        Reset
+                      </button>
+                      <button
+                        onClick={handleSaveReviewTemplate}
+                        disabled={templateSaving || editedTemplate === reviewTemplate?.template}
+                        style={{
+                          padding: 'clamp(8px, 2vw, 12px) clamp(16px, 4vw, 24px)',
+                          background: `linear-gradient(135deg, ${AppColors.accentPurple} 0%, ${AppColors.accentBlue} 100%)`,
+                          border: 'none',
+                          borderRadius: 'clamp(8px, 2vw, 10px)',
+                          color: AppColors.textDark,
+                          fontSize: 'clamp(13px, 2.8vw, 14px)',
+                          fontWeight: 600,
+                          cursor: templateSaving || editedTemplate === reviewTemplate?.template ? 'not-allowed' : 'pointer',
+                          opacity: templateSaving || editedTemplate === reviewTemplate?.template ? 0.7 : 1,
+                        }}
+                      >
+                        {templateSaving ? 'Saving...' : 'Save Template'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
