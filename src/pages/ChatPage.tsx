@@ -30,6 +30,9 @@ import {
 import { SessionTimerCompact } from '../components/chat/SessionTimer';
 import { StarAnimation } from '../components/chat/StarAnimation';
 
+// Badge components
+import { BadgeEarnedModal } from '../components/badges';
+
 // Role icons mapping
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   barista: <CoffeeIcon />,
@@ -63,6 +66,8 @@ interface RoleConfig {
   customLessonId?: string;
   // Quick practice (pronunciation coach) - no stats tracking
   isQuickPractice?: boolean;
+  // Cost tracking
+  teacherId?: string;
 }
 
 // Message type for chat display
@@ -85,6 +90,8 @@ function convertToAIRole(config: RoleConfig, targetVocab: string[]): AIRole {
 
   return {
     id: config.id,
+    missionId: config.id, // Mission ID for session tracking
+    teacherId: config.teacherId, // Teacher ID for cost tracking
     name: config.name,
     persona: config.persona as PersonaType,
     systemPrompt,
@@ -145,14 +152,17 @@ export default function ChatPage() {
     isPaused,
     messages: geminiMessages,
     sessionSummary,
+    newBadges,
     reconnect,
     triggerSessionEnd,
     clearSessionSummary,
+    clearNewBadges,
     sendTextMessage,
   } = useGeminiChat(aiRole || undefined, userId || undefined);
 
   // Session timer state
   const [showSummary, setShowSummary] = useState(false);
+  const [showBadgeModal, setShowBadgeModal] = useState(false);
   const sessionDuration = roleConfig?.durationMinutes || 15;
 
   // Track if we've already sent the initial "Hi" message
@@ -215,6 +225,13 @@ export default function ChatPage() {
     }
   }, [sessionSummary]);
 
+  // Show badge modal when new badges are earned (after summary closes)
+  useEffect(() => {
+    if (newBadges.length > 0 && !showSummary) {
+      setShowBadgeModal(true);
+    }
+  }, [newBadges, showSummary]);
+
   // Auto-send "Hi" when connection is established
   // This triggers the AI to start the conversation immediately
   // Also sets currentLesson for "Continue Learning" feature
@@ -252,6 +269,12 @@ export default function ChatPage() {
     console.log('[ChatPage] Timer ended, triggering session summary');
     triggerSessionEnd();
   }, [triggerSessionEnd]);
+
+  // Handle badge modal close
+  const handleBadgeModalClose = useCallback(() => {
+    setShowBadgeModal(false);
+    clearNewBadges();
+  }, [clearNewBadges]);
 
   // Handle continue after summary - navigate home
   const handleSummaryContinue = useCallback(async () => {
@@ -449,6 +472,14 @@ export default function ChatPage() {
           summary={sessionSummary}
           onContinue={handleSummaryContinue}
           isVisible={showSummary}
+        />
+      )}
+
+      {/* Badge Earned Modal - shows after summary closes */}
+      {showBadgeModal && newBadges.length > 0 && (
+        <BadgeEarnedModal
+          badges={newBadges}
+          onClose={handleBadgeModalClose}
         />
       )}
     </div>

@@ -8,6 +8,9 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
 import LevelSelectPage from './pages/LevelSelectPage';
+import JoinClassPage from './pages/JoinClassPage';
+import ProfilePage from './pages/ProfilePage';
+import BadgesPage from './pages/BadgesPage';
 
 function App() {
   return (
@@ -21,6 +24,12 @@ function App() {
               <Route path="/signup" element={<SignUpPage />} />
 
               {/* Protected routes - require auth */}
+              <Route path="/join-class" element={
+                <ProtectedRoute>
+                  <JoinClassPage />
+                </ProtectedRoute>
+              } />
+
               <Route path="/select-level" element={
                 <ProtectedRoute>
                   <LevelSelectPage />
@@ -46,6 +55,18 @@ function App() {
               <Route path="/teacher" element={
                 <ProtectedRoute allowedRoles={['teacher', 'admin']}>
                   <TeacherDashboard />
+                </ProtectedRoute>
+              } />
+
+              {/* Profile and Badges routes */}
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              } />
+              <Route path="/badges" element={
+                <ProtectedRoute>
+                  <BadgesPage />
                 </ProtectedRoute>
               } />
             </Routes>

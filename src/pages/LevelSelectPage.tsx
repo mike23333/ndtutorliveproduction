@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { useAuth } from '../hooks/useAuth';
 import { updateUserProfile } from '../services/firebase/auth';
+import { checkAndAwardBadges } from '../services/firebase/badges';
 import { ProficiencyLevel } from '../types/firestore';
 
 interface LevelOption {
@@ -74,6 +75,12 @@ const LevelSelectPage: React.FC = () => {
 
     try {
       await updateUserProfile(user.uid, { level: selectedLevel });
+
+      // Check and award level badges (e.g., if user selects B2, award A2 and B1 badges)
+      checkAndAwardBadges(user.uid, 'level_changed').catch((err) => {
+        console.warn('[LevelSelect] Error checking badges:', err);
+      });
+
       navigate('/');
     } catch (err: any) {
       setError(err.message || 'Failed to save your level');
@@ -85,14 +92,19 @@ const LevelSelectPage: React.FC = () => {
   return (
     <div
       style={{
-        minHeight: '100vh',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         background: gradientBackground,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
         padding: 'clamp(16px, 4vw, 24px)',
+        paddingTop: 'clamp(24px, 6vw, 48px)',
         fontFamily: 'system-ui, -apple-system, sans-serif',
+        overflowY: 'auto',
       }}
     >
       <div

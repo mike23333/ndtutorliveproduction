@@ -8,6 +8,7 @@ import {
   SparklesIcon,
   ArrowLeftIcon,
   SettingsIcon,
+  UserIcon,
 } from '../theme/icons';
 
 // Hooks
@@ -24,6 +25,7 @@ import {
   LessonFormModal,
   SaveTemplateModal,
   LessonsTab,
+  StudentsTab,
   AnalyticsTab,
   TemplatesTab,
 } from '../components/dashboard';
@@ -33,10 +35,20 @@ import type { TabType, LessonData } from '../types/dashboard';
 
 const TeacherDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userDocument } = useAuth();
 
   // Tab state
   const [activeTab, setActiveTab] = useState<TabType>('lessons');
+
+  // Class code state (can be updated when regenerated)
+  const [classCode, setClassCode] = useState<string | undefined>(undefined);
+
+  // Initialize classCode from userDocument
+  React.useEffect(() => {
+    if (userDocument?.classCode) {
+      setClassCode(userDocument.classCode);
+    }
+  }, [userDocument?.classCode]);
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -306,6 +318,12 @@ const TeacherDashboard: React.FC = () => {
             icon={<SparklesIcon size={16} />}
           />
           <TabButton
+            label="Students"
+            isActive={activeTab === 'students'}
+            onClick={() => setActiveTab('students')}
+            icon={<UserIcon size={16} />}
+          />
+          <TabButton
             label="Analytics"
             isActive={activeTab === 'analytics'}
             onClick={() => setActiveTab('analytics')}
@@ -335,6 +353,14 @@ const TeacherDashboard: React.FC = () => {
             onEdit={handleEditLesson}
             onDelete={handleDeleteLesson}
             onDuplicate={handleDuplicateLesson}
+          />
+        )}
+
+        {activeTab === 'students' && user && (
+          <StudentsTab
+            teacherId={user.uid}
+            classCode={classCode}
+            onClassCodeRegenerated={setClassCode}
           />
         )}
 
@@ -392,6 +418,7 @@ const TeacherDashboard: React.FC = () => {
         onTitleChange={lessonForm.setTitle}
         onSystemPromptChange={lessonForm.setSystemPrompt}
         onDurationChange={lessonForm.setDurationMinutes}
+        onTargetLevelChange={lessonForm.setTargetLevel}
         onImageUpload={lessonForm.setImage}
         onImageRemove={lessonForm.clearImage}
         teacherId={user?.uid || 'anonymous'}

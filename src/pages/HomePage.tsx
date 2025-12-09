@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { PlayIcon, ClockIcon, StarIcon, SearchIcon, UserIcon, FireIcon } from '../theme/icons';
-import { getAllActiveMissions } from '../services/firebase/missions';
+import { getMissionsForStudent } from '../services/firebase/students';
 import { getUserStarStats, getActiveReviewLesson } from '../services/firebase/sessionData';
 import { getPronunciationCoachTemplate } from '../services/firebase/systemTemplates';
 import { MissionDocument, ProficiencyLevel, ReviewLessonDocument, CustomLessonDocument } from '../types/firestore';
@@ -45,6 +45,8 @@ interface Lesson {
   functionCallingEnabled?: boolean;
   functionCallingInstructions?: string;
   tone?: string;
+  // Cost tracking
+  teacherId?: string;
 }
 
 // Convert MissionDocument to Lesson display format
@@ -82,6 +84,8 @@ const missionToLesson = (mission: MissionDocument, index: number): Lesson => {
     functionCallingEnabled: mission.functionCallingEnabled,
     functionCallingInstructions: mission.functionCallingInstructions,
     tone: mission.tone,
+    // Cost tracking
+    teacherId: mission.teacherId,
   };
 };
 
@@ -406,7 +410,7 @@ const PaginationDots = ({ total, current, onChange }: { total: number; current: 
 );
 
 // Header component
-const Header = ({ userName, streakDays }: { userName: string; streakDays: number }) => (
+const Header = ({ userName, streakDays, onProfileClick }: { userName: string; streakDays: number; onProfileClick: () => void }) => (
   <div style={{
     display: 'flex',
     alignItems: 'center',
@@ -451,18 +455,21 @@ const Header = ({ userName, streakDays }: { userName: string; streakDays: number
       </div>
 
       {/* Profile */}
-      <button style={{
-        width: 'clamp(38px, 10vw, 48px)',
-        height: 'clamp(38px, 10vw, 48px)',
-        borderRadius: '50%',
-        border: `2px solid ${AppColors.borderColor}`,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        color: AppColors.textSecondary,
-        cursor: 'pointer',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}>
+      <button
+        onClick={onProfileClick}
+        style={{
+          width: 'clamp(38px, 10vw, 48px)',
+          height: 'clamp(38px, 10vw, 48px)',
+          borderRadius: '50%',
+          border: `2px solid ${AppColors.borderColor}`,
+          backgroundColor: 'rgba(255,255,255,0.1)',
+          color: AppColors.textSecondary,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <UserIcon size={20} />
       </button>
     </div>
@@ -596,33 +603,62 @@ export default function HomePage() {
 
   const userLevelFilter = getLevelFilter(userDocument?.level);
 
-  // Fetch lessons from Firestore on mount
+  // Redirect students without teacherId to join class page
+  useEffect(() => {
+    if (userDocument && userDocument.role === 'student') {
+      if (!userDocument.teacherId) {
+        navigate('/join-class');
+        return;
+      }
+      if (!userDocument.level) {
+        navigate('/select-level');
+        return;
+      }
+    }
+  }, [userDocument, navigate]);
+
+  // Fetch lessons from Firestore based on student's teacher
   useEffect(() => {
     const fetchLessons = async () => {
-      try {
-        const missions = await getAllActiveMissions();
-        if (missions.length > 0) {
-          let fetchedLessons = missions.map(missionToLesson);
+      // For students, fetch from their assigned teacher
+      if (userDocument?.role === 'student' && userDocument.teacherId) {
+        try {
+          const missions = await getMissionsForStudent(userDocument.teacherId, userDocument.level);
+          if (missions.length > 0) {
+            let fetchedLessons = missions.map(missionToLesson);
 
-          // Filter by user level if set
-          if (userDocument?.level && userLevelFilter.length > 0) {
-            fetchedLessons = fetchedLessons.filter(lesson =>
-              userLevelFilter.includes(lesson.level)
-            );
+            // Additional level filtering if needed
+            if (userDocument.level && userLevelFilter.length > 0) {
+              fetchedLessons = fetchedLessons.filter(lesson =>
+                userLevelFilter.includes(lesson.level)
+              );
+            }
+
+            setLessons(fetchedLessons.length > 0 ? fetchedLessons : fallbackLessons);
+          } else {
+            // No missions from teacher yet, show empty state or fallback
+            setLessons(fallbackLessons);
           }
-
-          setLessons(fetchedLessons.length > 0 ? fetchedLessons : fallbackLessons);
+        } catch (error) {
+          console.error('Error fetching lessons:', error);
+          setLessons(fallbackLessons);
+        } finally {
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Error fetching lessons:', error);
-        // Keep fallback lessons on error
-      } finally {
+      } else if (userDocument?.role === 'teacher' || userDocument?.role === 'admin') {
+        // Teachers/admins don't use HomePage the same way - redirect to dashboard
+        // For now, just show fallback lessons
+        setLoading(false);
+      } else {
+        // Still loading or unknown state
         setLoading(false);
       }
     };
 
-    fetchLessons();
-  }, [userDocument?.level]);
+    if (userDocument) {
+      fetchLessons();
+    }
+  }, [userDocument?.teacherId, userDocument?.level, userDocument?.role]);
 
   // Fetch user stats from Firestore
   useEffect(() => {
@@ -706,6 +742,7 @@ export default function HomePage() {
       functionCallingEnabled: lesson.functionCallingEnabled ?? true,
       functionCallingInstructions: lesson.functionCallingInstructions,
       imageUrl: lesson.image, // For Continue Learning feature
+      teacherId: lesson.teacherId, // For cost tracking
     };
     sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
 
@@ -886,7 +923,11 @@ export default function HomePage() {
         }}
       >
         {/* Header */}
-        <Header userName={userDocument?.displayName || user?.displayName || 'Learner'} streakDays={userStats.currentStreak} />
+        <Header
+          userName={userDocument?.displayName || user?.displayName || 'Learner'}
+          streakDays={userStats.currentStreak}
+          onProfileClick={() => navigate('/profile')}
+        />
 
         {/* Weekly Review Card - shown prominently when available */}
         {activeReview && (

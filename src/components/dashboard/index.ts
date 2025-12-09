@@ -5,5 +5,6 @@ export { ClassPulseSection } from './ClassPulseSection';
 export { LessonFormModal } from './LessonFormModal';
 export { SaveTemplateModal } from './SaveTemplateModal';
 export { LessonsTab } from './LessonsTab';
+export { StudentsTab } from './StudentsTab';
 export { AnalyticsTab } from './AnalyticsTab';
 export { TemplatesTab } from './TemplatesTab';

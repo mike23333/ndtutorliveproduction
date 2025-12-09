@@ -2,6 +2,9 @@
 
 ## Overview
 
+1.) when a person clicks  a lesson (any one include new features below) on the homepage it opens chat. automatically send "hi" to gemini so it responds right when they land on page. search gemini live api docs online before.
+
+
 Two new features for the student homepage:
 1. **Create My Own** - Students create personalized practice lessons
 2. **Pronunciation Coach** - Quick pronunciation practice for specific words
@@ -99,10 +102,6 @@ Help the student practice pronouncing these words clearly: {{words}}
 - Make it feel like practice, not a test
 
 ## AUTONOMOUS TRACKING (Use these functions automatically)
-
-### update_user_profile - Call when:
-- They pronounce a word correctly (log which word they mastered)
-- The session is ending (log overall pronunciation progress)
 
 ### show_session_summary - Call when:
 - They have pronounced ALL words correctly at least once

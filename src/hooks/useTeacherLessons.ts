@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getAllMissions, createMission, updateMission, deleteMission } from '../services/firebase/missions';
+import { getMissionsForTeacher, createMission, updateMission, deleteMission } from '../services/firebase/missions';
+import { useAuth } from './useAuth';
 import type { MissionDocument } from '../types/firestore';
 import type { LessonData, LessonFormData } from '../types/dashboard';
 
@@ -28,19 +29,27 @@ function mapMissionToLesson(mission: MissionDocument): LessonData {
     completionRate: 0,
     studentsCompleted: 0,
     totalStudents: 0,
+    targetLevel: mission.targetLevel || null,
   };
 }
 
 export function useTeacherLessons(): UseTeacherLessonsResult {
+  const { user } = useAuth();
   const [lessons, setLessons] = useState<LessonData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchLessons = useCallback(async () => {
+    if (!user?.uid) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const missions = await getAllMissions();
+      // Only fetch missions for this teacher
+      const missions = await getMissionsForTeacher(user.uid);
       const mappedLessons = missions.map(mapMissionToLesson);
       setLessons(mappedLessons);
     } catch (err) {
@@ -49,7 +58,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user?.uid]);
 
   useEffect(() => {
     fetchLessons();
@@ -67,6 +76,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       scenario: data.systemPrompt.trim(),
       systemPrompt: data.systemPrompt.trim(),
       durationMinutes: data.durationMinutes,
+      targetLevel: data.targetLevel || undefined,
       tone: 'friendly',
       vocabList: [],
       imageUrl: data.imageUrl || undefined,
@@ -92,6 +102,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       updateData.systemPrompt = data.systemPrompt.trim();
     }
     if (data.durationMinutes !== undefined) updateData.durationMinutes = data.durationMinutes;
+    if (data.targetLevel !== undefined) updateData.targetLevel = data.targetLevel;
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
     if (data.imageStoragePath !== undefined) updateData.imageStoragePath = data.imageStoragePath;
 
@@ -106,6 +117,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
             title: data.title?.trim() ?? l.title,
             systemPrompt: data.systemPrompt?.trim() ?? l.systemPrompt,
             durationMinutes: data.durationMinutes ?? l.durationMinutes,
+            targetLevel: data.targetLevel !== undefined ? data.targetLevel : l.targetLevel,
             imageUrl: data.imageUrl ?? l.imageUrl,
           }
         : l
@@ -122,6 +134,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       title: `${lesson.title} (Copy)`,
       systemPrompt: lesson.systemPrompt,
       durationMinutes: lesson.durationMinutes,
+      targetLevel: lesson.targetLevel || null,
       imageUrl: lesson.imageUrl,
       imageStoragePath: null,
     };

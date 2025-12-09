@@ -3,7 +3,7 @@ import { AppColors } from '../../theme/colors';
 import { XIcon } from '../../theme/icons';
 import { InputField, SelectField, ImageUpload } from '../forms';
 import type { LessonFormData } from '../../types/dashboard';
-import type { PromptTemplateDocument } from '../../types/firestore';
+import type { PromptTemplateDocument, ProficiencyLevel } from '../../types/firestore';
 
 interface LessonFormModalProps {
   isOpen: boolean;
@@ -14,6 +14,7 @@ interface LessonFormModalProps {
   onTitleChange: (title: string) => void;
   onSystemPromptChange: (prompt: string) => void;
   onDurationChange: (duration: number) => void;
+  onTargetLevelChange: (level: ProficiencyLevel | null) => void;
   onImageUpload: (url: string, path: string) => void;
   onImageRemove: () => void;
   teacherId: string;
@@ -26,6 +27,16 @@ interface LessonFormModalProps {
   onSaveAsTemplate: () => void;
 }
 
+const LEVEL_OPTIONS = [
+  { value: '', label: 'All Levels (no filter)' },
+  { value: 'A1', label: 'A1 - Beginner' },
+  { value: 'A2', label: 'A2 - Elementary' },
+  { value: 'B1', label: 'B1 - Intermediate' },
+  { value: 'B2', label: 'B2 - Upper Intermediate' },
+  { value: 'C1', label: 'C1 - Advanced' },
+  { value: 'C2', label: 'C2 - Proficient' },
+];
+
 export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   isOpen,
   isEditing,
@@ -35,6 +46,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   onTitleChange,
   onSystemPromptChange,
   onDurationChange,
+  onTargetLevelChange,
   onImageUpload,
   onImageRemove,
   teacherId,
@@ -124,6 +136,14 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           placeholder="e.g., Ordering at a Restaurant"
           value={formData.title}
           onChange={onTitleChange}
+        />
+
+        {/* Target Level Selector */}
+        <SelectField
+          label="Target Student Level"
+          options={LEVEL_OPTIONS}
+          value={formData.targetLevel || ''}
+          onChange={(value) => onTargetLevelChange(value ? value as ProficiencyLevel : null)}
         />
 
         {/* Prompt Template Selector */}

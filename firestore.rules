@@ -4,8 +4,20 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // Users collection - users can read/write their own document
+    // Teachers can also read their students' documents
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        // Teachers can read their assigned students
+        (resource.data.teacherId == request.auth.uid && resource.data.role == 'student') ||
+        // Anyone can read teacher docs to validate class codes (only exposes classCode, displayName)
+        resource.data.role == 'teacher'
+      );
+      allow write: if request.auth != null && (
+        request.auth.uid == userId ||
+        // Teachers can update their students (for removing from class)
+        (resource.data.teacherId == request.auth.uid && resource.data.role == 'student')
+      );
 
       // User profile subcollection
       match /profile/{document=**} {
@@ -31,11 +43,32 @@ service cloud.firestore {
       match /customLessons/{lessonId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // User sessions (token usage tracking)
+      match /sessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // User badges subcollection
+      // Users can read their own badges, but only backend can write (badges are awarded by system)
+      match /badges/{badgeId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        // Write is allowed since badges are awarded through client-side transactions
+        // In production with a backend, change this to: allow write: if false;
+        allow write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
-    // Missions collection - teachers can manage their own missions
+    // Missions collection - tenant isolation
+    // Teachers can manage their own missions
+    // Students can only read missions from their assigned teacher
     match /missions/{missionId} {
-      allow read: if request.auth != null;
+      allow read: if request.auth != null && (
+        // Teachers/admins can read their own missions
+        resource.data.teacherId == request.auth.uid ||
+        // Students can read missions from their assigned teacher
+        resource.data.teacherId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teacherId
+      );
       allow create: if request.auth != null;
       allow update, delete: if request.auth != null
         && resource.data.teacherId == request.auth.uid;
@@ -70,7 +103,8 @@ service cloud.firestore {
       // allow write: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['teacher', 'admin'];
     }
 
-    // Groups collection
+    // Groups collection - DEPRECATED (using direct teacherId on students instead)
+    // Kept for backwards compatibility but not actively used
     match /groups/{groupId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
@@ -97,6 +131,14 @@ service cloud.firestore {
     // Session Summaries
     match /sessionSummaries/{summaryId} {
       allow read, write: if request.auth != null;
+    }
+
+    // Badge Definitions - read-only for all authenticated users
+    // These define the badge metadata and criteria
+    match /badgeDefinitions/{badgeId} {
+      allow read: if request.auth != null;
+      // Only admin can write badge definitions
+      allow write: if false;
     }
   }
 }

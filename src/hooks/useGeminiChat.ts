@@ -29,6 +29,7 @@ import type {
   UpdateUserProfileParams,
   ShowSessionSummaryParams,
 } from '../types/functions';
+import type { BadgeDefinition } from '../types/badges';
 
 export interface ChatMessage {
   id: number;
@@ -65,6 +66,9 @@ export interface UseGeminiChatResult {
   // Session summary (from function call)
   sessionSummary: ShowSessionSummaryParams | null;
 
+  // Newly earned badges (from session completion)
+  newBadges: BadgeDefinition[];
+
   // Session timing
   sessionStartTime: Date | null;
 
@@ -79,6 +83,7 @@ export interface UseGeminiChatResult {
   updateSystemPrompt: (role: AIRole) => void;
   triggerSessionEnd: () => void;
   clearSessionSummary: () => void;
+  clearNewBadges: () => void;
 }
 
 export function useGeminiChat(
@@ -113,6 +118,9 @@ export function useGeminiChat(
 
   // Session summary state (from show_session_summary function call)
   const [sessionSummary, setSessionSummary] = useState<ShowSessionSummaryParams | null>(null);
+
+  // Newly earned badges state
+  const [newBadges, setNewBadges] = useState<BadgeDefinition[]>([]);
 
   // Session timing
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
@@ -276,15 +284,21 @@ export function useGeminiChat(
               ? Math.floor((Date.now() - sessionStartTime.getTime()) / 1000)
               : 0;
 
-            // Save to Firestore
+            // Save to Firestore and check for badges
             if (sessionIdRef.current) {
-              await saveSessionSummary(
+              const result = await saveSessionSummary(
                 sessionIdRef.current,
                 userIdRef.current,
                 missionIdRef.current || '',
                 durationSeconds,
                 params
               );
+
+              // Set newly earned badges if any
+              if (result.newBadges.length > 0) {
+                setNewBadges(result.newBadges);
+                console.log('[Function] New badges earned:', result.newBadges.map(b => b.name).join(', '));
+              }
             }
 
             // Set state to trigger UI modal
@@ -363,6 +377,13 @@ Base your assessment on our entire conversation. Call the show_session_summary f
   }, []);
 
   /**
+   * Clear newly earned badges (after badge modal is closed)
+   */
+  const clearNewBadges = useCallback(() => {
+    setNewBadges([]);
+  }, []);
+
+  /**
    * Initialize and connect to Gemini
    */
   const connect = useCallback(async () => {
@@ -389,13 +410,18 @@ Base your assessment on our entire conversation. Call the show_session_summary f
       console.log('[Gemini] Using system prompt:', systemPrompt.substring(0, 200) + '...');
     }
 
-    // Create session in Firebase
-    sessionIdRef.current = await createSessionUsage(userIdRef.current);
-
     // Store mission ID from role if available
     if (roleRef.current?.missionId) {
       missionIdRef.current = roleRef.current.missionId;
     }
+
+    // Create session in Firebase with missionId and teacherId for cost tracking
+    sessionIdRef.current = await createSessionUsage(
+      userIdRef.current,
+      undefined, // sessionHandle
+      missionIdRef.current || undefined,
+      roleRef.current?.teacherId || undefined
+    );
 
     // Determine if function calling should be enabled
     const enableFunctionCalling = roleRef.current?.functionCallingEnabled !== false;
@@ -451,9 +477,9 @@ Base your assessment on our entire conversation. Call the show_session_summary f
             totalTokens: prev.totalTokens + metadata.totalTokens
           }));
 
-          // Update Firebase
+          // Update Firebase with userId for new subcollection structure
           if (sessionIdRef.current) {
-            updateSessionUsage(sessionIdRef.current, metadata);
+            updateSessionUsage(sessionIdRef.current, metadata, userIdRef.current);
           }
         },
         onToolCall: handleToolCalls
@@ -509,10 +535,12 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     console.log('[Gemini] Messages before resume:', messages.length);
     console.log('[Gemini] Session handle available:', clientRef.current.currentSessionHandle ? 'yes' : 'no');
 
-    // Create new session tracking
+    // Create new session tracking with missionId and teacherId
     sessionIdRef.current = await createSessionUsage(
       userIdRef.current,
-      clientRef.current.currentSessionHandle || undefined
+      clientRef.current.currentSessionHandle || undefined,
+      missionIdRef.current || undefined,
+      roleRef.current?.teacherId || undefined
     );
 
     // Reset token usage for new session (but NOT messages!)
@@ -672,6 +700,9 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     // Session summary (from function call)
     sessionSummary,
 
+    // Newly earned badges
+    newBadges,
+
     // Session timing
     sessionStartTime,
 
@@ -685,6 +716,7 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     startNewSession,
     updateSystemPrompt,
     triggerSessionEnd,
-    clearSessionSummary
+    clearSessionSummary,
+    clearNewBadges
   };
 }

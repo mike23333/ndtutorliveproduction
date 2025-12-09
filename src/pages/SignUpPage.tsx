@@ -39,9 +39,9 @@ const SignUpPage: React.FC = () => {
     try {
       await signUpWithEmail(email, password, name.trim(), role);
 
-      // If student, go to level selection; if teacher, go to dashboard
+      // If student, go to join class; if teacher, go to dashboard
       if (role === 'student') {
-        navigate('/select-level');
+        navigate('/join-class');
       } else {
         navigate('/teacher');
       }

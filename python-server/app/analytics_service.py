@@ -34,6 +34,15 @@ class AnalyticsService:
     MIN_NEW_SESSIONS_FOR_REGEN = 3
     MIN_NEW_STRUGGLES_FOR_REGEN = 5
 
+    # Gemini 2.5 Flash Native Audio (Live API) Pricing (December 2024)
+    # Model: gemini-2.5-flash-native-audio-preview
+    # Source: https://ai.google.dev/gemini-api/docs/pricing
+    # Per 1M tokens (USD)
+    COST_PER_1M_INPUT_TOKENS = 3.00   # Audio input
+    COST_PER_1M_OUTPUT_TOKENS = 12.00  # Audio output
+    # Audio token rate: 32 tokens per second (from https://ai.google.dev/gemini-api/docs/tokens)
+    AUDIO_TOKENS_PER_SECOND = 32
+
     CLASS_PULSE_PROMPT = """You are an AI assistant helping English language teachers understand their class performance.
 
 Analyze the following class data and generate 2-3 actionable insights. Each insight should:
@@ -122,12 +131,17 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
         totals = self._calculate_totals(by_level)
         cross_level = self._detect_cross_level_insights(sessions, users, struggles, mission_map)
 
+        # Get cost data from token usage
+        costs, student_costs = self._aggregate_costs(user_ids, start_time, end_time, users, period)
+
         return {
             "period": period,
             "generatedAt": datetime.now(timezone.utc).isoformat(),
             "byLevel": by_level,
             "totals": totals,
-            "crossLevelInsights": cross_level
+            "crossLevelInsights": cross_level,
+            "costs": costs,
+            "studentCosts": student_costs
         }
 
     def _get_time_range(self, period: str) -> tuple:
@@ -171,6 +185,17 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
         return sessions
 
     def _query_users(self, user_ids: List[str]) -> Dict[str, Dict]:
+        """
+        Query user documents by their IDs.
+
+        Note: This is called with user_ids derived from sessions, which are
+        already filtered by teacher's missions. This ensures tenant isolation -
+        teachers only see data for students who participated in their missions.
+
+        Students have a `teacherId` field linking them to their assigned teacher,
+        but the filtering here relies on the mission->session chain rather than
+        direct teacherId filtering.
+        """
         users = {}
         for user_id in user_ids:
             doc = self._db.collection('users').document(user_id).get()
@@ -400,6 +425,118 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
             query = self._db.collection('users').document(uid).collection('struggles').where('mastered', '==', True)
             count += len(list(query.stream()))
         return count
+
+    def _calculate_cost(self, input_tokens: int, output_tokens: int) -> float:
+        """Calculate cost from token counts using Gemini 2.5 Flash Native Audio pricing."""
+        return (
+            (input_tokens / 1_000_000) * self.COST_PER_1M_INPUT_TOKENS +
+            (output_tokens / 1_000_000) * self.COST_PER_1M_OUTPUT_TOKENS
+        )
+
+    def _aggregate_costs(
+        self,
+        user_ids: List[str],
+        start_time: datetime,
+        end_time: datetime,
+        users: Dict[str, Dict],
+        period: str
+    ) -> tuple:
+        """
+        Aggregate cost data from user sessions subcollection.
+
+        Architecture:
+        - New structure: users/{userId}/sessions/{sessionId}
+        - Fallback: Old root tokenUsage collection for backwards compatibility
+
+        Returns:
+            (costs_summary, student_costs_list)
+        """
+        total_input_tokens = 0
+        total_output_tokens = 0
+        student_costs = []
+
+        for user_id in user_ids:
+            try:
+                user_input_tokens = 0
+                user_output_tokens = 0
+                session_count = 0
+
+                # Try new subcollection structure first: users/{userId}/sessions
+                sessions_ref = (
+                    self._db.collection('users').document(user_id)
+                    .collection('sessions')
+                    .where('startTime', '>=', start_time)
+                    .where('startTime', '<=', end_time)
+                )
+
+                for doc in sessions_ref.stream():
+                    data = doc.to_dict()
+                    user_input_tokens += data.get('inputTokens', 0)
+                    user_output_tokens += data.get('outputTokens', 0)
+                    session_count += 1
+
+                # Fallback to old root collection if no sessions found
+                if session_count == 0:
+                    query = (
+                        self._db.collection('tokenUsage')
+                        .where('userId', '==', user_id)
+                        .where('startTime', '>=', start_time)
+                        .where('startTime', '<=', end_time)
+                    )
+
+                    for doc in query.stream():
+                        data = doc.to_dict()
+                        user_input_tokens += data.get('inputTokens', 0)
+                        user_output_tokens += data.get('outputTokens', 0)
+                        session_count += 1
+
+                if session_count > 0 or user_input_tokens > 0 or user_output_tokens > 0:
+                    user_cost = self._calculate_cost(user_input_tokens, user_output_tokens)
+                    total_input_tokens += user_input_tokens
+                    total_output_tokens += user_output_tokens
+
+                    student_costs.append({
+                        'userId': user_id,
+                        'displayName': users.get(user_id, {}).get('displayName', 'Student'),
+                        'totalCost': round(user_cost, 4),
+                        'sessionCount': session_count,
+                        'avgCostPerSession': round(user_cost / session_count, 4) if session_count > 0 else 0,
+                        'inputTokens': user_input_tokens,
+                        'outputTokens': user_output_tokens
+                    })
+
+            except Exception as e:
+                print(f"[Analytics] Error querying token usage for {user_id}: {e}", flush=True)
+
+        # Sort by total cost descending
+        student_costs.sort(key=lambda x: x['totalCost'], reverse=True)
+
+        # Calculate totals
+        total_cost = self._calculate_cost(total_input_tokens, total_output_tokens)
+        student_count = len([s for s in student_costs if s['totalCost'] > 0])
+
+        # Calculate daily/monthly costs based on period
+        if period == "week":
+            days_in_period = 7
+        elif period == "month":
+            days_in_period = 30
+        else:
+            # All-time: calculate based on actual date range
+            days_in_period = max(1, (end_time - start_time).days)
+
+        daily_cost = total_cost / days_in_period if days_in_period > 0 else 0
+        monthly_cost = daily_cost * 30
+
+        costs = {
+            'totalCost': round(total_cost, 4),
+            'inputTokens': total_input_tokens,
+            'outputTokens': total_output_tokens,
+            'costPerStudent': round(total_cost / student_count, 4) if student_count > 0 else 0,
+            'dailyCost': round(daily_cost, 4),
+            'monthlyCost': round(monthly_cost, 4)
+        }
+
+        return costs, student_costs
 
     def _calculate_totals(self, by_level) -> Dict:
         totals = {"studentCount": 0, "sessionCount": 0, "avgStars": 0, "totalPracticeMinutes": 0, "wordsMastered": 0}

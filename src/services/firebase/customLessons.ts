@@ -19,7 +19,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { deleteLessonImage } from './storage';
+import { checkAndAwardBadges } from './badges';
 import type { CustomLessonDocument, CreateCustomLessonInput, UpdateCustomLessonInput } from '../../types/firestore';
+import type { BadgeDefinition } from '../../types/badges';
 
 const getCustomLessonsCollection = (userId: string) => {
   if (!db) throw new Error('Firebase not configured');
@@ -63,11 +65,12 @@ export const getCustomLesson = async (
 
 /**
  * Create a new custom lesson
+ * Also increments customLessonsCreated counter and checks for badges
  */
 export const createCustomLesson = async (
   userId: string,
   data: Omit<CreateCustomLessonInput, 'userId' | 'id'>
-): Promise<CustomLessonDocument> => {
+): Promise<{ lesson: CustomLessonDocument; newBadges: BadgeDefinition[] }> => {
   if (!db) throw new Error('Firebase not configured');
 
   const lessonsRef = getCustomLessonsCollection(userId);
@@ -95,7 +98,31 @@ export const createCustomLesson = async (
   await setDoc(newDocRef, lessonData);
   console.log('[CustomLessons] Created lesson:', newDocRef.id);
 
-  return lessonData;
+  // Increment customLessonsCreated counter on user document
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      customLessonsCreated: increment(1),
+      updatedAt: Timestamp.now(),
+    });
+    console.log('[CustomLessons] Incremented customLessonsCreated counter');
+  } catch (error) {
+    console.warn('[CustomLessons] Could not update user counter:', error);
+  }
+
+  // Check for explorer badges (creator, lesson_architect)
+  let newBadges: BadgeDefinition[] = [];
+  try {
+    const badgeResult = await checkAndAwardBadges(userId, 'custom_lesson_created');
+    newBadges = badgeResult.newlyEarned;
+    if (newBadges.length > 0) {
+      console.log('[CustomLessons] Awarded badges:', newBadges.map(b => b.name).join(', '));
+    }
+  } catch (error) {
+    console.warn('[CustomLessons] Could not check badges:', error);
+  }
+
+  return { lesson: lessonData, newBadges };
 };
 
 /**

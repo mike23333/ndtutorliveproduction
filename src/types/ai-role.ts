@@ -63,6 +63,11 @@ export interface AIRole {
   missionId?: string;
 
   /**
+   * Teacher ID who created the mission (for cost tracking)
+   */
+  teacherId?: string;
+
+  /**
    * Display name for the role
    */
   name: string;

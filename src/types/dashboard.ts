@@ -1,6 +1,8 @@
 // Dashboard-specific types
 
-export type TabType = 'lessons' | 'analytics' | 'templates';
+import type { ProficiencyLevel } from './firestore';
+
+export type TabType = 'lessons' | 'students' | 'analytics' | 'templates';
 
 export interface LessonData {
   id: string;
@@ -15,6 +17,7 @@ export interface LessonData {
   completionRate: number;
   studentsCompleted: number;
   totalStudents: number;
+  targetLevel?: ProficiencyLevel | null;
 }
 
 export interface LessonFormData {
@@ -23,6 +26,7 @@ export interface LessonFormData {
   durationMinutes: number;
   imageUrl: string | null;
   imageStoragePath: string | null;
+  targetLevel: ProficiencyLevel | null;
 }
 
 export interface ClassPulseInsight {
@@ -72,6 +76,25 @@ export interface StruggleItem {
   severity: 'low' | 'medium' | 'high';
 }
 
+export interface CostData {
+  totalCost: number;
+  inputTokens: number;
+  outputTokens: number;
+  costPerStudent: number;
+  dailyCost: number;
+  monthlyCost: number;
+}
+
+export interface StudentCostData {
+  userId: string;
+  displayName: string;
+  totalCost: number;
+  sessionCount: number;
+  avgCostPerSession: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface AnalyticsData {
   period: string;
   generatedAt: string;
@@ -83,6 +106,9 @@ export interface AnalyticsData {
     totalPracticeMinutes: number;
     wordsMastered: number;
   };
+  // Cost tracking
+  costs?: CostData;
+  studentCosts?: StudentCostData[];
 }
 
 export type AnalyticsPeriod = 'week' | 'month' | 'all-time';

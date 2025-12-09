@@ -1,6 +1,6 @@
 # Weekly Review Lesson - Design Document
 
-*A once-per-week personalized practice session based on the student's struggles*
+*A once-per-week personalized practice session based on the student's struggles* we do have a python server you could use for it if you think that's better than cloud function I think it is. can just create a new endpoint.
 
 ---
 

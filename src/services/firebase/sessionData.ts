@@ -14,6 +14,7 @@ import {
   Timestamp,
   query,
   orderBy,
+  increment,
 } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import type {
@@ -27,6 +28,8 @@ import type {
   SessionSummaryDocument,
   ReviewLessonDocument,
 } from '../../types/firestore';
+import { checkAndAwardBadges } from './badges';
+import type { BadgeDefinition } from '../../types/badges';
 
 // ==================== CURRENT LESSON TRACKING ====================
 
@@ -316,6 +319,10 @@ export const getUserPreferences = async (
  * Save session summary when show_session_summary is triggered
  * - Saves detailed summary to users/{userId}/sessionSummaries
  * - Updates aggregate stats on users/{userId} for fast UI reads
+ * - Tracks badge-related fields (uniqueScenarios, consecutiveFiveStars)
+ * - Checks and awards badges
+ *
+ * Returns the summary and any newly earned badges
  */
 export const saveSessionSummary = async (
   sessionId: string,
@@ -323,10 +330,8 @@ export const saveSessionSummary = async (
   missionId: string,
   durationSeconds: number,
   params: ShowSessionSummaryParams
-): Promise<SessionSummaryDocument> => {
+): Promise<{ summary: SessionSummaryDocument; newBadges: BadgeDefinition[] }> => {
   if (!db) throw new Error('Firebase not configured');
-
-  const { increment } = await import('firebase/firestore');
 
   // Save detailed summary to subcollection
   const summaryRef = doc(db, `users/${userId}/sessionSummaries`, sessionId);
@@ -364,8 +369,18 @@ export const saveSessionSummary = async (
       );
       const longestStreak = Math.max(newStreak, userData.longestStreak || 0);
 
-      // Update existing user with incremented stats and streak
-      await updateDoc(userRef, {
+      // Badge tracking: consecutive 5-star sessions
+      // Increment if 5 stars, reset to 0 otherwise
+      const newConsecutiveFiveStars = params.stars === 5
+        ? (userData.consecutiveFiveStarSessions || 0) + 1
+        : 0;
+
+      // Badge tracking: unique scenarios (only add if not already in array)
+      const uniqueScenarios = userData.uniqueScenariosCompleted || [];
+      const shouldAddScenario = missionId && !uniqueScenarios.includes(missionId);
+
+      // Build update object
+      const updateData: Record<string, unknown> = {
         totalStars: increment(params.stars),
         totalSessions: increment(1),
         totalPracticeTime: increment(durationSeconds),
@@ -374,14 +389,24 @@ export const saveSessionSummary = async (
         currentStreak: newStreak,
         lastPracticeDate: todayStr,
         longestStreak: longestStreak,
+        // Badge tracking
+        consecutiveFiveStarSessions: newConsecutiveFiveStars,
         // Clear current lesson since session completed
         currentLesson: deleteField(),
         updatedAt: Timestamp.now(),
-      });
+      };
+
+      // Add unique scenario if new
+      if (shouldAddScenario) {
+        updateData.uniqueScenariosCompleted = arrayUnion(missionId);
+      }
+
+      await updateDoc(userRef, updateData);
       console.log('[SessionData] Updated streak:', newStreak, '(longest:', longestStreak, ')');
+      console.log('[SessionData] Consecutive 5-stars:', newConsecutiveFiveStars);
     } else {
       // Create user stats if doesn't exist (first session ever)
-      await setDoc(userRef, {
+      const initialData: Record<string, unknown> = {
         totalStars: params.stars,
         totalSessions: 1,
         totalPracticeTime: durationSeconds,
@@ -390,9 +415,14 @@ export const saveSessionSummary = async (
         currentStreak: 1,
         lastPracticeDate: todayStr,
         longestStreak: 1,
+        // Badge tracking
+        consecutiveFiveStarSessions: params.stars === 5 ? 1 : 0,
+        uniqueScenariosCompleted: missionId ? [missionId] : [],
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
-      }, { merge: true });
+      };
+
+      await setDoc(userRef, initialData, { merge: true });
     }
     console.log('[SessionData] Updated user aggregate stats');
   } catch (error) {
@@ -415,7 +445,19 @@ export const saveSessionSummary = async (
     console.warn('[SessionData] Could not update session with summary:', error);
   }
 
-  return summary;
+  // Check and award badges
+  let newBadges: BadgeDefinition[] = [];
+  try {
+    const badgeResult = await checkAndAwardBadges(userId, 'session_completed');
+    newBadges = badgeResult.newlyEarned;
+    if (newBadges.length > 0) {
+      console.log('[SessionData] Awarded badges:', newBadges.map(b => b.name).join(', '));
+    }
+  } catch (error) {
+    console.warn('[SessionData] Could not check badges:', error);
+  }
+
+  return { summary, newBadges };
 };
 
 /**

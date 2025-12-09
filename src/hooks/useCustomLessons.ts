@@ -13,6 +13,7 @@ import {
 } from '../services/firebase/customLessons';
 import { getCustomLessonTemplate } from '../services/firebase/systemTemplates';
 import type { CustomLessonDocument, ProficiencyLevel } from '../types/firestore';
+import type { BadgeDefinition } from '../types/badges';
 
 interface CreateLessonData {
   title: string;
@@ -28,11 +29,16 @@ interface UpdateLessonData {
   imageStoragePath?: string;
 }
 
+export interface CreateLessonResult {
+  lesson: CustomLessonDocument;
+  newBadges: BadgeDefinition[];
+}
+
 export interface UseCustomLessonsResult {
   lessons: CustomLessonDocument[];
   loading: boolean;
   error: string | null;
-  createLesson: (data: CreateLessonData, userLevel?: ProficiencyLevel) => Promise<CustomLessonDocument>;
+  createLesson: (data: CreateLessonData, userLevel?: ProficiencyLevel) => Promise<CreateLessonResult>;
   updateLesson: (lessonId: string, data: UpdateLessonData, userLevel?: ProficiencyLevel) => Promise<void>;
   deleteLesson: (lessonId: string) => Promise<void>;
   updateLastPracticed: (lessonId: string) => Promise<void>;
@@ -87,11 +93,12 @@ export function useCustomLessons(userId: string | undefined): UseCustomLessonsRe
   /**
    * Create a new custom lesson
    * Fetches the template and fills in placeholders
+   * Returns the lesson and any newly earned badges
    */
   const createLessonHandler = useCallback(async (
     data: CreateLessonData,
     userLevel: ProficiencyLevel = 'B1'
-  ): Promise<CustomLessonDocument> => {
+  ): Promise<CreateLessonResult> => {
     if (!userId) {
       throw new Error('User not authenticated');
     }
@@ -105,8 +112,8 @@ export function useCustomLessons(userId: string | undefined): UseCustomLessonsRe
       practiceDescription: data.description,
     });
 
-    // Create the lesson
-    const newLesson = await createCustomLesson(userId, {
+    // Create the lesson (returns lesson and any new badges)
+    const result = await createCustomLesson(userId, {
       title: data.title,
       description: data.description,
       systemPrompt,
@@ -116,9 +123,9 @@ export function useCustomLessons(userId: string | undefined): UseCustomLessonsRe
     });
 
     // Update local state
-    setLessons(prev => [newLesson, ...prev]);
+    setLessons(prev => [result.lesson, ...prev]);
 
-    return newLesson;
+    return result;
   }, [userId]);
 
   /**

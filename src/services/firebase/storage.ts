@@ -109,3 +109,41 @@ export const revokeImagePreview = (previewUrl: string): void => {
     URL.revokeObjectURL(previewUrl);
   }
 };
+
+/**
+ * Upload profile photo to Firebase Storage
+ * @param file - File object from input
+ * @param userId - User's UID
+ * @returns Permanent download URL
+ */
+export const uploadProfilePhoto = async (
+  file: File,
+  userId: string
+): Promise<string> => {
+  if (!storage) {
+    throw new Error('Firebase Storage is not configured.');
+  }
+
+  // Validate the file
+  validateImageFile(file);
+
+  // Create a unique path: profile-photos/{userId}/{timestamp}.{ext}
+  const timestamp = Date.now();
+  const extension = file.name.split('.').pop() || 'jpg';
+  const storagePath = `profile-photos/${userId}/${timestamp}.${extension}`;
+
+  const storageRef = ref(storage, storagePath);
+
+  // Upload the file with metadata
+  await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    customMetadata: {
+      uploadedBy: userId,
+    },
+  });
+
+  // Get the permanent download URL
+  const downloadUrl = await getDownloadURL(storageRef);
+
+  return downloadUrl;
+};

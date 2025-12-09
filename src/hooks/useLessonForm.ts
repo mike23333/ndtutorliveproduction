@@ -1,11 +1,13 @@
 import { useState, useCallback } from 'react';
 import type { LessonFormData, LessonData } from '../types/dashboard';
+import type { ProficiencyLevel } from '../types/firestore';
 
 interface UseLessonFormResult {
   formData: LessonFormData;
   setTitle: (title: string) => void;
   setSystemPrompt: (prompt: string) => void;
   setDurationMinutes: (duration: number) => void;
+  setTargetLevel: (level: ProficiencyLevel | null) => void;
   setImageUrl: (url: string | null) => void;
   setImageStoragePath: (path: string | null) => void;
   setImage: (url: string, path: string) => void;
@@ -26,6 +28,7 @@ const initialFormData: LessonFormData = {
   durationMinutes: 15,
   imageUrl: null,
   imageStoragePath: null,
+  targetLevel: null,
 };
 
 export function useLessonForm(): UseLessonFormResult {
@@ -44,6 +47,10 @@ export function useLessonForm(): UseLessonFormResult {
   const setDurationMinutes = useCallback((durationMinutes: number) => {
     const clampedDuration = Math.min(60, Math.max(1, durationMinutes));
     setFormData(prev => ({ ...prev, durationMinutes: clampedDuration }));
+  }, []);
+
+  const setTargetLevel = useCallback((targetLevel: ProficiencyLevel | null) => {
+    setFormData(prev => ({ ...prev, targetLevel }));
   }, []);
 
   const setImageUrl = useCallback((imageUrl: string | null) => {
@@ -75,6 +82,7 @@ export function useLessonForm(): UseLessonFormResult {
       durationMinutes: lesson.durationMinutes,
       imageUrl: lesson.imageUrl,
       imageStoragePath: lesson.imageStoragePath || null,
+      targetLevel: lesson.targetLevel || null,
     });
   }, []);
 
@@ -89,6 +97,7 @@ export function useLessonForm(): UseLessonFormResult {
     setTitle,
     setSystemPrompt,
     setDurationMinutes,
+    setTargetLevel,
     setImageUrl,
     setImageStoragePath,
     setImage,

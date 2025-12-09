@@ -3,6 +3,7 @@
 
 interface IconProps {
   size?: number;
+  color?: string;
 }
 
 export const PlayIcon = ({ size = 24 }: IconProps) => (
@@ -11,15 +12,15 @@ export const PlayIcon = ({ size = 24 }: IconProps) => (
   </svg>
 );
 
-export const ClockIcon = ({ size = 14 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+export const ClockIcon = ({ size = 14, color }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10"/>
     <polyline points="12 6 12 12 16 14"/>
   </svg>
 );
 
-export const StarIcon = ({ size = 14 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none">
+export const StarIcon = ({ size = 14, color }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color || "currentColor"} stroke="none">
     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
   </svg>
 );
@@ -38,8 +39,8 @@ export const UserIcon = ({ size = 24 }: IconProps) => (
   </svg>
 );
 
-export const FireIcon = ({ size = 16 }: IconProps) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" stroke="none">
+export const FireIcon = ({ size = 16, color }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color || "currentColor"} stroke="none">
     <path d="M12 23c6.075 0 11-4.925 11-11 0-4.418-2.239-8.073-5.618-10.036-.488-.283-1.085.128-.964.683C16.943 5.078 15.43 7.5 13 7.5c-1.5 0-2.5-.833-3.5-2-.8-.933-1.437-2.163-1.6-3.185-.068-.428-.504-.704-.898-.498C3.377 4.012 1 8.248 1 12c0 6.075 4.925 11 11 11z"/>
   </svg>
 );
@@ -291,5 +292,22 @@ export const RefreshIcon = ({ size = 24 }: IconProps) => (
     <path d="M21 3v5h-5"/>
     <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
     <path d="M3 21v-5h5"/>
+  </svg>
+);
+
+interface ColorIconProps {
+  size?: number;
+  color?: string;
+}
+
+export const ChevronLeftIcon = ({ size = 24, color }: ColorIconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m15 18-6-6 6-6"/>
+  </svg>
+);
+
+export const ChevronRightIcon = ({ size = 24, color }: ColorIconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color || "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m9 18 6-6-6-6"/>
   </svg>
 );

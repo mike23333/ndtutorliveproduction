@@ -25,6 +25,16 @@ export type ProficiencyLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type ConversationTone = 'friendly' | 'formal' | 'encouraging' | 'challenging';
 
 /**
+ * Latest badge info for quick display on profile
+ */
+export interface LatestBadgeInfo {
+  id: string;
+  name: string;
+  iconName: string;
+  earnedAt: Timestamp;
+}
+
+/**
  * User Document
  * Collection: users
  */
@@ -32,10 +42,15 @@ export interface UserDocument {
   uid: string;
   email: string;
   displayName: string;
+  photoURL?: string;           // Profile photo URL
   role: UserRole;
   level?: ProficiencyLevel;
-  classCode?: string;
-  groupIds?: string[];
+  // Student fields - teacher assignment
+  teacherId?: string;        // Teacher's UID who owns this student
+  teacherName?: string;      // Denormalized for display
+  joinedClassAt?: Timestamp; // When student joined the class
+  // Teacher fields
+  classCode?: string;        // Unique 6-char code for students to join (teachers only)
   // Aggregate stats for fast UI reads (denormalized)
   totalStars?: number;
   totalSessions?: number;
@@ -45,6 +60,13 @@ export interface UserDocument {
   currentStreak?: number;
   lastPracticeDate?: string; // YYYY-MM-DD format for easy comparison
   longestStreak?: number;
+  // Badge tracking
+  badgeIds?: string[];                    // Array of earned badge IDs
+  badgeCount?: number;                    // Total badges earned
+  latestBadge?: LatestBadgeInfo | null;   // Most recent badge for display
+  uniqueScenariosCompleted?: string[];    // Array of unique missionIds completed
+  consecutiveFiveStarSessions?: number;   // Current consecutive 5-star streak (resets on non-5-star)
+  customLessonsCreated?: number;          // Count of custom lessons created
   // Continue Learning - tracks incomplete sessions
   currentLesson?: {
     missionId: string;
@@ -140,23 +162,7 @@ export interface SessionDocument {
   updatedAt: Timestamp;
 }
 
-/**
- * Group Document
- * Collection: groups
- */
-export interface GroupDocument {
-  id: string;
-  teacherId: string;
-  teacherName: string;
-  name: string;
-  description?: string;
-  studentIds: string[];
-  missionIds?: string[];
-  classCode: string;
-  isActive: boolean;
-  createdAt: Timestamp;
-  updatedAt: Timestamp;
-}
+// GroupDocument removed - using direct teacherId on students instead
 
 /**
  * Analytics aggregation for teacher dashboard
@@ -194,9 +200,7 @@ export type CreateSessionInput = Omit<SessionDocument, 'id' | 'createdAt' | 'upd
   id?: string;
 };
 
-export type CreateGroupInput = Omit<GroupDocument, 'id' | 'createdAt' | 'updatedAt'> & {
-  id?: string;
-};
+// CreateGroupInput removed - GroupDocument no longer exists
 
 /**
  * Update types (all fields optional except id)
@@ -213,9 +217,7 @@ export type UpdateSessionInput = Partial<Omit<SessionDocument, 'id' | 'createdAt
   id: string;
 };
 
-export type UpdateGroupInput = Partial<Omit<GroupDocument, 'id' | 'createdAt'>> & {
-  id: string;
-};
+// UpdateGroupInput removed - GroupDocument no longer exists
 
 // ==================== NEW DOCUMENT TYPES ====================
 

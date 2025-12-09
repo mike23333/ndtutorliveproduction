@@ -16,6 +16,7 @@ import {
 import { auth, db } from '../../config/firebase';
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { UserDocument, UserRole } from '../../types/firestore';
+import { generateUniqueClassCode } from './classCode';
 
 /**
  * Sign up a new user with email and password
@@ -44,10 +45,14 @@ export const signUpWithEmail = async (
       email: user.email || email,
       displayName,
       role,
-      groupIds: [],
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
+
+    // Generate class code for teachers
+    if (role === 'teacher') {
+      userDoc.classCode = await generateUniqueClassCode();
+    }
 
     // Create user document in Firestore
     const userDocRef = doc(db, 'users', user.uid);

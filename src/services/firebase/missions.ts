@@ -132,37 +132,7 @@ export const getMissionsForTeacher = async (
   }
 };
 
-/**
- * Get all missions for a specific group
- */
-export const getMissionsForGroup = async (
-  groupId: string,
-  activeOnly: boolean = false
-): Promise<MissionDocument[]> => {
-  if (!db) {
-    throw new Error('Firebase is not configured. Please check your environment variables.');
-  }
-
-  try {
-    const missionsRef = collection(db, MISSIONS_COLLECTION);
-    const constraints: QueryConstraint[] = [
-      where('groupId', '==', groupId),
-      orderBy('createdAt', 'desc'),
-    ];
-
-    if (activeOnly) {
-      constraints.push(where('isActive', '==', true));
-    }
-
-    const q = query(missionsRef, ...constraints);
-    const querySnapshot = await getDocs(q);
-
-    return querySnapshot.docs.map(doc => doc.data() as MissionDocument);
-  } catch (error) {
-    console.error('Error fetching group missions:', error);
-    throw error;
-  }
-};
+// getMissionsForGroup removed - using direct teacherId on students instead
 
 /**
  * Update an existing mission
@@ -239,29 +209,7 @@ export const deactivateMission = async (missionId: string): Promise<void> => {
   }
 };
 
-/**
- * Get all active missions (for homepage display)
- */
-export const getAllActiveMissions = async (): Promise<MissionDocument[]> => {
-  if (!db) {
-    throw new Error('Firebase is not configured. Please check your environment variables.');
-  }
-
-  try {
-    const missionsRef = collection(db, MISSIONS_COLLECTION);
-    const q = query(
-      missionsRef,
-      where('isActive', '==', true),
-      orderBy('createdAt', 'desc')
-    );
-    const querySnapshot = await getDocs(q);
-
-    return querySnapshot.docs.map(doc => doc.data() as MissionDocument);
-  } catch (error) {
-    console.error('Error fetching all active missions:', error);
-    throw error;
-  }
-};
+// getAllActiveMissions removed - students now use getMissionsForStudent from students.ts
 
 /**
  * Get all missions (for teacher dashboard)
@@ -283,45 +231,4 @@ export const getAllMissions = async (): Promise<MissionDocument[]> => {
   }
 };
 
-/**
- * Get active missions available for a student
- */
-export const getAvailableMissionsForStudent = async (
-  groupIds: string[]
-): Promise<MissionDocument[]> => {
-  if (!db) {
-    throw new Error('Firebase is not configured. Please check your environment variables.');
-  }
-
-  if (groupIds.length === 0) {
-    return [];
-  }
-
-  try {
-    const missionsRef = collection(db, MISSIONS_COLLECTION);
-
-    // Firestore 'in' queries are limited to 10 items
-    // If more than 10 groups, we need to batch the queries
-    const batchSize = 10;
-    const batches: MissionDocument[][] = [];
-
-    for (let i = 0; i < groupIds.length; i += batchSize) {
-      const batchGroupIds = groupIds.slice(i, i + batchSize);
-
-      const q = query(
-        missionsRef,
-        where('groupId', 'in', batchGroupIds),
-        where('isActive', '==', true),
-        orderBy('createdAt', 'desc')
-      );
-
-      const querySnapshot = await getDocs(q);
-      batches.push(querySnapshot.docs.map(doc => doc.data() as MissionDocument));
-    }
-
-    return batches.flat();
-  } catch (error) {
-    console.error('Error fetching available missions:', error);
-    throw error;
-  }
-};
+// getAvailableMissionsForStudent removed - students now use getMissionsForStudent from students.ts

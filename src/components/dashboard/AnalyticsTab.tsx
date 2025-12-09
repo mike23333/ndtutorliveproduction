@@ -1,7 +1,7 @@
 import React from 'react';
 import { AppColors } from '../../theme/colors';
 import { BarChartIcon } from '../../theme/icons';
-import type { AnalyticsData, AnalyticsPeriod, AnalyticsLevel, LevelAnalytics } from '../../types/dashboard';
+import type { AnalyticsData, AnalyticsPeriod, AnalyticsLevel, LevelAnalytics, CostData, StudentCostData } from '../../types/dashboard';
 
 interface AnalyticsTabProps {
   data: AnalyticsData | null;
@@ -23,10 +23,90 @@ const selectStyle: React.CSSProperties = {
 
 const optionStyle = { background: '#1a1a2e', color: '#e0e0e0' };
 
-const StatCard: React.FC<{ label: string; value: string | number; color?: string }> = ({ label, value, color }) => (
+const StatCard: React.FC<{ label: string; value: string | number; color?: string; subtext?: string }> = ({ label, value, color, subtext }) => (
   <div style={{ background: AppColors.surfaceLight, borderRadius: 'clamp(10px, 2.5vw, 14px)', padding: 'clamp(14px, 3.5vw, 18px)' }}>
     <div style={{ fontSize: 'clamp(11px, 2.2vw, 12px)', color: AppColors.textSecondary, marginBottom: 'clamp(4px, 1vw, 6px)' }}>{label}</div>
     <div style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 700, color: color || AppColors.textPrimary }}>{value}</div>
+    {subtext && <div style={{ fontSize: 'clamp(10px, 2vw, 11px)', color: AppColors.textSecondary, marginTop: '2px' }}>{subtext}</div>}
+  </div>
+);
+
+const formatCurrency = (amount: number): string => {
+  if (amount < 0.01) return '$0.00';
+  if (amount < 1) return `$${amount.toFixed(3)}`;
+  return `$${amount.toFixed(2)}`;
+};
+
+const formatTokens = (tokens: number): string => {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
+  return tokens.toString();
+};
+
+const CostSection: React.FC<{ costs: CostData; studentCosts?: StudentCostData[] }> = ({ costs, studentCosts }) => (
+  <div style={{ background: AppColors.surfaceLight, borderRadius: 'clamp(12px, 3vw, 16px)', padding: 'clamp(16px, 4vw, 20px)', marginBottom: 'clamp(14px, 3.5vw, 18px)' }}>
+    <h3 style={{ fontSize: 'clamp(16px, 3.5vw, 18px)', fontWeight: 600, margin: '0 0 clamp(12px, 3vw, 16px) 0', color: AppColors.accentBlue }}>
+      API Costs (Gemini 2.5 Flash Live)
+    </h3>
+
+    {/* Cost Overview */}
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 'clamp(8px, 2vw, 12px)', marginBottom: 'clamp(14px, 3.5vw, 18px)' }}>
+      <div style={{ background: AppColors.surfaceMedium, borderRadius: 'clamp(8px, 2vw, 10px)', padding: 'clamp(10px, 2.5vw, 12px)' }}>
+        <div style={{ fontSize: 'clamp(10px, 2vw, 11px)', color: AppColors.textSecondary }}>Total Cost</div>
+        <div style={{ fontSize: 'clamp(18px, 4vw, 22px)', fontWeight: 700, color: AppColors.textPrimary }}>{formatCurrency(costs.totalCost)}</div>
+      </div>
+      <div style={{ background: AppColors.surfaceMedium, borderRadius: 'clamp(8px, 2vw, 10px)', padding: 'clamp(10px, 2.5vw, 12px)' }}>
+        <div style={{ fontSize: 'clamp(10px, 2vw, 11px)', color: AppColors.textSecondary }}>Per Student</div>
+        <div style={{ fontSize: 'clamp(18px, 4vw, 22px)', fontWeight: 700, color: AppColors.accentPurple }}>{formatCurrency(costs.costPerStudent)}</div>
+      </div>
+      <div style={{ background: AppColors.surfaceMedium, borderRadius: 'clamp(8px, 2vw, 10px)', padding: 'clamp(10px, 2.5vw, 12px)' }}>
+        <div style={{ fontSize: 'clamp(10px, 2vw, 11px)', color: AppColors.textSecondary }}>Daily Avg</div>
+        <div style={{ fontSize: 'clamp(18px, 4vw, 22px)', fontWeight: 700, color: AppColors.successGreen }}>{formatCurrency(costs.dailyCost)}</div>
+      </div>
+      <div style={{ background: AppColors.surfaceMedium, borderRadius: 'clamp(8px, 2vw, 10px)', padding: 'clamp(10px, 2.5vw, 12px)' }}>
+        <div style={{ fontSize: 'clamp(10px, 2vw, 11px)', color: AppColors.textSecondary }}>Monthly Est.</div>
+        <div style={{ fontSize: 'clamp(18px, 4vw, 22px)', fontWeight: 700, color: AppColors.whisperAmber }}>{formatCurrency(costs.monthlyCost)}</div>
+      </div>
+    </div>
+
+    {/* Token Usage */}
+    <div style={{ display: 'flex', gap: 'clamp(10px, 2.5vw, 14px)', marginBottom: 'clamp(12px, 3vw, 16px)', flexWrap: 'wrap' }}>
+      <div style={{ fontSize: 'clamp(11px, 2.2vw, 12px)', color: AppColors.textSecondary }}>
+        Input: <span style={{ color: AppColors.textPrimary, fontWeight: 500 }}>{formatTokens(costs.inputTokens)} tokens</span>
+        <span style={{ color: AppColors.textSecondary }}> ($3/1M)</span>
+      </div>
+      <div style={{ fontSize: 'clamp(11px, 2.2vw, 12px)', color: AppColors.textSecondary }}>
+        Output: <span style={{ color: AppColors.textPrimary, fontWeight: 500 }}>{formatTokens(costs.outputTokens)} tokens</span>
+        <span style={{ color: AppColors.textSecondary }}> ($12/1M)</span>
+      </div>
+    </div>
+
+    {/* Per-Student Breakdown */}
+    {studentCosts && studentCosts.length > 0 && (
+      <div>
+        <div style={{ fontSize: 'clamp(12px, 2.5vw, 13px)', color: AppColors.textSecondary, marginBottom: 'clamp(6px, 1.5vw, 8px)' }}>Cost by Student:</div>
+        <div style={{ display: 'grid', gap: 'clamp(6px, 1.5vw, 8px)', maxHeight: '200px', overflowY: 'auto' }}>
+          {studentCosts.slice(0, 10).map((student) => (
+            <div key={student.userId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'clamp(8px, 2vw, 10px)', background: AppColors.surfaceMedium, borderRadius: 'clamp(6px, 1.5vw, 8px)' }}>
+              <div>
+                <span style={{ fontSize: 'clamp(13px, 2.8vw, 14px)', color: AppColors.textPrimary }}>{student.displayName}</span>
+                <span style={{ fontSize: 'clamp(11px, 2.2vw, 12px)', color: AppColors.textSecondary, marginLeft: '8px' }}>
+                  ({student.sessionCount} sessions)
+                </span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontSize: 'clamp(14px, 3vw, 16px)', fontWeight: 600, color: AppColors.accentPurple }}>
+                  {formatCurrency(student.totalCost)}
+                </div>
+                <div style={{ fontSize: 'clamp(10px, 2vw, 11px)', color: AppColors.textSecondary }}>
+                  {formatCurrency(student.avgCostPerSession)}/session
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
   </div>
 );
 
@@ -230,6 +310,11 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({
             <StatCard label="Avg Stars" value={`${data.totals.avgStars.toFixed(1)} ⭐`} color={AppColors.whisperAmber} />
             <StatCard label="Practice Time" value={`${data.totals.totalPracticeMinutes}m`} color={AppColors.accentBlue} />
           </div>
+
+          {/* Cost Section */}
+          {data.costs && (
+            <CostSection costs={data.costs} studentCosts={data.studentCosts} />
+          )}
 
           {/* Level Breakdown */}
           {Object.entries(data.byLevel).map(([levelKey, levelData]) => (
