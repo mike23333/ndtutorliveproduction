@@ -19,6 +19,8 @@ const COLLECTION = 'systemTemplates';
 // Default template IDs
 export const TEMPLATE_IDS = {
   WEEKLY_REVIEW_META_PROMPT: 'weeklyReviewMetaPrompt',
+  CUSTOM_LESSON_PROMPT: 'customLessonPrompt',
+  PRONUNCIATION_COACH_PROMPT: 'pronunciationCoachPrompt',
 } as const;
 
 // Default weekly review meta-prompt template
@@ -67,6 +69,76 @@ IMPORTANT: The prompt MUST include this exact section for autonomous function ca
 - Rate 1-5 stars based on: participation, vocabulary use, improvement shown
 
 Return only the system prompt, no explanation or preamble.`;
+
+// Default custom lesson template
+const DEFAULT_CUSTOM_LESSON_TEMPLATE = `You are a friendly English conversation partner helping a {{level}} level student practice.
+
+## THE SCENARIO
+The student wants to practice: {{practiceDescription}}
+
+Create a natural, engaging conversation around this topic. Be encouraging and helpful.
+Adjust your vocabulary and pace for their {{level}} level:
+- A1-A2: Use simple sentences, common words, speak slowly
+- B1-B2: Use moderate complexity, natural pace
+- C1-C2: Use natural speed, complex structures
+
+## YOUR APPROACH
+1. Start with a warm greeting related to the scenario
+2. Guide the conversation naturally
+3. Ask follow-up questions to keep them engaged
+4. Gently help if they struggle (rephrase, give hints)
+5. Keep the conversation flowing for the full session
+
+## AUTONOMOUS TRACKING (Use these functions automatically)
+
+### save_struggle_item - Call when you notice:
+- They can't remember a word (prompt them, then log it)
+- They mispronounce something repeatedly
+- They use incorrect grammar patterns
+- They seem confused about vocabulary
+
+### update_user_profile - Call when you learn:
+- Their preferences or personal details they share
+- Likes/dislikes mentioned during conversation
+
+### show_session_summary - Call when:
+- The conversation reaches a natural end
+- You're prompted that time is up
+- Rate 1-5 stars based on: participation, engagement, fluency`;
+
+// Default pronunciation coach template
+const DEFAULT_PRONUNCIATION_COACH_TEMPLATE = `You are a patient English pronunciation coach helping a {{level}} level student.
+
+## YOUR ROLE
+Help the student practice pronouncing these words clearly: {{words}}
+
+## HOW TO COACH
+1. Say each word clearly and ask them to repeat
+2. Listen carefully to their pronunciation
+3. If incorrect, break the word into syllables
+4. Give specific feedback on mouth position, tongue placement
+5. Celebrate when they get it right: "Perfect! That was clear."
+6. Move to the next word once they pronounce correctly
+
+## KEEP IT WARM
+- Be encouraging, never critical
+- Use phrases like "Almost there!" and "Try once more"
+- Make it feel like practice, not a test
+
+## AUTONOMOUS TRACKING (Use these functions automatically)
+
+### save_struggle_item - Call when:
+- They mispronounce a word repeatedly (log pronunciation struggle)
+- They have particular difficulty with certain sounds
+
+### update_user_profile - Call when:
+- You learn about their native language or accent
+- They mention specific sounds they find difficult
+
+### show_session_summary - Call when:
+- They have pronounced ALL words correctly at least once
+- You're prompted that time is up
+- Rate 1-5 stars based on: effort, improvement, final accuracy`;
 
 /**
  * Get a system template by ID
@@ -162,6 +234,92 @@ export const updateWeeklyReviewTemplate = async (
 
   await updateSystemTemplate(
     TEMPLATE_IDS.WEEKLY_REVIEW_META_PROMPT,
+    { template: newTemplate },
+    updatedBy
+  );
+};
+
+/**
+ * Get the custom lesson template
+ * Creates default if it doesn't exist
+ */
+export const getCustomLessonTemplate = async (): Promise<SystemTemplateDocument> => {
+  const template = await getSystemTemplate(TEMPLATE_IDS.CUSTOM_LESSON_PROMPT);
+
+  if (template) {
+    return template;
+  }
+
+  // Create default template if it doesn't exist
+  const defaultTemplate: SystemTemplateDocument = {
+    id: TEMPLATE_IDS.CUSTOM_LESSON_PROMPT,
+    name: 'Custom Lesson Prompt',
+    description: 'Template for student-created personalized practice lessons',
+    template: DEFAULT_CUSTOM_LESSON_TEMPLATE,
+    placeholders: ['{{level}}', '{{practiceDescription}}'],
+    updatedAt: Timestamp.now(),
+    updatedBy: 'system',
+  };
+
+  await createSystemTemplate(defaultTemplate);
+  console.log('[SystemTemplates] Created default custom lesson template');
+
+  return defaultTemplate;
+};
+
+/**
+ * Update the custom lesson template
+ */
+export const updateCustomLessonTemplate = async (
+  newTemplate: string,
+  updatedBy: string
+): Promise<void> => {
+  await getCustomLessonTemplate();
+  await updateSystemTemplate(
+    TEMPLATE_IDS.CUSTOM_LESSON_PROMPT,
+    { template: newTemplate },
+    updatedBy
+  );
+};
+
+/**
+ * Get the pronunciation coach template
+ * Creates default if it doesn't exist
+ */
+export const getPronunciationCoachTemplate = async (): Promise<SystemTemplateDocument> => {
+  const template = await getSystemTemplate(TEMPLATE_IDS.PRONUNCIATION_COACH_PROMPT);
+
+  if (template) {
+    return template;
+  }
+
+  // Create default template if it doesn't exist
+  const defaultTemplate: SystemTemplateDocument = {
+    id: TEMPLATE_IDS.PRONUNCIATION_COACH_PROMPT,
+    name: 'Pronunciation Coach Prompt',
+    description: 'Template for quick pronunciation practice sessions',
+    template: DEFAULT_PRONUNCIATION_COACH_TEMPLATE,
+    placeholders: ['{{level}}', '{{words}}'],
+    updatedAt: Timestamp.now(),
+    updatedBy: 'system',
+  };
+
+  await createSystemTemplate(defaultTemplate);
+  console.log('[SystemTemplates] Created default pronunciation coach template');
+
+  return defaultTemplate;
+};
+
+/**
+ * Update the pronunciation coach template
+ */
+export const updatePronunciationCoachTemplate = async (
+  newTemplate: string,
+  updatedBy: string
+): Promise<void> => {
+  await getPronunciationCoachTemplate();
+  await updateSystemTemplate(
+    TEMPLATE_IDS.PRONUNCIATION_COACH_PROMPT,
     { template: newTemplate },
     updatedBy
   );

@@ -6,6 +6,10 @@ import {
 import {
   getWeeklyReviewTemplate,
   updateWeeklyReviewTemplate,
+  getCustomLessonTemplate,
+  updateCustomLessonTemplate,
+  getPronunciationCoachTemplate,
+  updatePronunciationCoachTemplate,
 } from '../services/firebase/systemTemplates';
 import type { PromptTemplateDocument, SystemTemplateDocument } from '../types/firestore';
 
@@ -26,6 +30,26 @@ interface UsePromptTemplatesResult {
   reviewTemplateLoading: boolean;
   reviewTemplateSaving: boolean;
   reviewTemplateChanged: boolean;
+
+  // Custom lesson template
+  customLessonTemplate: SystemTemplateDocument | null;
+  editedCustomLessonTemplate: string;
+  setEditedCustomLessonTemplate: (template: string) => void;
+  saveCustomLessonTemplate: () => Promise<void>;
+  resetCustomLessonTemplate: () => void;
+  customLessonTemplateLoading: boolean;
+  customLessonTemplateSaving: boolean;
+  customLessonTemplateChanged: boolean;
+
+  // Pronunciation coach template
+  pronunciationTemplate: SystemTemplateDocument | null;
+  editedPronunciationTemplate: string;
+  setEditedPronunciationTemplate: (template: string) => void;
+  savePronunciationTemplate: () => Promise<void>;
+  resetPronunciationTemplate: () => void;
+  pronunciationTemplateLoading: boolean;
+  pronunciationTemplateSaving: boolean;
+  pronunciationTemplateChanged: boolean;
 }
 
 export function usePromptTemplates(
@@ -37,11 +61,23 @@ export function usePromptTemplates(
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // System template state
+  // System template state - Weekly Review
   const [reviewTemplate, setReviewTemplate] = useState<SystemTemplateDocument | null>(null);
   const [editedReviewTemplate, setEditedReviewTemplate] = useState('');
   const [reviewTemplateLoading, setReviewTemplateLoading] = useState(false);
   const [reviewTemplateSaving, setReviewTemplateSaving] = useState(false);
+
+  // System template state - Custom Lesson
+  const [customLessonTemplate, setCustomLessonTemplate] = useState<SystemTemplateDocument | null>(null);
+  const [editedCustomLessonTemplate, setEditedCustomLessonTemplate] = useState('');
+  const [customLessonTemplateLoading, setCustomLessonTemplateLoading] = useState(false);
+  const [customLessonTemplateSaving, setCustomLessonTemplateSaving] = useState(false);
+
+  // System template state - Pronunciation Coach
+  const [pronunciationTemplate, setPronunciationTemplate] = useState<SystemTemplateDocument | null>(null);
+  const [editedPronunciationTemplate, setEditedPronunciationTemplate] = useState('');
+  const [pronunciationTemplateLoading, setPronunciationTemplateLoading] = useState(false);
+  const [pronunciationTemplateSaving, setPronunciationTemplateSaving] = useState(false);
 
   // Fetch prompt templates
   useEffect(() => {
@@ -61,24 +97,41 @@ export function usePromptTemplates(
     fetchTemplates();
   }, [teacherId]);
 
-  // Fetch weekly review template when templates tab is active
+  // Fetch all system templates when templates tab is active
   useEffect(() => {
-    const fetchReviewTemplate = async () => {
+    const fetchSystemTemplates = async () => {
       if (!isTemplatesTabActive) return;
 
+      // Fetch all three templates in parallel
       setReviewTemplateLoading(true);
+      setCustomLessonTemplateLoading(true);
+      setPronunciationTemplateLoading(true);
+
       try {
-        const template = await getWeeklyReviewTemplate();
-        setReviewTemplate(template);
-        setEditedReviewTemplate(template.template);
+        const [review, customLesson, pronunciation] = await Promise.all([
+          getWeeklyReviewTemplate(),
+          getCustomLessonTemplate(),
+          getPronunciationCoachTemplate(),
+        ]);
+
+        setReviewTemplate(review);
+        setEditedReviewTemplate(review.template);
+
+        setCustomLessonTemplate(customLesson);
+        setEditedCustomLessonTemplate(customLesson.template);
+
+        setPronunciationTemplate(pronunciation);
+        setEditedPronunciationTemplate(pronunciation.template);
       } catch (error) {
-        console.error('Error fetching review template:', error);
+        console.error('Error fetching system templates:', error);
       } finally {
         setReviewTemplateLoading(false);
+        setCustomLessonTemplateLoading(false);
+        setPronunciationTemplateLoading(false);
       }
     };
 
-    fetchReviewTemplate();
+    fetchSystemTemplates();
   }, [isTemplatesTabActive]);
 
   const selectTemplate = useCallback((id: string): PromptTemplateDocument | undefined => {
@@ -125,7 +178,53 @@ export function usePromptTemplates(
     }
   }, [reviewTemplate]);
 
+  // Custom Lesson Template handlers
+  const saveCustomLessonTemplate = useCallback(async () => {
+    if (!teacherId || !editedCustomLessonTemplate.trim()) return;
+
+    setCustomLessonTemplateSaving(true);
+    try {
+      await updateCustomLessonTemplate(editedCustomLessonTemplate, teacherId);
+      setCustomLessonTemplate(prev => prev ? { ...prev, template: editedCustomLessonTemplate } : prev);
+    } catch (error) {
+      console.error('Error saving custom lesson template:', error);
+      throw error;
+    } finally {
+      setCustomLessonTemplateSaving(false);
+    }
+  }, [teacherId, editedCustomLessonTemplate]);
+
+  const resetCustomLessonTemplate = useCallback(() => {
+    if (customLessonTemplate) {
+      setEditedCustomLessonTemplate(customLessonTemplate.template);
+    }
+  }, [customLessonTemplate]);
+
+  // Pronunciation Coach Template handlers
+  const savePronunciationTemplate = useCallback(async () => {
+    if (!teacherId || !editedPronunciationTemplate.trim()) return;
+
+    setPronunciationTemplateSaving(true);
+    try {
+      await updatePronunciationCoachTemplate(editedPronunciationTemplate, teacherId);
+      setPronunciationTemplate(prev => prev ? { ...prev, template: editedPronunciationTemplate } : prev);
+    } catch (error) {
+      console.error('Error saving pronunciation template:', error);
+      throw error;
+    } finally {
+      setPronunciationTemplateSaving(false);
+    }
+  }, [teacherId, editedPronunciationTemplate]);
+
+  const resetPronunciationTemplate = useCallback(() => {
+    if (pronunciationTemplate) {
+      setEditedPronunciationTemplate(pronunciationTemplate.template);
+    }
+  }, [pronunciationTemplate]);
+
   const reviewTemplateChanged = editedReviewTemplate !== reviewTemplate?.template;
+  const customLessonTemplateChanged = editedCustomLessonTemplate !== customLessonTemplate?.template;
+  const pronunciationTemplateChanged = editedPronunciationTemplate !== pronunciationTemplate?.template;
 
   return {
     templates,
@@ -133,6 +232,7 @@ export function usePromptTemplates(
     selectTemplate,
     createTemplate,
     loading,
+    // Weekly review template
     reviewTemplate,
     editedReviewTemplate,
     setEditedReviewTemplate,
@@ -141,5 +241,23 @@ export function usePromptTemplates(
     reviewTemplateLoading,
     reviewTemplateSaving,
     reviewTemplateChanged,
+    // Custom lesson template
+    customLessonTemplate,
+    editedCustomLessonTemplate,
+    setEditedCustomLessonTemplate,
+    saveCustomLessonTemplate,
+    resetCustomLessonTemplate,
+    customLessonTemplateLoading,
+    customLessonTemplateSaving,
+    customLessonTemplateChanged,
+    // Pronunciation coach template
+    pronunciationTemplate,
+    editedPronunciationTemplate,
+    setEditedPronunciationTemplate,
+    savePronunciationTemplate,
+    resetPronunciationTemplate,
+    pronunciationTemplateLoading,
+    pronunciationTemplateSaving,
+    pronunciationTemplateChanged,
   };
 }

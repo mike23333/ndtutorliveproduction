@@ -28,6 +28,93 @@ import type {
   ReviewLessonDocument,
 } from '../../types/firestore';
 
+// ==================== CURRENT LESSON TRACKING ====================
+
+/**
+ * Set the current lesson when a session starts
+ * Used for "Continue Learning" feature on homepage
+ */
+export const setCurrentLesson = async (
+  userId: string,
+  lesson: {
+    missionId: string;
+    title: string;
+    imageUrl?: string;
+  }
+): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const userRef = doc(db, 'users', userId);
+
+  await updateDoc(userRef, {
+    currentLesson: {
+      missionId: lesson.missionId,
+      title: lesson.title,
+      imageUrl: lesson.imageUrl || null,
+      startedAt: Timestamp.now(),
+    },
+    updatedAt: Timestamp.now(),
+  });
+
+  console.log('[SessionData] Set current lesson:', lesson.title);
+};
+
+/**
+ * Clear the current lesson when a session completes
+ */
+export const clearCurrentLesson = async (userId: string): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const { deleteField } = await import('firebase/firestore');
+  const userRef = doc(db, 'users', userId);
+
+  await updateDoc(userRef, {
+    currentLesson: deleteField(),
+    updatedAt: Timestamp.now(),
+  });
+
+  console.log('[SessionData] Cleared current lesson');
+};
+
+// ==================== STREAK CALCULATION ====================
+
+/**
+ * Calculate streak based on last practice date
+ * - Same day: keep streak
+ * - Yesterday: increment streak
+ * - 2+ days ago: reset to 1
+ */
+export const calculateStreak = (
+  lastPracticeDate: string | undefined,
+  currentStreak: number | undefined
+): { newStreak: number } => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+
+  if (!lastPracticeDate) {
+    // First ever session
+    return { newStreak: 1 };
+  }
+
+  if (lastPracticeDate === todayStr) {
+    // Already practiced today, keep current streak
+    return { newStreak: currentStreak || 1 };
+  }
+
+  // Check if last practice was yesterday
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+  if (lastPracticeDate === yesterdayStr) {
+    // Practiced yesterday, increment streak
+    return { newStreak: (currentStreak || 0) + 1 };
+  }
+
+  // More than 1 day gap, reset streak
+  return { newStreak: 1 };
+};
+
 // ==================== STRUGGLE ITEMS ====================
 
 /**
@@ -262,25 +349,47 @@ export const saveSessionSummary = async (
 
   // Update aggregate stats on user document for fast UI reads
   try {
+    const { deleteField } = await import('firebase/firestore');
     const userRef = doc(db, 'users', userId);
     const userSnap = await getDoc(userRef);
+    const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     if (userSnap.exists()) {
-      // Update existing user with incremented stats
+      const userData = userSnap.data();
+
+      // Calculate new streak
+      const { newStreak } = calculateStreak(
+        userData.lastPracticeDate,
+        userData.currentStreak
+      );
+      const longestStreak = Math.max(newStreak, userData.longestStreak || 0);
+
+      // Update existing user with incremented stats and streak
       await updateDoc(userRef, {
         totalStars: increment(params.stars),
         totalSessions: increment(1),
         totalPracticeTime: increment(durationSeconds),
         lastSessionAt: Timestamp.now(),
+        // Streak updates
+        currentStreak: newStreak,
+        lastPracticeDate: todayStr,
+        longestStreak: longestStreak,
+        // Clear current lesson since session completed
+        currentLesson: deleteField(),
         updatedAt: Timestamp.now(),
       });
+      console.log('[SessionData] Updated streak:', newStreak, '(longest:', longestStreak, ')');
     } else {
-      // Create user stats if doesn't exist
+      // Create user stats if doesn't exist (first session ever)
       await setDoc(userRef, {
         totalStars: params.stars,
         totalSessions: 1,
         totalPracticeTime: durationSeconds,
         lastSessionAt: Timestamp.now(),
+        // Initialize streak for new user
+        currentStreak: 1,
+        lastPracticeDate: todayStr,
+        longestStreak: 1,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       }, { merge: true });
@@ -367,6 +476,9 @@ export const getUserStarStats = async (
   averageStars: number;
   totalPracticeTime: number;
   lastSessionAt: Date | null;
+  currentStreak: number;
+  longestStreak: number;
+  lastPracticeDate: string | null;
 }> => {
   if (!db) throw new Error('Firebase not configured');
 
@@ -380,6 +492,9 @@ export const getUserStarStats = async (
       averageStars: 0,
       totalPracticeTime: 0,
       lastSessionAt: null,
+      currentStreak: 0,
+      longestStreak: 0,
+      lastPracticeDate: null,
     };
   }
 
@@ -387,12 +502,30 @@ export const getUserStarStats = async (
   const totalSessions = data.totalSessions || 0;
   const totalStars = data.totalStars || 0;
 
+  // Check if streak should be reset (more than 1 day since last practice)
+  let displayStreak = data.currentStreak || 0;
+  if (data.lastPracticeDate) {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    // If last practice was not today or yesterday, streak is effectively 0
+    if (data.lastPracticeDate !== todayStr && data.lastPracticeDate !== yesterdayStr) {
+      displayStreak = 0;
+    }
+  }
+
   return {
     totalSessions,
     totalStars,
     averageStars: totalSessions > 0 ? totalStars / totalSessions : 0,
     totalPracticeTime: data.totalPracticeTime || 0,
     lastSessionAt: data.lastSessionAt?.toDate() || null,
+    currentStreak: displayStreak,
+    longestStreak: data.longestStreak || 0,
+    lastPracticeDate: data.lastPracticeDate || null,
   };
 };
 

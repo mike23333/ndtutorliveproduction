@@ -77,6 +77,7 @@ const TeacherDashboard: React.FC = () => {
     selectedTemplateId,
     selectTemplate,
     createTemplate,
+    // Weekly review template
     reviewTemplate,
     editedReviewTemplate,
     setEditedReviewTemplate,
@@ -85,6 +86,24 @@ const TeacherDashboard: React.FC = () => {
     reviewTemplateLoading,
     reviewTemplateSaving,
     reviewTemplateChanged,
+    // Custom lesson template
+    customLessonTemplate,
+    editedCustomLessonTemplate,
+    setEditedCustomLessonTemplate,
+    saveCustomLessonTemplate,
+    resetCustomLessonTemplate,
+    customLessonTemplateLoading,
+    customLessonTemplateSaving,
+    customLessonTemplateChanged,
+    // Pronunciation coach template
+    pronunciationTemplate,
+    editedPronunciationTemplate,
+    setEditedPronunciationTemplate,
+    savePronunciationTemplate,
+    resetPronunciationTemplate,
+    pronunciationTemplateLoading,
+    pronunciationTemplateSaving,
+    pronunciationTemplateChanged,
   } = usePromptTemplates(user?.uid, activeTab === 'templates');
 
   // Handlers
@@ -332,14 +351,33 @@ const TeacherDashboard: React.FC = () => {
 
         {activeTab === 'templates' && (
           <TemplatesTab
+            // Weekly Review Template
             reviewTemplate={reviewTemplate}
-            editedTemplate={editedReviewTemplate}
-            onTemplateChange={setEditedReviewTemplate}
-            onSave={saveReviewTemplate}
-            onReset={resetReviewTemplate}
-            loading={reviewTemplateLoading}
-            saving={reviewTemplateSaving}
-            hasChanges={reviewTemplateChanged}
+            editedReviewTemplate={editedReviewTemplate}
+            onReviewTemplateChange={setEditedReviewTemplate}
+            onSaveReview={saveReviewTemplate}
+            onResetReview={resetReviewTemplate}
+            reviewLoading={reviewTemplateLoading}
+            reviewSaving={reviewTemplateSaving}
+            reviewHasChanges={reviewTemplateChanged}
+            // Custom Lesson Template
+            customLessonTemplate={customLessonTemplate}
+            editedCustomLessonTemplate={editedCustomLessonTemplate}
+            onCustomLessonTemplateChange={setEditedCustomLessonTemplate}
+            onSaveCustomLesson={saveCustomLessonTemplate}
+            onResetCustomLesson={resetCustomLessonTemplate}
+            customLessonLoading={customLessonTemplateLoading}
+            customLessonSaving={customLessonTemplateSaving}
+            customLessonHasChanges={customLessonTemplateChanged}
+            // Pronunciation Coach Template
+            pronunciationTemplate={pronunciationTemplate}
+            editedPronunciationTemplate={editedPronunciationTemplate}
+            onPronunciationTemplateChange={setEditedPronunciationTemplate}
+            onSavePronunciation={savePronunciationTemplate}
+            onResetPronunciation={resetPronunciationTemplate}
+            pronunciationLoading={pronunciationTemplateLoading}
+            pronunciationSaving={pronunciationTemplateSaving}
+            pronunciationHasChanges={pronunciationTemplateChanged}
           />
         )}
       </div>

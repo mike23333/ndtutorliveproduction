@@ -19,6 +19,7 @@ interface ScenarioHeaderProps {
   onSettings: () => void;
   onClose: () => void;
   onReconnect: () => void;
+  timerElement?: React.ReactNode;
 }
 
 export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
@@ -32,7 +33,8 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
   connectionError,
   onSettings,
   onClose,
-  onReconnect
+  onReconnect,
+  timerElement
 }) => (
   <div style={{
     padding: '16px',
@@ -136,6 +138,16 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
       </button>
     </div>
 
+    {/* Timer positioned below the header row, aligned to the right */}
+    {timerElement && (
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        marginTop: '8px',
+      }}>
+        {timerElement}
+      </div>
+    )}
   </div>
 );
 

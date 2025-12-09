@@ -4,7 +4,6 @@ import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import HomePage from './pages/HomePage';
 import ChatPage from './pages/ChatPage';
-import DebriefPage from './pages/DebriefPage';
 import TeacherDashboard from './pages/TeacherDashboard';
 import LoginPage from './pages/LoginPage';
 import SignUpPage from './pages/SignUpPage';
@@ -43,12 +42,6 @@ function App() {
                   <ChatPage />
                 </ProtectedRoute>
               } />
-              <Route path="/debrief" element={
-                <ProtectedRoute>
-                  <DebriefPage />
-                </ProtectedRoute>
-              } />
-
               {/* Teacher only route */}
               <Route path="/teacher" element={
                 <ProtectedRoute allowedRoles={['teacher', 'admin']}>

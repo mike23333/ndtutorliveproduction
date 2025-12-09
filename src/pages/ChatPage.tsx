@@ -11,7 +11,8 @@ import { AppColors, gradientBackground } from '../theme/colors';
 import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
 import { useUserId } from '../hooks/useAuth';
-import { completeReviewLesson } from '../services/firebase/sessionData';
+import { completeReviewLesson, setCurrentLesson } from '../services/firebase/sessionData';
+import { updateCustomLessonPracticed } from '../services/firebase/customLessons';
 import type { AIRole, StudentLevel, ToneType, PersonaType } from '../types/ai-role';
 import { LEVEL_CONFIGS } from '../types/ai-role';
 
@@ -57,6 +58,11 @@ interface RoleConfig {
   // Weekly review fields
   isReviewLesson?: boolean;
   reviewId?: string;
+  // Custom lesson fields
+  isCustomLesson?: boolean;
+  customLessonId?: string;
+  // Quick practice (pronunciation coach) - no stats tracking
+  isQuickPractice?: boolean;
 }
 
 // Message type for chat display
@@ -141,12 +147,16 @@ export default function ChatPage() {
     sessionSummary,
     reconnect,
     triggerSessionEnd,
-    clearSessionSummary
+    clearSessionSummary,
+    sendTextMessage,
   } = useGeminiChat(aiRole || undefined, userId || undefined);
 
   // Session timer state
   const [showSummary, setShowSummary] = useState(false);
   const sessionDuration = roleConfig?.durationMinutes || 15;
+
+  // Track if we've already sent the initial "Hi" message
+  const hasSentInitialHi = useRef(false);
 
   // Convert gemini messages to local Message format
   const messages: Message[] = useMemo(() => {
@@ -205,6 +215,38 @@ export default function ChatPage() {
     }
   }, [sessionSummary]);
 
+  // Auto-send "Hi" when connection is established
+  // This triggers the AI to start the conversation immediately
+  // Also sets currentLesson for "Continue Learning" feature
+  useEffect(() => {
+    if (isConnected && !hasSentInitialHi.current && aiRole && roleConfig) {
+      // Small delay to ensure connection is fully ready
+      const timer = setTimeout(async () => {
+        console.log('[ChatPage] Auto-sending initial Hi to start conversation');
+        sendTextMessage('Hi');
+        hasSentInitialHi.current = true;
+
+        // Track current lesson for "Continue Learning" (skip for quick practice)
+        if (userId && !roleConfig.isQuickPractice) {
+          try {
+            // Extract image URL from the role config (different sources have different fields)
+            const imageUrl = (roleConfig as any).imageUrl || undefined;
+            await setCurrentLesson(userId, {
+              missionId: roleConfig.id,
+              title: roleConfig.name,
+              imageUrl,
+            });
+            console.log('[ChatPage] Set current lesson:', roleConfig.name);
+          } catch (error) {
+            console.warn('[ChatPage] Could not set current lesson:', error);
+          }
+        }
+      }, 500);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, aiRole, roleConfig, sendTextMessage, userId]);
+
   // Handle timer end - trigger session end
   const handleTimerEnd = useCallback(() => {
     console.log('[ChatPage] Timer ended, triggering session summary');
@@ -229,6 +271,18 @@ export default function ChatPage() {
         console.error('[ChatPage] Error completing review lesson:', error);
       }
     }
+
+    // If this is a custom lesson, update practice count
+    if (roleConfig?.isCustomLesson && roleConfig?.customLessonId && userId) {
+      try {
+        await updateCustomLessonPracticed(userId, roleConfig.customLessonId);
+        console.log('[ChatPage] Custom lesson practiced:', roleConfig.customLessonId);
+      } catch (error) {
+        console.error('[ChatPage] Error updating custom lesson practice:', error);
+      }
+    }
+
+    // Note: isQuickPractice (pronunciation coach) doesn't save any stats
 
     // Save session data before navigating
     const sessionData = {
@@ -268,7 +322,7 @@ export default function ChatPage() {
       endTime: new Date().toISOString(),
     };
     sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
-    navigate('/debrief');
+    navigate('/');
   };
 
   // Loading state
@@ -325,25 +379,17 @@ export default function ChatPage() {
         onSettings={handleSettings}
         onClose={handleClose}
         onReconnect={reconnect}
+        timerElement={
+          roleConfig.durationMinutes && roleConfig.durationMinutes > 0 ? (
+            <SessionTimerCompact
+              durationMinutes={roleConfig.durationMinutes}
+              onTimeUp={handleTimerEnd}
+              isPaused={isPaused}
+              isVisible={isConnected && !showSummary}
+            />
+          ) : undefined
+        }
       />
-
-      {/* Session Timer - positioned in top-right corner */}
-      {/* Always render timer to preserve state during reconnects - just hide/pause when disconnected */}
-      {roleConfig.durationMinutes && roleConfig.durationMinutes > 0 && (
-        <div style={{
-          position: 'absolute',
-          top: '16px',
-          right: '140px',
-          zIndex: 100,
-        }}>
-          <SessionTimerCompact
-            durationMinutes={roleConfig.durationMinutes}
-            onTimeUp={handleTimerEnd}
-            isPaused={isPaused}
-            isVisible={isConnected && !showSummary}
-          />
-        </div>
-      )}
 
       {/* Vocab tracker */}
       <VocabTracker words={vocabWords} />

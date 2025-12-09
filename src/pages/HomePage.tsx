@@ -4,9 +4,17 @@ import { AppColors, gradientBackground } from '../theme/colors';
 import { PlayIcon, ClockIcon, StarIcon, SearchIcon, UserIcon, FireIcon } from '../theme/icons';
 import { getAllActiveMissions } from '../services/firebase/missions';
 import { getUserStarStats, getActiveReviewLesson } from '../services/firebase/sessionData';
-import { MissionDocument, ProficiencyLevel, ReviewLessonDocument } from '../types/firestore';
+import { getPronunciationCoachTemplate } from '../services/firebase/systemTemplates';
+import { MissionDocument, ProficiencyLevel, ReviewLessonDocument, CustomLessonDocument } from '../types/firestore';
 import { useAuth } from '../hooks/useAuth';
+import { useCustomLessons } from '../hooks/useCustomLessons';
 import { WeeklyReviewCard } from '../components/WeeklyReviewCard';
+import {
+  ToolsSection,
+  CreateOwnModal,
+  PronunciationModal,
+  MyPracticeSection,
+} from '../components/home';
 
 // User stats from Firestore
 interface UserStats {
@@ -14,6 +22,8 @@ interface UserStats {
   totalStars: number;
   averageStars: number;
   totalPracticeTime: number;
+  currentStreak: number;
+  longestStreak: number;
 }
 
 // Types for display
@@ -555,9 +565,22 @@ export default function HomePage() {
     totalStars: 0,
     averageStars: 0,
     totalPracticeTime: 0,
+    currentStreak: 0,
+    longestStreak: 0,
   });
   const [activeReview, setActiveReview] = useState<ReviewLessonDocument | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
+
+  // Custom lessons state
+  const {
+    lessons: customLessons,
+    createLesson,
+    updateLesson,
+    deleteLesson,
+  } = useCustomLessons(user?.uid);
+  const [showCreateOwnModal, setShowCreateOwnModal] = useState(false);
+  const [showPronunciationModal, setShowPronunciationModal] = useState(false);
+  const [editingLesson, setEditingLesson] = useState<CustomLessonDocument | null>(null);
 
   // Get levels at or below user's level for filtering
   const getLevelFilter = (userLevel: ProficiencyLevel | undefined): string[] => {
@@ -613,6 +636,8 @@ export default function HomePage() {
           totalStars: stats.totalStars,
           averageStars: stats.averageStars,
           totalPracticeTime: stats.totalPracticeTime,
+          currentStreak: stats.currentStreak,
+          longestStreak: stats.longestStreak,
         });
       } catch (error) {
         console.error('Error fetching user stats:', error);
@@ -680,6 +705,7 @@ export default function HomePage() {
       durationMinutes: lesson.durationMinutes,
       functionCallingEnabled: lesson.functionCallingEnabled ?? true,
       functionCallingInstructions: lesson.functionCallingInstructions,
+      imageUrl: lesson.image, // For Continue Learning feature
     };
     sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
 
@@ -713,6 +739,106 @@ export default function HomePage() {
 
     // Navigate to the chat page with review ID
     navigate(`/chat/review-${activeReview.id}`);
+  };
+
+  // Handle "Create My Own" modal open
+  const handleCreateOwnClick = () => {
+    setEditingLesson(null);
+    setShowCreateOwnModal(true);
+  };
+
+  // Handle "Pronunciation Coach" modal open
+  const handlePronunciationClick = () => {
+    setShowPronunciationModal(true);
+  };
+
+  // Handle custom lesson creation/update
+  const handleCreateOrUpdateLesson = async (data: {
+    title: string;
+    description: string;
+    imageUrl?: string;
+    imageStoragePath?: string;
+  }) => {
+    const userLevel = userDocument?.level || 'B1';
+
+    if (editingLesson) {
+      // Update existing lesson
+      await updateLesson(editingLesson.id, data, userLevel);
+    } else {
+      // Create new lesson
+      await createLesson(data, userLevel);
+    }
+  };
+
+  // Handle custom lesson click - navigate to chat
+  const handleCustomLessonClick = (lesson: CustomLessonDocument) => {
+    const roleConfig = {
+      id: `custom-${lesson.id}`,
+      name: lesson.title,
+      icon: '✨',
+      scenario: lesson.description,
+      systemPrompt: lesson.systemPrompt,
+      persona: 'tutor' as const,
+      tone: 'friendly',
+      level: userDocument?.level || 'B1',
+      color: '#8B5CF6',
+      durationMinutes: lesson.durationMinutes,
+      functionCallingEnabled: true,
+      // Custom lesson tracking
+      isCustomLesson: true,
+      customLessonId: lesson.id,
+      imageUrl: lesson.imageUrl, // For Continue Learning feature
+    };
+    sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
+    navigate(`/chat/custom-${lesson.id}`);
+  };
+
+  // Handle custom lesson edit
+  const handleEditLesson = (lesson: CustomLessonDocument) => {
+    setEditingLesson(lesson);
+    setShowCreateOwnModal(true);
+  };
+
+  // Handle custom lesson delete
+  const handleDeleteLesson = async (lesson: CustomLessonDocument) => {
+    if (window.confirm(`Delete "${lesson.title}"? This cannot be undone.`)) {
+      await deleteLesson(lesson.id);
+    }
+  };
+
+  // Handle pronunciation coach submit
+  const handlePronunciationSubmit = async (words: string) => {
+    try {
+      // Get the pronunciation template
+      const templateDoc = await getPronunciationCoachTemplate();
+      const userLevel = userDocument?.level || 'B1';
+
+      // Fill in the template
+      const systemPrompt = templateDoc.template
+        .replace(/\{\{level\}\}/g, userLevel)
+        .replace(/\{\{words\}\}/g, words);
+
+      const roleConfig = {
+        id: `pronunciation-${Date.now()}`,
+        name: 'Pronunciation Coach',
+        icon: '🎯',
+        scenario: `Practice pronunciation for: ${words}`,
+        systemPrompt,
+        persona: 'tutor' as const,
+        tone: 'encouraging',
+        level: userLevel,
+        color: '#3B82F6',
+        durationMinutes: 2,
+        functionCallingEnabled: true,
+        // Quick practice - no stats tracking
+        isQuickPractice: true,
+      };
+      sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
+      navigate(`/chat/pronunciation-${Date.now()}`);
+    } catch (error) {
+      console.error('Error starting pronunciation session:', error);
+      alert('Failed to start pronunciation session. Please try again.');
+    }
   };
 
   return (
@@ -760,7 +886,7 @@ export default function HomePage() {
         }}
       >
         {/* Header */}
-        <Header userName={userDocument?.displayName || user?.displayName || 'Learner'} streakDays={7} />
+        <Header userName={userDocument?.displayName || user?.displayName || 'Learner'} streakDays={userStats.currentStreak} />
 
         {/* Weekly Review Card - shown prominently when available */}
         {activeReview && (
@@ -770,14 +896,59 @@ export default function HomePage() {
           />
         )}
 
-        {/* Continue Learning */}
-        {lessons.length > 0 && (
-          <ContinueLearningCard
-            lesson={lessons[0]}
-            progress={65}
-            onClick={() => handleLessonClick(lessons[0])}
-          />
-        )}
+        {/* Continue Learning - show in-progress lesson if exists, otherwise first lesson */}
+        {(userDocument?.currentLesson || lessons.length > 0) && (() => {
+          // Check if user has an in-progress lesson
+          const inProgressLesson = userDocument?.currentLesson;
+
+          if (inProgressLesson) {
+            // Create a lesson object for the in-progress session
+            const continueLesson: Lesson = {
+              id: inProgressLesson.missionId,
+              title: inProgressLesson.title,
+              description: 'Continue where you left off',
+              image: inProgressLesson.imageUrl || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=300&fit=crop',
+              duration: '5 min',
+              level: userDocument?.level || 'B1',
+              category: 'Continue',
+              stars: 0,
+              totalStars: 5,
+              isNew: false,
+              isLocked: false,
+            };
+
+            // Find the full lesson from missions to get systemPrompt
+            const fullLesson = lessons.find(l => l.id === inProgressLesson.missionId);
+
+            return (
+              <ContinueLearningCard
+                lesson={continueLesson}
+                progress={30}
+                onClick={() => {
+                  if (fullLesson) {
+                    handleLessonClick(fullLesson);
+                  } else {
+                    // Fallback: navigate directly if we can't find the full lesson
+                    navigate(`/chat/${inProgressLesson.missionId}`);
+                  }
+                }}
+              />
+            );
+          }
+
+          // No in-progress lesson, show first lesson from carousel
+          if (lessons.length > 0) {
+            return (
+              <ContinueLearningCard
+                lesson={lessons[0]}
+                progress={0}
+                onClick={() => handleLessonClick(lessons[0])}
+              />
+            );
+          }
+
+          return null;
+        })()}
 
         {/* Section title */}
         <div style={{
@@ -843,6 +1014,20 @@ export default function HomePage() {
           total={filteredLessons.length}
           current={currentIndex}
           onChange={scrollToIndex}
+        />
+
+        {/* My Practice Section - custom lessons carousel */}
+        <MyPracticeSection
+          lessons={customLessons}
+          onLessonClick={handleCustomLessonClick}
+          onEditLesson={handleEditLesson}
+          onDeleteLesson={handleDeleteLesson}
+        />
+
+        {/* Tools Section - Create My Own & Pronunciation Coach */}
+        <ToolsSection
+          onCreateOwn={handleCreateOwnClick}
+          onPronunciationCoach={handlePronunciationClick}
         />
 
         {/* Quick stats */}
@@ -925,6 +1110,25 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      {/* Create My Own Modal */}
+      <CreateOwnModal
+        isOpen={showCreateOwnModal}
+        onClose={() => {
+          setShowCreateOwnModal(false);
+          setEditingLesson(null);
+        }}
+        onSubmit={handleCreateOrUpdateLesson}
+        userId={user?.uid || ''}
+        editingLesson={editingLesson}
+      />
+
+      {/* Pronunciation Coach Modal */}
+      <PronunciationModal
+        isOpen={showPronunciationModal}
+        onClose={() => setShowPronunciationModal(false)}
+        onSubmit={handlePronunciationSubmit}
+      />
     </div>
   );
 }

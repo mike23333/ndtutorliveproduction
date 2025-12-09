@@ -41,6 +41,17 @@ export interface UserDocument {
   totalSessions?: number;
   totalPracticeTime?: number; // in seconds
   lastSessionAt?: Timestamp;
+  // Streak tracking
+  currentStreak?: number;
+  lastPracticeDate?: string; // YYYY-MM-DD format for easy comparison
+  longestStreak?: number;
+  // Continue Learning - tracks incomplete sessions
+  currentLesson?: {
+    missionId: string;
+    title: string;
+    imageUrl?: string;
+    startedAt: Timestamp;
+  } | null;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -331,3 +342,30 @@ export interface SystemTemplateDocument {
   updatedAt: Timestamp;
   updatedBy: string; // User ID of last editor
 }
+
+/**
+ * Custom Lesson Document
+ * Collection: users/{userId}/customLessons
+ * Student-created personalized practice lessons
+ */
+export interface CustomLessonDocument {
+  id: string;
+  userId: string;
+  title: string;
+  description: string; // What they want to practice
+  imageUrl?: string;
+  imageStoragePath?: string; // Firebase Storage path for cleanup
+  systemPrompt: string; // Generated from template with placeholders filled
+  durationMinutes: 5; // Fixed at 5 minutes
+  createdAt: Timestamp;
+  lastPracticedAt?: Timestamp;
+  practiceCount: number;
+}
+
+export type CreateCustomLessonInput = Omit<CustomLessonDocument, 'id' | 'createdAt' | 'lastPracticedAt' | 'practiceCount'> & {
+  id?: string;
+};
+
+export type UpdateCustomLessonInput = Partial<Pick<CustomLessonDocument, 'title' | 'description' | 'imageUrl' | 'imageStoragePath' | 'systemPrompt'>> & {
+  id: string;
+};
