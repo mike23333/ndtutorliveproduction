@@ -18,6 +18,7 @@ from google.cloud import firestore
 from app.config import config
 from app.token_service import get_token_service
 from app.review_service import get_review_service
+from app.analytics_service import get_analytics_service
 
 
 # Request/Response models
@@ -56,13 +57,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS middleware
+# CORS middleware - must be added FIRST for proper error handling
 app.add_middleware(
     CORSMiddleware,
     allow_origins=config.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 
@@ -151,7 +153,10 @@ async def root():
             "token": "POST /api/token",
             "health": "GET /health",
             "review_generate": "POST /api/review/generate",
-            "review_batch": "POST /api/review/generate-batch"
+            "review_batch": "POST /api/review/generate-batch",
+            "analytics": "GET /api/analytics/teacher/{teacherId}",
+            "pulse_get": "GET /api/pulse/teacher/{teacherId}",
+            "pulse_generate": "POST /api/pulse/teacher/{teacherId}"
         },
         "architecture": "Client gets token here, then connects directly to Gemini Live API"
     }
@@ -268,6 +273,103 @@ async def generate_batch_reviews(request: GenerateBatchReviewsRequest):
         )
     except Exception as e:
         print(f"[Review] Batch error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== ANALYTICS ENDPOINTS ====================
+
+@app.get("/api/analytics/teacher/{teacherId}")
+async def get_teacher_analytics(
+    teacherId: str,
+    period: str = "week",
+    level: str = "all"
+):
+    """
+    Get analytics for a teacher's class.
+
+    Query Parameters:
+        period: Time period - "week", "month", or "all-time" (default: "week")
+        level: CEFR level filter - "A1"-"C2" or "all" (default: "all")
+
+    Returns analytics grouped by CEFR level including:
+        - Student counts and session activity
+        - Average stars and practice minutes
+        - Week-over-week trends
+        - Per-lesson performance stats
+        - Student activity status
+        - Top struggle words/phrases
+        - Cross-level insights (mismatches, advancement candidates)
+    """
+    # Validate period
+    if period not in ["week", "month", "all-time"]:
+        raise HTTPException(status_code=400, detail="Invalid period. Use: week, month, all-time")
+
+    # Validate level
+    valid_levels = ["all", "A1", "A2", "B1", "B2", "C1", "C2"]
+    if level not in valid_levels:
+        raise HTTPException(status_code=400, detail=f"Invalid level. Use: {', '.join(valid_levels)}")
+
+    try:
+        analytics_service = get_analytics_service()
+        result = analytics_service.get_teacher_analytics(teacherId, period, level)
+        return result
+    except Exception as e:
+        print(f"[Analytics] Error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== CLASS PULSE ENDPOINTS ====================
+
+@app.get("/api/pulse/teacher/{teacherId}")
+async def get_class_pulse(teacherId: str):
+    """
+    Get existing Class Pulse insights for a teacher (without regenerating).
+
+    Returns today's AI-generated insights if available.
+    Use POST to generate/refresh insights.
+    """
+    try:
+        analytics_service = get_analytics_service()
+        result = analytics_service.get_class_pulse(teacherId)
+        return result
+    except Exception as e:
+        print(f"[ClassPulse] Error getting pulse: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/pulse/teacher/{teacherId}")
+async def generate_class_pulse(teacherId: str, force: bool = False):
+    """
+    Generate AI-powered Class Pulse insights for a teacher.
+
+    Uses Gemini 2.5 Pro to analyze class data and generate 2-3 actionable insights.
+    Implements smart triggering - only calls Gemini when meaningful new data exists:
+    - 3+ new sessions since last generation, OR
+    - 5+ new struggles since last generation
+
+    Query Parameters:
+        force: Force regeneration even if no new data (default: false)
+
+    Returns:
+        insights: Array of insight objects (type, level, title, message)
+        generatedAt: Timestamp of generation
+        stillValidAt: Timestamp of last validation
+        isNew: Whether insights were freshly generated
+
+    Insight types:
+        - "warning": Needs teacher attention (low scores, inactive students)
+        - "info": Neutral observation (patterns, trends)
+        - "success": Positive news (advancement candidates, improvements)
+    """
+    try:
+        print(f"[ClassPulse] POST request for teacher {teacherId}, force={force}", flush=True)
+        analytics_service = get_analytics_service()
+        result = analytics_service.generate_class_pulse(teacherId, force=force)
+        return result
+    except Exception as e:
+        import traceback
+        print(f"[ClassPulse] Error generating pulse: {e}", flush=True)
+        print(f"[ClassPulse] Traceback: {traceback.format_exc()}", flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

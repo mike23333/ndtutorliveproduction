@@ -1,7 +1,7 @@
-# Teacher Analytics Endpoint Implementation Plan
+# Teacher Analytics & Class Pulse Endpoint Implementation Plan
 
 ## Objective
-Add a teacher analytics endpoint to the existing Python FastAPI server (`python-server/main.py`) to support the Analytics Tab in TeacherDashboard.
+Add teacher analytics and Class Pulse (AI-generated insights) endpoints to the existing Python FastAPI server (`python-server/main.py`) to support the Analytics Tab and Class Pulse cards in TeacherDashboard.
 
 ## Current State
 - **Design Doc**: `docs/teacher-analytics-design.md` specifies Class Pulse + Analytics Tab features
@@ -374,6 +374,59 @@ def get_analytics_service() -> AnalyticsService:
     return _analytics_service
 ```
 
+## Class Pulse Endpoints (AI-Generated Insights)
+
+### GET `/api/pulse/teacher/{teacherId}`
+Returns existing Class Pulse insights without regenerating.
+
+### POST `/api/pulse/teacher/{teacherId}?force=false`
+Generates AI-powered insights using **Gemini 2.5 Pro**.
+
+**Query Parameters:**
+- `force`: Force regeneration even if no new data (default: false)
+
+**Smart Triggering:**
+Only calls Gemini API when meaningful new data exists:
+- 3+ new sessions since last generation, OR
+- 5+ new struggles since last generation
+
+Otherwise, just updates `stillValidAt` timestamp and returns cached insights.
+
+**Response:**
+```json
+{
+  "insights": [
+    {
+      "type": "warning",
+      "level": "B1",
+      "title": "Restaurant Lesson Struggling",
+      "message": "B1 students averaging 2.8 stars on Restaurant Ordering. Consider simplifying the menu vocabulary."
+    },
+    {
+      "type": "success",
+      "level": "B2",
+      "title": "Ready to Advance",
+      "message": "Anna, Viktor, and Olena have consistently scored 5 stars in B2. They may be ready for C1 content."
+    }
+  ],
+  "generatedAt": "2024-12-08T06:00:00Z",
+  "stillValidAt": "2024-12-08T14:30:00Z",
+  "isNew": true
+}
+```
+
+**Insight Types:**
+- `warning`: Needs teacher attention (low scores, inactive students)
+- `info`: Neutral observation (patterns, trends)
+- `success`: Positive news (advancement candidates, improvements)
+
+**Storage:**
+Insights stored in Firestore at `teachers/{teacherId}/dailyInsights/{date}` with:
+- `insights`: Array of insight objects
+- `generatedAt`: When Gemini generated this
+- `stillValidAt`: Last validation timestamp
+- `dataSnapshot`: Stats at generation time (for smart triggering)
+
 ## Testing Strategy
 
 1. Create test file `python-server/tests/test_analytics.py`
@@ -382,3 +435,5 @@ def get_analytics_service() -> AnalyticsService:
 4. Test full endpoint with sample data
 5. Verify level filtering works correctly
 6. Verify trend calculations are accurate
+7. Test Class Pulse smart triggering logic
+8. Test Gemini prompt formatting and response parsing
