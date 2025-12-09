@@ -109,6 +109,7 @@ export interface MissionDocument {
   durationMinutes?: number; // Session time limit
   functionCallingEnabled?: boolean; // Whether to enable function calling
   functionCallingInstructions?: string; // Custom instructions for function calling
+  isFirstLesson?: boolean; // Teacher-designated first lesson for new students
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

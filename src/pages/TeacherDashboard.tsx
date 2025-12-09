@@ -94,7 +94,8 @@ const TeacherDashboard: React.FC = () => {
     editedReviewTemplate,
     setEditedReviewTemplate,
     saveReviewTemplate,
-    resetReviewTemplate,
+    discardReviewChanges,
+    resetReviewToDefault,
     reviewTemplateLoading,
     reviewTemplateSaving,
     reviewTemplateChanged,
@@ -103,7 +104,8 @@ const TeacherDashboard: React.FC = () => {
     editedCustomLessonTemplate,
     setEditedCustomLessonTemplate,
     saveCustomLessonTemplate,
-    resetCustomLessonTemplate,
+    discardCustomLessonChanges,
+    resetCustomLessonToDefault,
     customLessonTemplateLoading,
     customLessonTemplateSaving,
     customLessonTemplateChanged,
@@ -112,7 +114,8 @@ const TeacherDashboard: React.FC = () => {
     editedPronunciationTemplate,
     setEditedPronunciationTemplate,
     savePronunciationTemplate,
-    resetPronunciationTemplate,
+    discardPronunciationChanges,
+    resetPronunciationToDefault,
     pronunciationTemplateLoading,
     pronunciationTemplateSaving,
     pronunciationTemplateChanged,
@@ -382,7 +385,8 @@ const TeacherDashboard: React.FC = () => {
             editedReviewTemplate={editedReviewTemplate}
             onReviewTemplateChange={setEditedReviewTemplate}
             onSaveReview={saveReviewTemplate}
-            onResetReview={resetReviewTemplate}
+            onDiscardReviewChanges={discardReviewChanges}
+            onResetReviewToDefault={resetReviewToDefault}
             reviewLoading={reviewTemplateLoading}
             reviewSaving={reviewTemplateSaving}
             reviewHasChanges={reviewTemplateChanged}
@@ -391,7 +395,8 @@ const TeacherDashboard: React.FC = () => {
             editedCustomLessonTemplate={editedCustomLessonTemplate}
             onCustomLessonTemplateChange={setEditedCustomLessonTemplate}
             onSaveCustomLesson={saveCustomLessonTemplate}
-            onResetCustomLesson={resetCustomLessonTemplate}
+            onDiscardCustomLessonChanges={discardCustomLessonChanges}
+            onResetCustomLessonToDefault={resetCustomLessonToDefault}
             customLessonLoading={customLessonTemplateLoading}
             customLessonSaving={customLessonTemplateSaving}
             customLessonHasChanges={customLessonTemplateChanged}
@@ -400,7 +405,8 @@ const TeacherDashboard: React.FC = () => {
             editedPronunciationTemplate={editedPronunciationTemplate}
             onPronunciationTemplateChange={setEditedPronunciationTemplate}
             onSavePronunciation={savePronunciationTemplate}
-            onResetPronunciation={resetPronunciationTemplate}
+            onDiscardPronunciationChanges={discardPronunciationChanges}
+            onResetPronunciationToDefault={resetPronunciationToDefault}
             pronunciationLoading={pronunciationTemplateLoading}
             pronunciationSaving={pronunciationTemplateSaving}
             pronunciationHasChanges={pronunciationTemplateChanged}
@@ -419,6 +425,7 @@ const TeacherDashboard: React.FC = () => {
         onSystemPromptChange={lessonForm.setSystemPrompt}
         onDurationChange={lessonForm.setDurationMinutes}
         onTargetLevelChange={lessonForm.setTargetLevel}
+        onFirstLessonChange={lessonForm.setIsFirstLesson}
         onImageUpload={lessonForm.setImage}
         onImageRemove={lessonForm.clearImage}
         teacherId={user?.uid || 'anonymous'}

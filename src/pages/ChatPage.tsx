@@ -33,6 +33,9 @@ import { StarAnimation } from '../components/chat/StarAnimation';
 // Badge components
 import { BadgeEarnedModal } from '../components/badges';
 
+// First session celebration (onboarding)
+import { FirstSessionCelebration } from '../components/onboarding';
+
 // Role icons mapping
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   barista: <CoffeeIcon />,
@@ -163,6 +166,8 @@ export default function ChatPage() {
   // Session timer state
   const [showSummary, setShowSummary] = useState(false);
   const [showBadgeModal, setShowBadgeModal] = useState(false);
+  const [showFirstSessionCelebration, setShowFirstSessionCelebration] = useState(false);
+  const [isFirstSession, setIsFirstSession] = useState(false);
   const sessionDuration = roleConfig?.durationMinutes || 15;
 
   // Track if we've already sent the initial "Hi" message
@@ -193,6 +198,13 @@ export default function ChatPage() {
       // Convert to AIRole for Gemini
       const role = convertToAIRole(config, defaultVocab.map(v => v.word));
       setAiRole(role);
+
+      // Check if this is the user's first session (from sessionStorage flag)
+      const firstSessionFlag = sessionStorage.getItem('isFirstSession');
+      if (firstSessionFlag === 'true') {
+        setIsFirstSession(true);
+        sessionStorage.removeItem('isFirstSession'); // Clear the flag
+      }
     } else {
       navigate('/roles');
     }
@@ -225,12 +237,17 @@ export default function ChatPage() {
     }
   }, [sessionSummary]);
 
-  // Show badge modal when new badges are earned (after summary closes)
+  // Show first session celebration or badge modal when session completes
   useEffect(() => {
-    if (newBadges.length > 0 && !showSummary) {
+    // Show first session celebration after summary closes for first-time users
+    if (!showSummary && sessionSummary && isFirstSession && !showFirstSessionCelebration && !showBadgeModal) {
+      setShowFirstSessionCelebration(true);
+    }
+    // Show badge modal after summary closes (and after first session celebration if applicable)
+    else if (newBadges.length > 0 && !showSummary && !showFirstSessionCelebration) {
       setShowBadgeModal(true);
     }
-  }, [newBadges, showSummary]);
+  }, [newBadges, showSummary, isFirstSession, sessionSummary, showFirstSessionCelebration, showBadgeModal]);
 
   // Auto-send "Hi" when connection is established
   // This triggers the AI to start the conversation immediately
@@ -275,6 +292,18 @@ export default function ChatPage() {
     setShowBadgeModal(false);
     clearNewBadges();
   }, [clearNewBadges]);
+
+  // Handle first session celebration close
+  const handleFirstSessionCelebrationClose = useCallback(() => {
+    setShowFirstSessionCelebration(false);
+    // After closing first session celebration, check for badges
+    if (newBadges.length > 0) {
+      setShowBadgeModal(true);
+    } else {
+      // Navigate home if no badges to show
+      navigate('/');
+    }
+  }, [newBadges, navigate]);
 
   // Handle continue after summary - navigate home
   const handleSummaryContinue = useCallback(async () => {
@@ -481,6 +510,29 @@ export default function ChatPage() {
           badges={newBadges}
           onClose={handleBadgeModalClose}
         />
+      )}
+
+      {/* First Session Celebration - shows for first-time users */}
+      {showFirstSessionCelebration && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: gradientBackground,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <FirstSessionCelebration
+            starsEarned={sessionSummary?.stars || 3}
+            onGoHome={handleFirstSessionCelebrationClose}
+          />
+        </div>
       )}
     </div>
   );

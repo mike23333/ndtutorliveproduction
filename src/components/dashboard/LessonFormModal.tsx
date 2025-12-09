@@ -15,6 +15,7 @@ interface LessonFormModalProps {
   onSystemPromptChange: (prompt: string) => void;
   onDurationChange: (duration: number) => void;
   onTargetLevelChange: (level: ProficiencyLevel | null) => void;
+  onFirstLessonChange: (isFirst: boolean) => void;
   onImageUpload: (url: string, path: string) => void;
   onImageRemove: () => void;
   teacherId: string;
@@ -47,6 +48,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   onSystemPromptChange,
   onDurationChange,
   onTargetLevelChange,
+  onFirstLessonChange,
   onImageUpload,
   onImageRemove,
   teacherId,
@@ -243,6 +245,79 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               textAlign: 'center',
             }}
           />
+        </div>
+
+        {/* First Lesson Toggle */}
+        <div
+          style={{
+            marginBottom: 'clamp(12px, 3vw, 16px)',
+            padding: 'clamp(12px, 3vw, 16px)',
+            background: formData.isFirstLesson ? 'rgba(139, 92, 246, 0.1)' : AppColors.surfaceLight,
+            border: `1px solid ${formData.isFirstLesson ? AppColors.accentPurple : AppColors.borderColor}`,
+            borderRadius: 'clamp(8px, 2vw, 12px)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <div>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: 'clamp(13px, 2.8vw, 15px)',
+                  fontWeight: 600,
+                  color: AppColors.textPrimary,
+                  marginBottom: '4px',
+                }}
+              >
+                ⭐ First Lesson for New Students
+              </label>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 'clamp(11px, 2.2vw, 12px)',
+                  color: AppColors.textSecondary,
+                }}
+              >
+                This lesson will be shown first to students who haven&apos;t practiced yet
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => onFirstLessonChange(!formData.isFirstLesson)}
+              style={{
+                width: '52px',
+                height: '28px',
+                borderRadius: '14px',
+                border: 'none',
+                background: formData.isFirstLesson
+                  ? `linear-gradient(135deg, ${AppColors.accentPurple} 0%, ${AppColors.accentBlue} 100%)`
+                  : AppColors.surfaceMedium,
+                cursor: 'pointer',
+                position: 'relative',
+                transition: 'background 0.2s ease',
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: '22px',
+                  height: '22px',
+                  borderRadius: '50%',
+                  background: 'white',
+                  position: 'absolute',
+                  top: '3px',
+                  left: formData.isFirstLesson ? '27px' : '3px',
+                  transition: 'left 0.2s ease',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                }}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Image Upload */}

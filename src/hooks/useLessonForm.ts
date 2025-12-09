@@ -8,6 +8,7 @@ interface UseLessonFormResult {
   setSystemPrompt: (prompt: string) => void;
   setDurationMinutes: (duration: number) => void;
   setTargetLevel: (level: ProficiencyLevel | null) => void;
+  setIsFirstLesson: (isFirst: boolean) => void;
   setImageUrl: (url: string | null) => void;
   setImageStoragePath: (path: string | null) => void;
   setImage: (url: string, path: string) => void;
@@ -29,6 +30,7 @@ const initialFormData: LessonFormData = {
   imageUrl: null,
   imageStoragePath: null,
   targetLevel: null,
+  isFirstLesson: false,
 };
 
 export function useLessonForm(): UseLessonFormResult {
@@ -51,6 +53,10 @@ export function useLessonForm(): UseLessonFormResult {
 
   const setTargetLevel = useCallback((targetLevel: ProficiencyLevel | null) => {
     setFormData(prev => ({ ...prev, targetLevel }));
+  }, []);
+
+  const setIsFirstLesson = useCallback((isFirstLesson: boolean) => {
+    setFormData(prev => ({ ...prev, isFirstLesson }));
   }, []);
 
   const setImageUrl = useCallback((imageUrl: string | null) => {
@@ -83,6 +89,7 @@ export function useLessonForm(): UseLessonFormResult {
       imageUrl: lesson.imageUrl,
       imageStoragePath: lesson.imageStoragePath || null,
       targetLevel: lesson.targetLevel || null,
+      isFirstLesson: lesson.isFirstLesson || false,
     });
   }, []);
 
@@ -98,6 +105,7 @@ export function useLessonForm(): UseLessonFormResult {
     setSystemPrompt,
     setDurationMinutes,
     setTargetLevel,
+    setIsFirstLesson,
     setImageUrl,
     setImageStoragePath,
     setImage,

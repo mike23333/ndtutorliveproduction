@@ -28,7 +28,7 @@ export const ToolsSection: React.FC<ToolsSectionProps> = ({
           color: AppColors.textPrimary,
         }}
       >
-        Tools
+        Quick Practice
       </h2>
 
       {/* Cards container - responsive layout */}

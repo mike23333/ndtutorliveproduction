@@ -18,6 +18,8 @@ export interface LessonData {
   studentsCompleted: number;
   totalStudents: number;
   targetLevel?: ProficiencyLevel | null;
+  isFirstLesson?: boolean;
+  notCompletedStudents?: { uid: string; name: string; level?: ProficiencyLevel }[];
 }
 
 export interface LessonFormData {
@@ -27,6 +29,7 @@ export interface LessonFormData {
   imageUrl: string | null;
   imageStoragePath: string | null;
   targetLevel: ProficiencyLevel | null;
+  isFirstLesson?: boolean;
 }
 
 export interface ClassPulseInsight {

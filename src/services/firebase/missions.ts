@@ -28,6 +28,33 @@ import {
 const MISSIONS_COLLECTION = 'missions';
 
 /**
+ * Clear isFirstLesson flag from all lessons for a teacher
+ * Called before setting a new first lesson to ensure only one exists
+ */
+const clearFirstLessonFlag = async (teacherId: string, excludeMissionId?: string): Promise<void> => {
+  if (!db) return;
+
+  try {
+    const missionsRef = collection(db, MISSIONS_COLLECTION);
+    const q = query(
+      missionsRef,
+      where('teacherId', '==', teacherId),
+      where('isFirstLesson', '==', true)
+    );
+    const snapshot = await getDocs(q);
+
+    const updates = snapshot.docs
+      .filter(doc => doc.id !== excludeMissionId)
+      .map(doc => updateDoc(doc.ref, { isFirstLesson: false, updatedAt: Timestamp.now() }));
+
+    await Promise.all(updates);
+    console.log('[missions] Cleared isFirstLesson flag from', updates.length, 'lessons');
+  } catch (error) {
+    console.error('[missions] Error clearing first lesson flags:', error);
+  }
+};
+
+/**
  * Create a new mission
  */
 export const createMission = async (
@@ -63,6 +90,12 @@ export const createMission = async (
     if (missionData.durationMinutes !== undefined) mission.durationMinutes = missionData.durationMinutes;
     if (missionData.functionCallingEnabled !== undefined) mission.functionCallingEnabled = missionData.functionCallingEnabled;
     if (missionData.functionCallingInstructions) mission.functionCallingInstructions = missionData.functionCallingInstructions;
+    if (missionData.isFirstLesson !== undefined) mission.isFirstLesson = missionData.isFirstLesson;
+
+    // If this is marked as first lesson, clear the flag from other lessons
+    if (missionData.isFirstLesson) {
+      await clearFirstLessonFlag(missionData.teacherId);
+    }
 
     console.log('[missions] Creating mission:', mission.title, 'for teacher:', mission.teacherId);
     await setDoc(missionRef, mission);
@@ -154,6 +187,16 @@ export const updateMission = async (
     for (const [key, value] of Object.entries(updates)) {
       if (value !== undefined) {
         cleanedUpdates[key] = value;
+      }
+    }
+
+    // If setting isFirstLesson to true, clear the flag from other lessons first
+    if (cleanedUpdates.isFirstLesson === true) {
+      // Get the mission to find the teacherId
+      const missionSnap = await getDoc(missionRef);
+      if (missionSnap.exists()) {
+        const teacherId = missionSnap.data().teacherId;
+        await clearFirstLessonFlag(teacherId, id);
       }
     }
 

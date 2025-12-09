@@ -24,7 +24,7 @@ export const TEMPLATE_IDS = {
 } as const;
 
 // Default weekly review meta-prompt template
-const DEFAULT_WEEKLY_REVIEW_TEMPLATE = `Generate a 5-minute conversational English practice system prompt.
+export const DEFAULT_WEEKLY_REVIEW_TEMPLATE = `Generate a 5-minute conversational English practice system prompt for {{studentName}}.
 
 The student's English level is: {{level}} (CEFR scale)
 Adjust vocabulary, sentence complexity, and pace accordingly:
@@ -71,10 +71,10 @@ IMPORTANT: The prompt MUST include this exact section for autonomous function ca
 Return only the system prompt, no explanation or preamble.`;
 
 // Default custom lesson template
-const DEFAULT_CUSTOM_LESSON_TEMPLATE = `You are a friendly English conversation partner helping a {{level}} level student practice.
+export const DEFAULT_CUSTOM_LESSON_TEMPLATE = `You are a friendly English conversation partner helping {{studentName}}, a {{level}} level student, practice.
 
 ## THE SCENARIO
-The student wants to practice: {{practiceDescription}}
+{{studentName}} wants to practice: {{practiceDescription}}
 
 Create a natural, engaging conversation around this topic. Be encouraging and helpful.
 Adjust your vocabulary and pace for their {{level}} level:
@@ -107,7 +107,7 @@ Adjust your vocabulary and pace for their {{level}} level:
 - Rate 1-5 stars based on: participation, engagement, fluency`;
 
 // Default pronunciation coach template
-const DEFAULT_PRONUNCIATION_COACH_TEMPLATE = `You are a patient English pronunciation coach helping a {{level}} level student.
+export const DEFAULT_PRONUNCIATION_COACH_TEMPLATE = `You are a patient English pronunciation coach helping {{studentName}}, a {{level}} level student.
 
 ## YOUR ROLE
 Help the student practice pronouncing these words clearly: {{words}}
@@ -171,7 +171,7 @@ export const getWeeklyReviewTemplate = async (): Promise<SystemTemplateDocument>
     name: 'Weekly Review Generation Prompt',
     description: 'Meta-prompt sent to Gemini to generate personalized weekly review conversations',
     template: DEFAULT_WEEKLY_REVIEW_TEMPLATE,
-    placeholders: ['{{level}}', '{{struggles}}'],
+    placeholders: ['{{level}}', '{{struggles}}', '{{studentName}}'],
     updatedAt: Timestamp.now(),
     updatedBy: 'system',
   };
@@ -205,6 +205,7 @@ export const updateSystemTemplate = async (
     template?: string;
     name?: string;
     description?: string;
+    placeholders?: string[];
   },
   updatedBy: string
 ): Promise<void> => {
@@ -256,7 +257,7 @@ export const getCustomLessonTemplate = async (): Promise<SystemTemplateDocument>
     name: 'Custom Lesson Prompt',
     description: 'Template for student-created personalized practice lessons',
     template: DEFAULT_CUSTOM_LESSON_TEMPLATE,
-    placeholders: ['{{level}}', '{{practiceDescription}}'],
+    placeholders: ['{{level}}', '{{practiceDescription}}', '{{studentName}}'],
     updatedAt: Timestamp.now(),
     updatedBy: 'system',
   };
@@ -299,7 +300,7 @@ export const getPronunciationCoachTemplate = async (): Promise<SystemTemplateDoc
     name: 'Pronunciation Coach Prompt',
     description: 'Template for quick pronunciation practice sessions',
     template: DEFAULT_PRONUNCIATION_COACH_TEMPLATE,
-    placeholders: ['{{level}}', '{{words}}'],
+    placeholders: ['{{level}}', '{{words}}', '{{studentName}}'],
     updatedAt: Timestamp.now(),
     updatedBy: 'system',
   };
@@ -324,3 +325,4 @@ export const updatePronunciationCoachTemplate = async (
     updatedBy
   );
 };
+

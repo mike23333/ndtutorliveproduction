@@ -11,7 +11,8 @@ interface TemplateSection {
   editedTemplate: string;
   onTemplateChange: (template: string) => void;
   onSave: () => Promise<void>;
-  onReset: () => void;
+  onDiscardChanges: () => void;
+  onResetToDefault: () => void;
   loading: boolean;
   saving: boolean;
   hasChanges: boolean;
@@ -23,7 +24,8 @@ interface TemplatesTabProps {
   editedReviewTemplate: string;
   onReviewTemplateChange: (template: string) => void;
   onSaveReview: () => Promise<void>;
-  onResetReview: () => void;
+  onDiscardReviewChanges: () => void;
+  onResetReviewToDefault: () => void;
   reviewLoading: boolean;
   reviewSaving: boolean;
   reviewHasChanges: boolean;
@@ -33,7 +35,8 @@ interface TemplatesTabProps {
   editedCustomLessonTemplate: string;
   onCustomLessonTemplateChange: (template: string) => void;
   onSaveCustomLesson: () => Promise<void>;
-  onResetCustomLesson: () => void;
+  onDiscardCustomLessonChanges: () => void;
+  onResetCustomLessonToDefault: () => void;
   customLessonLoading: boolean;
   customLessonSaving: boolean;
   customLessonHasChanges: boolean;
@@ -43,7 +46,8 @@ interface TemplatesTabProps {
   editedPronunciationTemplate: string;
   onPronunciationTemplateChange: (template: string) => void;
   onSavePronunciation: () => Promise<void>;
-  onResetPronunciation: () => void;
+  onDiscardPronunciationChanges: () => void;
+  onResetPronunciationToDefault: () => void;
   pronunciationLoading: boolean;
   pronunciationSaving: boolean;
   pronunciationHasChanges: boolean;
@@ -225,6 +229,8 @@ const CollapsibleSection: React.FC<{
                   justifyContent: 'space-between',
                   alignItems: 'center',
                   marginTop: 'clamp(12px, 3vw, 16px)',
+                  flexWrap: 'wrap',
+                  gap: 'clamp(8px, 2vw, 12px)',
                 }}
               >
                 <span
@@ -238,23 +244,40 @@ const CollapsibleSection: React.FC<{
                   )}
                 </span>
 
-                <div style={{ display: 'flex', gap: 'clamp(8px, 2vw, 12px)' }}>
+                <div style={{ display: 'flex', gap: 'clamp(6px, 1.5vw, 10px)', flexWrap: 'wrap' }}>
                   <button
-                    onClick={section.onReset}
-                    disabled={!section.hasChanges}
+                    onClick={section.onResetToDefault}
+                    title="Restore the original default template (you must save after)"
                     style={{
-                      padding: 'clamp(8px, 2vw, 12px) clamp(16px, 4vw, 24px)',
+                      padding: 'clamp(8px, 2vw, 12px) clamp(12px, 3vw, 16px)',
+                      background: 'transparent',
+                      border: `1px solid ${AppColors.borderColor}`,
+                      borderRadius: 'clamp(8px, 2vw, 10px)',
+                      color: AppColors.textSecondary,
+                      fontSize: 'clamp(12px, 2.5vw, 13px)',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Reset to Default
+                  </button>
+                  <button
+                    onClick={section.onDiscardChanges}
+                    disabled={!section.hasChanges}
+                    title="Discard unsaved changes"
+                    style={{
+                      padding: 'clamp(8px, 2vw, 12px) clamp(12px, 3vw, 16px)',
                       background: AppColors.surfaceMedium,
                       border: `1px solid ${AppColors.borderColor}`,
                       borderRadius: 'clamp(8px, 2vw, 10px)',
                       color: AppColors.textSecondary,
-                      fontSize: 'clamp(13px, 2.8vw, 14px)',
+                      fontSize: 'clamp(12px, 2.5vw, 13px)',
                       fontWeight: 500,
                       cursor: !section.hasChanges ? 'not-allowed' : 'pointer',
                       opacity: !section.hasChanges ? 0.5 : 1,
                     }}
                   >
-                    Reset
+                    Discard
                   </button>
                   <button
                     onClick={handleSave}
@@ -265,13 +288,13 @@ const CollapsibleSection: React.FC<{
                       border: 'none',
                       borderRadius: 'clamp(8px, 2vw, 10px)',
                       color: AppColors.textDark,
-                      fontSize: 'clamp(13px, 2.8vw, 14px)',
+                      fontSize: 'clamp(12px, 2.5vw, 13px)',
                       fontWeight: 600,
                       cursor: section.saving || !section.hasChanges ? 'not-allowed' : 'pointer',
                       opacity: section.saving || !section.hasChanges ? 0.7 : 1,
                     }}
                   >
-                    {section.saving ? 'Saving...' : 'Save Template'}
+                    {section.saving ? 'Saving...' : 'Save'}
                   </button>
                 </div>
               </div>
@@ -289,7 +312,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   editedReviewTemplate,
   onReviewTemplateChange,
   onSaveReview,
-  onResetReview,
+  onDiscardReviewChanges,
+  onResetReviewToDefault,
   reviewLoading,
   reviewSaving,
   reviewHasChanges,
@@ -298,7 +322,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   editedCustomLessonTemplate,
   onCustomLessonTemplateChange,
   onSaveCustomLesson,
-  onResetCustomLesson,
+  onDiscardCustomLessonChanges,
+  onResetCustomLessonToDefault,
   customLessonLoading,
   customLessonSaving,
   customLessonHasChanges,
@@ -307,7 +332,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   editedPronunciationTemplate,
   onPronunciationTemplateChange,
   onSavePronunciation,
-  onResetPronunciation,
+  onDiscardPronunciationChanges,
+  onResetPronunciationToDefault,
   pronunciationLoading,
   pronunciationSaving,
   pronunciationHasChanges,
@@ -322,12 +348,14 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
       placeholders: [
         { code: '{{level}}', description: "Student's CEFR level (A1-C2)" },
         { code: '{{struggles}}', description: 'List of words the student struggled with' },
+        { code: '{{studentName}}', description: "Student's display name" },
       ],
       template: reviewTemplate,
       editedTemplate: editedReviewTemplate,
       onTemplateChange: onReviewTemplateChange,
       onSave: onSaveReview,
-      onReset: onResetReview,
+      onDiscardChanges: onDiscardReviewChanges,
+      onResetToDefault: onResetReviewToDefault,
       loading: reviewLoading,
       saving: reviewSaving,
       hasChanges: reviewHasChanges,
@@ -339,12 +367,14 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
       placeholders: [
         { code: '{{level}}', description: "Student's CEFR level (A1-C2)" },
         { code: '{{practiceDescription}}', description: 'What the student wants to practice' },
+        { code: '{{studentName}}', description: "Student's display name" },
       ],
       template: customLessonTemplate,
       editedTemplate: editedCustomLessonTemplate,
       onTemplateChange: onCustomLessonTemplateChange,
       onSave: onSaveCustomLesson,
-      onReset: onResetCustomLesson,
+      onDiscardChanges: onDiscardCustomLessonChanges,
+      onResetToDefault: onResetCustomLessonToDefault,
       loading: customLessonLoading,
       saving: customLessonSaving,
       hasChanges: customLessonHasChanges,
@@ -356,12 +386,14 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
       placeholders: [
         { code: '{{level}}', description: "Student's CEFR level (A1-C2)" },
         { code: '{{words}}', description: 'Comma-separated words to practice' },
+        { code: '{{studentName}}', description: "Student's display name" },
       ],
       template: pronunciationTemplate,
       editedTemplate: editedPronunciationTemplate,
       onTemplateChange: onPronunciationTemplateChange,
       onSave: onSavePronunciation,
-      onReset: onResetPronunciation,
+      onDiscardChanges: onDiscardPronunciationChanges,
+      onResetToDefault: onResetPronunciationToDefault,
       loading: pronunciationLoading,
       saving: pronunciationSaving,
       hasChanges: pronunciationHasChanges,

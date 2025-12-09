@@ -10,6 +10,9 @@ import {
   updateCustomLessonTemplate,
   getPronunciationCoachTemplate,
   updatePronunciationCoachTemplate,
+  DEFAULT_WEEKLY_REVIEW_TEMPLATE,
+  DEFAULT_CUSTOM_LESSON_TEMPLATE,
+  DEFAULT_PRONUNCIATION_COACH_TEMPLATE,
 } from '../services/firebase/systemTemplates';
 import type { PromptTemplateDocument, SystemTemplateDocument } from '../types/firestore';
 
@@ -26,7 +29,8 @@ interface UsePromptTemplatesResult {
   editedReviewTemplate: string;
   setEditedReviewTemplate: (template: string) => void;
   saveReviewTemplate: () => Promise<void>;
-  resetReviewTemplate: () => void;
+  discardReviewChanges: () => void;
+  resetReviewToDefault: () => void;
   reviewTemplateLoading: boolean;
   reviewTemplateSaving: boolean;
   reviewTemplateChanged: boolean;
@@ -36,7 +40,8 @@ interface UsePromptTemplatesResult {
   editedCustomLessonTemplate: string;
   setEditedCustomLessonTemplate: (template: string) => void;
   saveCustomLessonTemplate: () => Promise<void>;
-  resetCustomLessonTemplate: () => void;
+  discardCustomLessonChanges: () => void;
+  resetCustomLessonToDefault: () => void;
   customLessonTemplateLoading: boolean;
   customLessonTemplateSaving: boolean;
   customLessonTemplateChanged: boolean;
@@ -46,7 +51,8 @@ interface UsePromptTemplatesResult {
   editedPronunciationTemplate: string;
   setEditedPronunciationTemplate: (template: string) => void;
   savePronunciationTemplate: () => Promise<void>;
-  resetPronunciationTemplate: () => void;
+  discardPronunciationChanges: () => void;
+  resetPronunciationToDefault: () => void;
   pronunciationTemplateLoading: boolean;
   pronunciationTemplateSaving: boolean;
   pronunciationTemplateChanged: boolean;
@@ -172,11 +178,17 @@ export function usePromptTemplates(
     }
   }, [teacherId, editedReviewTemplate]);
 
-  const resetReviewTemplate = useCallback(() => {
+  // Discard unsaved changes (revert to what's in Firestore)
+  const discardReviewChanges = useCallback(() => {
     if (reviewTemplate) {
       setEditedReviewTemplate(reviewTemplate.template);
     }
   }, [reviewTemplate]);
+
+  // Reset to hardcoded default (populates editor, user must save)
+  const resetReviewToDefault = useCallback(() => {
+    setEditedReviewTemplate(DEFAULT_WEEKLY_REVIEW_TEMPLATE);
+  }, []);
 
   // Custom Lesson Template handlers
   const saveCustomLessonTemplate = useCallback(async () => {
@@ -194,11 +206,15 @@ export function usePromptTemplates(
     }
   }, [teacherId, editedCustomLessonTemplate]);
 
-  const resetCustomLessonTemplate = useCallback(() => {
+  const discardCustomLessonChanges = useCallback(() => {
     if (customLessonTemplate) {
       setEditedCustomLessonTemplate(customLessonTemplate.template);
     }
   }, [customLessonTemplate]);
+
+  const resetCustomLessonToDefault = useCallback(() => {
+    setEditedCustomLessonTemplate(DEFAULT_CUSTOM_LESSON_TEMPLATE);
+  }, []);
 
   // Pronunciation Coach Template handlers
   const savePronunciationTemplate = useCallback(async () => {
@@ -216,11 +232,15 @@ export function usePromptTemplates(
     }
   }, [teacherId, editedPronunciationTemplate]);
 
-  const resetPronunciationTemplate = useCallback(() => {
+  const discardPronunciationChanges = useCallback(() => {
     if (pronunciationTemplate) {
       setEditedPronunciationTemplate(pronunciationTemplate.template);
     }
   }, [pronunciationTemplate]);
+
+  const resetPronunciationToDefault = useCallback(() => {
+    setEditedPronunciationTemplate(DEFAULT_PRONUNCIATION_COACH_TEMPLATE);
+  }, []);
 
   const reviewTemplateChanged = editedReviewTemplate !== reviewTemplate?.template;
   const customLessonTemplateChanged = editedCustomLessonTemplate !== customLessonTemplate?.template;
@@ -237,7 +257,8 @@ export function usePromptTemplates(
     editedReviewTemplate,
     setEditedReviewTemplate,
     saveReviewTemplate,
-    resetReviewTemplate,
+    discardReviewChanges,
+    resetReviewToDefault,
     reviewTemplateLoading,
     reviewTemplateSaving,
     reviewTemplateChanged,
@@ -246,7 +267,8 @@ export function usePromptTemplates(
     editedCustomLessonTemplate,
     setEditedCustomLessonTemplate,
     saveCustomLessonTemplate,
-    resetCustomLessonTemplate,
+    discardCustomLessonChanges,
+    resetCustomLessonToDefault,
     customLessonTemplateLoading,
     customLessonTemplateSaving,
     customLessonTemplateChanged,
@@ -255,7 +277,8 @@ export function usePromptTemplates(
     editedPronunciationTemplate,
     setEditedPronunciationTemplate,
     savePronunciationTemplate,
-    resetPronunciationTemplate,
+    discardPronunciationChanges,
+    resetPronunciationToDefault,
     pronunciationTemplateLoading,
     pronunciationTemplateSaving,
     pronunciationTemplateChanged,

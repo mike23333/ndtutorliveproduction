@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getMissionsForTeacher, createMission, updateMission, deleteMission } from '../services/firebase/missions';
+import { getAllMissionCompletionStats, MissionCompletionStats } from '../services/firebase/students';
 import { useAuth } from './useAuth';
 import type { MissionDocument } from '../types/firestore';
 import type { LessonData, LessonFormData } from '../types/dashboard';
@@ -15,7 +16,10 @@ interface UseTeacherLessonsResult {
   refetch: () => Promise<void>;
 }
 
-function mapMissionToLesson(mission: MissionDocument): LessonData {
+function mapMissionToLesson(
+  mission: MissionDocument,
+  completionStats?: MissionCompletionStats
+): LessonData {
   return {
     id: mission.id,
     title: mission.title,
@@ -26,10 +30,12 @@ function mapMissionToLesson(mission: MissionDocument): LessonData {
     functionCallingEnabled: mission.functionCallingEnabled ?? true,
     assignedGroups: mission.groupId ? [mission.groupId] : [],
     status: mission.isActive ? 'published' : 'draft',
-    completionRate: 0,
-    studentsCompleted: 0,
-    totalStudents: 0,
+    completionRate: completionStats?.completionRate || 0,
+    studentsCompleted: completionStats?.completedCount || 0,
+    totalStudents: completionStats?.totalEligible || 0,
     targetLevel: mission.targetLevel || null,
+    isFirstLesson: mission.isFirstLesson || false,
+    notCompletedStudents: completionStats?.notCompletedStudents || [],
   };
 }
 
@@ -48,9 +54,16 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     setLoading(true);
     setError(null);
     try {
-      // Only fetch missions for this teacher
-      const missions = await getMissionsForTeacher(user.uid);
-      const mappedLessons = missions.map(mapMissionToLesson);
+      // Fetch missions and completion stats in parallel
+      const [missions, completionStatsMap] = await Promise.all([
+        getMissionsForTeacher(user.uid),
+        getAllMissionCompletionStats(user.uid),
+      ]);
+
+      // Map missions with their completion stats
+      const mappedLessons = missions.map(mission =>
+        mapMissionToLesson(mission, completionStatsMap[mission.id])
+      );
       setLessons(mappedLessons);
     } catch (err) {
       console.error('Error fetching lessons:', err);
@@ -83,6 +96,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       imageStoragePath: data.imageStoragePath || undefined,
       functionCallingEnabled: true,
       isActive: true,
+      isFirstLesson: data.isFirstLesson || false,
     });
 
     const newLesson = mapMissionToLesson(newMission);
@@ -105,23 +119,33 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     if (data.targetLevel !== undefined) updateData.targetLevel = data.targetLevel;
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
     if (data.imageStoragePath !== undefined) updateData.imageStoragePath = data.imageStoragePath;
+    if (data.isFirstLesson !== undefined) updateData.isFirstLesson = data.isFirstLesson;
 
     updateData.functionCallingEnabled = true;
 
     await updateMission(updateData as Parameters<typeof updateMission>[0]);
 
-    setLessons(prev => prev.map(l =>
-      l.id === lessonId
-        ? {
-            ...l,
-            title: data.title?.trim() ?? l.title,
-            systemPrompt: data.systemPrompt?.trim() ?? l.systemPrompt,
-            durationMinutes: data.durationMinutes ?? l.durationMinutes,
-            targetLevel: data.targetLevel !== undefined ? data.targetLevel : l.targetLevel,
-            imageUrl: data.imageUrl ?? l.imageUrl,
-          }
-        : l
-    ));
+    // If this lesson was set as first lesson, clear flag from others in local state
+    const updatedIsFirstLesson = data.isFirstLesson;
+
+    setLessons(prev => prev.map(l => {
+      if (l.id === lessonId) {
+        return {
+          ...l,
+          title: data.title?.trim() ?? l.title,
+          systemPrompt: data.systemPrompt?.trim() ?? l.systemPrompt,
+          durationMinutes: data.durationMinutes ?? l.durationMinutes,
+          targetLevel: data.targetLevel !== undefined ? data.targetLevel : l.targetLevel,
+          imageUrl: data.imageUrl ?? l.imageUrl,
+          isFirstLesson: data.isFirstLesson ?? l.isFirstLesson,
+        };
+      }
+      // If setting a new first lesson, clear flag from other lessons
+      if (updatedIsFirstLesson === true) {
+        return { ...l, isFirstLesson: false };
+      }
+      return l;
+    }));
   }, []);
 
   const deleteLessonHandler = useCallback(async (lessonId: string): Promise<void> => {

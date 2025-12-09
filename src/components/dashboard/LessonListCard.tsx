@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppColors } from '../../theme/colors';
-import { EditIcon, CopyIcon, TrashIcon } from '../../theme/icons';
+import { EditIcon, CopyIcon, TrashIcon, ChevronDownIcon } from '../../theme/icons';
 import type { LessonData } from '../../types/dashboard';
 
 interface LessonListCardProps {
@@ -16,6 +16,8 @@ export const LessonListCard: React.FC<LessonListCardProps> = ({
   onDelete,
   onDuplicate,
 }) => {
+  const [showNotCompleted, setShowNotCompleted] = useState(false);
+  const hasNotCompletedStudents = lesson.notCompletedStudents && lesson.notCompletedStudents.length > 0;
   const actionButtonStyle: React.CSSProperties = {
     width: 'clamp(30px, 6vw, 34px)',
     height: 'clamp(30px, 6vw, 34px)',
@@ -152,6 +154,100 @@ export const LessonListCard: React.FC<LessonListCardProps> = ({
           />
         </div>
       </div>
+
+      {/* Who hasn't completed - expandable section */}
+      {hasNotCompletedStudents && (
+        <div style={{ marginTop: 'clamp(8px, 2vw, 12px)' }}>
+          <button
+            onClick={() => setShowNotCompleted(!showNotCompleted)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              color: AppColors.textSecondary,
+              fontSize: 'clamp(11px, 2.2vw, 12px)',
+              cursor: 'pointer',
+              width: '100%',
+              justifyContent: 'flex-start',
+            }}
+          >
+            <span
+              style={{
+                transform: showNotCompleted ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+              }}
+            >
+              <ChevronDownIcon size={14} />
+            </span>
+            <span>
+              {showNotCompleted ? 'Hide' : 'Show'} who hasn&apos;t completed ({lesson.notCompletedStudents?.length})
+            </span>
+          </button>
+
+          {showNotCompleted && (
+            <div
+              style={{
+                marginTop: 'clamp(6px, 1.5vw, 8px)',
+                padding: 'clamp(8px, 2vw, 10px)',
+                background: AppColors.surfaceMedium,
+                borderRadius: 'clamp(6px, 1.5vw, 8px)',
+              }}
+            >
+              {lesson.notCompletedStudents?.map((student) => (
+                <div
+                  key={student.uid}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: 'clamp(4px, 1vw, 6px) 0',
+                    borderBottom: `1px solid ${AppColors.borderColor}`,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 'clamp(11px, 2.2vw, 12px)',
+                      color: AppColors.textPrimary,
+                    }}
+                  >
+                    {student.name}
+                  </span>
+                  {student.level && (
+                    <span
+                      style={{
+                        fontSize: 'clamp(9px, 1.8vw, 10px)',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(255,255,255,0.1)',
+                        color: AppColors.textSecondary,
+                      }}
+                    >
+                      {student.level}
+                    </span>
+                  )}
+                </div>
+              ))}
+              {lesson.notCompletedStudents?.length === 0 && (
+                <p
+                  style={{
+                    fontSize: 'clamp(11px, 2.2vw, 12px)',
+                    color: AppColors.textSecondary,
+                    margin: 0,
+                    textAlign: 'center',
+                  }}
+                >
+                  All students have completed this lesson!
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

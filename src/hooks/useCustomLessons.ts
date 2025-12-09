@@ -58,8 +58,10 @@ const fillTemplate = (template: string, values: Record<string, string>): string 
 
 /**
  * Hook for managing custom lessons
+ * @param userId - The user's ID
+ * @param studentName - The student's display name for template personalization
  */
-export function useCustomLessons(userId: string | undefined): UseCustomLessonsResult {
+export function useCustomLessons(userId: string | undefined, studentName?: string): UseCustomLessonsResult {
   const [lessons, setLessons] = useState<CustomLessonDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,6 +112,7 @@ export function useCustomLessons(userId: string | undefined): UseCustomLessonsRe
     const systemPrompt = fillTemplate(templateDoc.template, {
       level: userLevel,
       practiceDescription: data.description,
+      studentName: studentName || 'the student',
     });
 
     // Create the lesson (returns lesson and any new badges)
@@ -156,6 +159,7 @@ export function useCustomLessons(userId: string | undefined): UseCustomLessonsRe
       updates.systemPrompt = fillTemplate(templateDoc.template, {
         level: userLevel,
         practiceDescription: data.description,
+        studentName: studentName || 'the student',
       });
     }
 
