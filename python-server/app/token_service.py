@@ -102,18 +102,34 @@ class TokenService:
             live_config['tools'] = [{
                 'function_declarations': [
                     {
-                        'name': 'save_struggle_item',
-                        'description': 'Call this when student struggles with a word, phrase, or concept',
+                        'name': 'mark_for_review',
+                        'description': 'Call this silently when the student makes a linguistic error. Do not interrupt the flow.',
                         'parameters': {
                             'type': 'object',
                             'properties': {
-                                'word': {'type': 'string', 'description': 'Word/phrase student struggled with'},
-                                'struggle_type': {'type': 'string', 'enum': ['pronunciation', 'meaning', 'usage', 'grammar']},
-                                'context': {'type': 'string', 'description': 'Brief context about the struggle'},
-                                'timestamp': {'type': 'string', 'description': 'ISO timestamp'},
-                                'severity': {'type': 'string', 'enum': ['minor', 'moderate', 'significant']}
+                                'error_type': {
+                                    'type': 'string',
+                                    'enum': ['Grammar', 'Pronunciation', 'Vocabulary', 'Cultural'],
+                                    'description': 'The type of linguistic error'
+                                },
+                                'severity': {
+                                    'type': 'integer',
+                                    'description': '1 (Minor) to 10 (Critical)'
+                                },
+                                'user_sentence': {
+                                    'type': 'string',
+                                    'description': 'The approximate sentence the user just said'
+                                },
+                                'correction': {
+                                    'type': 'string',
+                                    'description': 'The correct native way to say it'
+                                },
+                                'explanation': {
+                                    'type': 'string',
+                                    'description': 'A very brief explanation of the rule'
+                                }
                             },
-                            'required': ['word', 'struggle_type', 'context', 'timestamp']
+                            'required': ['error_type', 'user_sentence', 'correction', 'severity']
                         }
                     },
                     {

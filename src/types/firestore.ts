@@ -249,9 +249,35 @@ export type UpdatePromptTemplateInput = Partial<Omit<PromptTemplateDocument, 'id
 };
 
 /**
- * Struggle Item Document
+ * Review Item Document (NEW - replaces StruggleDocument)
+ * Collection: users/{userId}/reviewItems
+ * Tracks linguistic errors for review lessons with enhanced detail
+ */
+export type ReviewItemErrorType = 'Grammar' | 'Pronunciation' | 'Vocabulary' | 'Cultural';
+
+export interface ReviewItemDocument {
+  id: string;
+  userId: string;
+  sessionId: string;
+  missionId: string | null;  // Lesson context
+  errorType: ReviewItemErrorType;
+  severity: number;  // 1-10 scale
+  userSentence: string;  // What the user said
+  correction: string;  // The correct way to say it
+  explanation?: string;  // Brief rule explanation
+  createdAt: Timestamp;
+  // Review tracking for weekly review generation
+  reviewCount: number;
+  lastReviewedAt: Timestamp | null;
+  mastered: boolean;
+  includedInReviews: string[];  // Array of review IDs this item was included in
+}
+
+/**
+ * @deprecated Use ReviewItemDocument instead
+ * Struggle Item Document (LEGACY)
  * Collection: users/{userId}/struggles
- * Tracks words/concepts student struggled with for review lessons
+ * Kept for migration compatibility
  */
 export interface StruggleDocument {
   id: string;

@@ -217,11 +217,16 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
         return dict(summaries)
 
     def _query_struggles(self, user_ids: List[str], start_time: datetime, end_time: datetime) -> List[Dict]:
-        struggles = []
+        """
+        Query review items (formerly struggles) from the new reviewItems collection.
+        Returns items with normalized field names for backwards compatibility with analytics.
+        """
+        items = []
         for user_id in user_ids:
+            # Query new reviewItems collection
             query = (
                 self._db.collection('users').document(user_id)
-                .collection('struggles')
+                .collection('reviewItems')
                 .where('createdAt', '>=', start_time)
                 .where('createdAt', '<=', end_time)
             )
@@ -229,8 +234,8 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
                 data = doc.to_dict()
                 data['userId'] = user_id
                 data['id'] = doc.id
-                struggles.append(data)
-        return struggles
+                items.append(data)
+        return items
 
     def _aggregate_by_level(
         self, mission_map, sessions, prev_sessions, users, session_summaries, prev_summaries, struggles
@@ -313,8 +318,12 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
 
         return {"sessions": sessions_trend, "avgStars": stars_trend}
 
-    def _aggregate_lessons(self, sessions, mission_map, struggles=None) -> List[Dict]:
-        stats = defaultdict(lambda: {'completions': 0, 'stars': [], 'struggles': [], 'user_ids': set()})
+    def _aggregate_lessons(self, sessions, mission_map, review_items=None) -> List[Dict]:
+        """
+        Aggregate lesson statistics including review items (formerly struggles).
+        Updated to use new reviewItems schema with errorType, userSentence, correction.
+        """
+        stats = defaultdict(lambda: {'completions': 0, 'stars': [], 'review_items': [], 'user_ids': set()})
         for session in sessions:
             mid = session.get('missionId')
             if mid:
@@ -324,18 +333,18 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
                 if session.get('userId'):
                     stats[mid]['user_ids'].add(session['userId'])
 
-        # Link struggles to lessons based on which lessons the student did
-        if struggles:
-            for struggle in struggles:
-                user_id = struggle.get('userId')
-                mission_id = struggle.get('missionId')  # Direct link if available
+        # Link review items to lessons based on which lessons the student did
+        if review_items:
+            for item in review_items:
+                user_id = item.get('userId')
+                mission_id = item.get('missionId')  # Direct link if available
                 if mission_id and mission_id in stats:
-                    stats[mission_id]['struggles'].append(struggle)
+                    stats[mission_id]['review_items'].append(item)
                 elif user_id:
                     # Fallback: attribute to lessons this user participated in
                     for mid, data in stats.items():
                         if user_id in data['user_ids']:
-                            stats[mid]['struggles'].append(struggle)
+                            stats[mid]['review_items'].append(item)
                             break  # Only attribute to one lesson
 
         lessons = []
@@ -343,15 +352,17 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
             mission = mission_map.get(mid, {})
             avg = sum(s['stars']) / len(s['stars']) if s['stars'] else 0
 
-            # Aggregate struggle words for this lesson
-            struggle_counts = defaultdict(int)
-            for struggle in s['struggles']:
-                word = struggle.get('word', '')
-                if word:
-                    struggle_counts[word] += 1
+            # Aggregate corrections for this lesson (new field name)
+            # Use correction for display, truncated for readability
+            correction_counts = defaultdict(int)
+            for item in s['review_items']:
+                # Use correction (new) or fall back to userSentence truncated
+                display_text = item.get('correction', item.get('userSentence', ''))[:40]
+                if display_text:
+                    correction_counts[display_text] += 1
 
             top_struggles = sorted(
-                [{'word': w, 'count': c} for w, c in struggle_counts.items()],
+                [{'word': w, 'count': c} for w, c in correction_counts.items()],
                 key=lambda x: x['count'],
                 reverse=True
             )[:5]
@@ -362,7 +373,7 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
                 "completions": s['completions'],
                 "avgStars": round(avg, 1),
                 "warning": avg < 3.0 and s['completions'] >= 3,
-                "struggleCount": len(s['struggles']),
+                "struggleCount": len(s['review_items']),
                 "topStruggles": top_struggles
             })
         lessons.sort(key=lambda x: x['completions'], reverse=True)
@@ -401,28 +412,44 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
         students.sort(key=lambda x: x.get('lastActive') or '', reverse=True)
         return students
 
-    def _aggregate_struggles(self, struggles) -> List[Dict]:
-        counts = defaultdict(lambda: {'count': 0, 'type': 'vocabulary', 'severities': []})
-        for s in struggles:
-            word = s.get('word', '')
-            if word:
-                counts[word]['count'] += 1
-                counts[word]['type'] = s.get('struggleType', 'vocabulary')
-                counts[word]['severities'].append(s.get('severity', 'moderate'))
+    def _aggregate_struggles(self, review_items) -> List[Dict]:
+        """
+        Aggregate review items (formerly struggles) for display.
+        Updated to use new schema: errorType, userSentence, correction, severity (1-10).
+        """
+        counts = defaultdict(lambda: {'count': 0, 'type': 'Vocabulary', 'severities': []})
+        for item in review_items:
+            # Use correction as the display text (what they should say)
+            # Fall back to userSentence if correction not available
+            text = item.get('correction', item.get('userSentence', ''))[:50]  # Truncate for display
+            if text:
+                counts[text]['count'] += 1
+                counts[text]['type'] = item.get('errorType', 'Vocabulary')
+                # New severity is 1-10 integer
+                severity = item.get('severity', 5)
+                counts[text]['severities'].append(severity)
 
-        severity_map = {'significant': 3, 'moderate': 2, 'minor': 1}
         result = []
-        for word, data in counts.items():
-            avg = sum(severity_map.get(sv, 2) for sv in data['severities']) / len(data['severities'])
-            sev = "high" if avg >= 2.5 else "medium" if avg >= 1.5 else "low"
-            result.append({"text": word, "type": data['type'], "count": data['count'], "severity": sev})
+        for text, data in counts.items():
+            # Map 1-10 scale to low/medium/high
+            # 1-3 = low, 4-6 = medium, 7-10 = high
+            avg_severity = sum(data['severities']) / len(data['severities']) if data['severities'] else 5
+            if avg_severity >= 7:
+                sev = "high"
+            elif avg_severity >= 4:
+                sev = "medium"
+            else:
+                sev = "low"
+            result.append({"text": text, "type": data['type'], "count": data['count'], "severity": sev})
         result.sort(key=lambda x: x['count'], reverse=True)
         return result[:15]
 
     def _count_mastered_words(self, user_ids) -> int:
+        """Count mastered review items from new reviewItems collection."""
         count = 0
         for uid in user_ids:
-            query = self._db.collection('users').document(uid).collection('struggles').where('mastered', '==', True)
+            # Use new reviewItems collection
+            query = self._db.collection('users').document(uid).collection('reviewItems').where('mastered', '==', True)
             count += len(list(query.stream()))
         return count
 

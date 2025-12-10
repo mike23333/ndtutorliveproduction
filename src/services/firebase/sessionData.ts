@@ -19,11 +19,13 @@ import {
 import { db } from '../../config/firebase';
 import type {
   SaveStruggleItemParams,
+  MarkForReviewParams,
   UpdateUserProfileParams,
   ShowSessionSummaryParams,
 } from '../../types/functions';
 import type {
   StruggleDocument,
+  ReviewItemDocument,
   UserProfileDocument,
   SessionSummaryDocument,
   ReviewLessonDocument,
@@ -161,8 +163,112 @@ export const saveStruggleItem = async (
   return struggle;
 };
 
+// ==================== REVIEW ITEMS (NEW) ====================
+
+/**
+ * Save a review item to user's reviewItems collection
+ * Called when Gemini's mark_for_review function is triggered
+ *
+ * Stored under users/{userId}/reviewItems for weekly review lesson generation.
+ * Enhanced schema captures more linguistic context than legacy struggles.
+ */
+export const saveReviewItem = async (
+  sessionId: string,
+  userId: string,
+  params: MarkForReviewParams,
+  missionId?: string
+): Promise<ReviewItemDocument> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const reviewItemRef = doc(collection(db, `users/${userId}/reviewItems`));
+
+  const reviewItem: ReviewItemDocument = {
+    id: reviewItemRef.id,
+    userId,
+    sessionId,
+    missionId: missionId || null,
+    errorType: params.error_type,
+    severity: params.severity,
+    userSentence: params.user_sentence,
+    correction: params.correction,
+    explanation: params.explanation,
+    createdAt: Timestamp.now(),
+    // Review tracking fields
+    reviewCount: 0,
+    lastReviewedAt: null,
+    mastered: false,
+    includedInReviews: [],
+  };
+
+  await setDoc(reviewItemRef, reviewItem);
+  console.log('[SessionData] Saved review item:', params.error_type, '-', params.user_sentence.substring(0, 30) + '...');
+
+  return reviewItem;
+};
+
+/**
+ * Get all review items for a user (for weekly review lessons)
+ */
+export const getUserReviewItems = async (
+  userId: string,
+  options?: {
+    since?: Date;
+    masteredOnly?: boolean;
+    unmasteredOnly?: boolean;
+    limit?: number;
+  }
+): Promise<ReviewItemDocument[]> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const { where, limit: lim } = await import('firebase/firestore');
+  const reviewItemsRef = collection(db, `users/${userId}/reviewItems`);
+
+  // Build query constraints
+  const constraints: any[] = [orderBy('createdAt', 'desc')];
+
+  if (options?.since) {
+    constraints.push(where('createdAt', '>=', Timestamp.fromDate(options.since)));
+  }
+
+  if (options?.unmasteredOnly) {
+    constraints.push(where('mastered', '==', false));
+  } else if (options?.masteredOnly) {
+    constraints.push(where('mastered', '==', true));
+  }
+
+  if (options?.limit) {
+    constraints.push(lim(options.limit));
+  }
+
+  const q = query(reviewItemsRef, ...constraints);
+  const snapshot = await getDocs(q);
+
+  return snapshot.docs.map((doc) => doc.data() as ReviewItemDocument);
+};
+
+/**
+ * Mark a review item as reviewed (increment count)
+ */
+export const markReviewItemReviewed = async (
+  userId: string,
+  reviewItemId: string,
+  mastered: boolean = false
+): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const { increment: inc } = await import('firebase/firestore');
+  const reviewItemRef = doc(db, `users/${userId}/reviewItems`, reviewItemId);
+
+  await updateDoc(reviewItemRef, {
+    reviewCount: inc(1),
+    lastReviewedAt: Timestamp.now(),
+    mastered,
+  });
+};
+
 /**
  * Get all struggle items for a user (for review lessons)
+ * @deprecated Use getUserReviewItems instead
  */
 export const getUserStruggles = async (
   userId: string,

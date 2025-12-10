@@ -18,14 +18,14 @@ import {
   finalizeSessionUsage
 } from '../services/firebase/tokenUsage';
 import {
-  saveStruggleItem,
+  saveReviewItem,
   updateUserPreference,
   saveSessionSummary,
 } from '../services/firebase/sessionData';
 import type { AIRole } from '../types/ai-role';
 import type { UsageMetadata, GeminiFunctionCall, GeminiFunctionResponse } from '../types/gemini';
 import type {
-  SaveStruggleItemParams,
+  MarkForReviewParams,
   UpdateUserProfileParams,
   ShowSessionSummaryParams,
 } from '../types/functions';
@@ -71,6 +71,9 @@ export interface UseGeminiChatResult {
 
   // Session timing
   sessionStartTime: Date | null;
+
+  // Session timed out (Gemini didn't respond to end prompt)
+  sessionTimedOut: boolean;
 
   // Actions
   toggleMute: () => void;
@@ -125,6 +128,9 @@ export function useGeminiChat(
   // Session timing
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
 
+  // Session timeout state (when Gemini doesn't respond to end prompt)
+  const [sessionTimedOut, setSessionTimedOut] = useState(false);
+
   // Refs
   const clientRef = useRef<GeminiDirectClient | null>(null);
   const roleRef = useRef<AIRole | undefined>(initialRole);
@@ -133,6 +139,7 @@ export function useGeminiChat(
   const sessionIdRef = useRef<string | null>(null);
   const userIdRef = useRef(userId || `user_${Date.now()}`);
   const missionIdRef = useRef<string | null>(null);
+  const sessionEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
    * Generate next message ID
@@ -234,6 +241,44 @@ export function useGeminiChat(
   }, []);
 
   /**
+   * Force end session - backup when Gemini doesn't respond to end prompt
+   * This protects against continued billing if the LLM fails to call show_session_summary
+   */
+  const forceEndSession = useCallback(async () => {
+    console.warn('[Gemini] Force ending session due to timeout');
+
+    // Clear the timeout ref
+    if (sessionEndTimeoutRef.current) {
+      clearTimeout(sessionEndTimeoutRef.current);
+      sessionEndTimeoutRef.current = null;
+    }
+
+    // Stop audio streaming
+    await stopAudioStreaming();
+
+    // Disconnect from Gemini
+    if (clientRef.current) {
+      await clientRef.current.disconnect();
+    }
+
+    // Finalize session in Firebase (important for billing tracking)
+    if (sessionIdRef.current) {
+      await finalizeSessionUsage(
+        sessionIdRef.current,
+        userIdRef.current,
+        clientRef.current?.currentSessionHandle || undefined
+      );
+    }
+
+    // Update state to signal timeout to ChatPage (no summary modal, just navigate)
+    setSessionTimedOut(true);
+    setIsConnected(false);
+    setIsListening(false);
+
+    console.log('[Gemini] Session force-ended successfully');
+  }, [stopAudioStreaming]);
+
+  /**
    * Handle function calls from Gemini
    */
   const handleToolCalls = useCallback(async (
@@ -246,10 +291,10 @@ export function useGeminiChat(
 
       try {
         switch (fc.name) {
-          case 'save_struggle_item': {
-            const params = fc.args as unknown as SaveStruggleItemParams;
+          case 'mark_for_review': {
+            const params = fc.args as unknown as MarkForReviewParams;
             if (sessionIdRef.current) {
-              await saveStruggleItem(
+              await saveReviewItem(
                 sessionIdRef.current,
                 userIdRef.current,
                 params,
@@ -259,7 +304,7 @@ export function useGeminiChat(
             responses.push({
               id: fc.id,
               name: fc.name,
-              response: { result: 'Struggle item saved successfully' }
+              response: { result: 'Review item saved successfully' }
             });
             break;
           }
@@ -278,6 +323,13 @@ export function useGeminiChat(
           case 'show_session_summary': {
             const params = fc.args as unknown as ShowSessionSummaryParams;
             console.log('[Function] Session summary received:', params);
+
+            // Clear the backup timeout - Gemini responded successfully
+            if (sessionEndTimeoutRef.current) {
+              clearTimeout(sessionEndTimeoutRef.current);
+              sessionEndTimeoutRef.current = null;
+              console.log('[Function] Backup timeout cleared - Gemini responded');
+            }
 
             // Calculate session duration
             const durationSeconds = sessionStartTime
@@ -347,6 +399,7 @@ export function useGeminiChat(
 
   /**
    * Trigger end of session - sends prompt to Gemini to summarize
+   * Includes a 30-second backup timeout to force-disconnect if Gemini doesn't respond
    */
   const triggerSessionEnd = useCallback(() => {
     if (!isConnected || !clientRef.current) {
@@ -367,7 +420,19 @@ Include in your summary:
 Base your assessment on our entire conversation. Call the show_session_summary function now.`;
 
     clientRef.current.sendText(endPrompt);
-  }, [isConnected]);
+
+    // Start 30-second backup timeout to protect against billing if Gemini doesn't respond
+    // This ensures the session ALWAYS terminates within 30 seconds of timer end
+    if (sessionEndTimeoutRef.current) {
+      clearTimeout(sessionEndTimeoutRef.current);
+    }
+    sessionEndTimeoutRef.current = setTimeout(() => {
+      console.warn('[Gemini] Backup timeout fired - Gemini did not call show_session_summary within 30s');
+      forceEndSession();
+    }, 30000);
+
+    console.log('[Gemini] Started 30s backup timeout');
+  }, [isConnected, forceEndSession]);
 
   /**
    * Clear session summary (after modal is closed)
@@ -649,6 +714,12 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     return () => {
       stopAudioStreaming();
 
+      // Clear backup timeout on unmount
+      if (sessionEndTimeoutRef.current) {
+        clearTimeout(sessionEndTimeoutRef.current);
+        sessionEndTimeoutRef.current = null;
+      }
+
       // Finalize session on unmount
       if (sessionIdRef.current && clientRef.current) {
         finalizeSessionUsage(
@@ -705,6 +776,9 @@ Base your assessment on our entire conversation. Call the show_session_summary f
 
     // Session timing
     sessionStartTime,
+
+    // Session timed out (Gemini didn't respond)
+    sessionTimedOut,
 
     // Actions
     toggleMute,

@@ -3,20 +3,24 @@
  * Defines the three core functions for autonomous Gemini operations
  */
 
-// ==================== SAVE STRUGGLE ITEM ====================
+// ==================== MARK FOR REVIEW (Linguistic Errors) ====================
+export type ErrorType = 'Grammar' | 'Pronunciation' | 'Vocabulary' | 'Cultural';
+
+export interface MarkForReviewParams {
+  error_type: ErrorType;
+  severity: number; // 1-10 scale (1 = minor, 10 = critical)
+  user_sentence: string;
+  correction: string;
+  explanation?: string;
+}
+
+// Legacy type alias for migration compatibility
 export interface SaveStruggleItemParams {
   word: string;
   struggle_type: 'pronunciation' | 'meaning' | 'usage' | 'grammar';
   context: string;
-  timestamp: string; // ISO string
+  timestamp: string;
   severity?: 'minor' | 'moderate' | 'significant';
-}
-
-export interface StruggleItem extends SaveStruggleItemParams {
-  id: string;
-  sessionId: string;
-  userId: string;
-  createdAt: Date;
 }
 
 // ==================== UPDATE USER PROFILE ====================
@@ -76,35 +80,34 @@ export interface FunctionDeclaration {
  */
 export const TUTOR_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
   {
-    name: 'save_struggle_item',
-    description: 'Call this function when you notice the student struggling with a word, phrase, or concept. This helps track areas that need more practice.',
+    name: 'mark_for_review',
+    description: 'Call this silently when the student makes a linguistic error. Do not interrupt the conversation flow.',
     parameters: {
       type: 'object',
       properties: {
-        word: {
+        error_type: {
           type: 'string',
-          description: 'The word or phrase the student struggled with',
-        },
-        struggle_type: {
-          type: 'string',
-          description: 'The type of struggle observed',
-          enum: ['pronunciation', 'meaning', 'usage', 'grammar'],
-        },
-        context: {
-          type: 'string',
-          description: 'Brief context about how the struggle manifested',
-        },
-        timestamp: {
-          type: 'string',
-          description: 'ISO timestamp of when the struggle occurred',
+          description: 'The type of linguistic error',
+          enum: ['Grammar', 'Pronunciation', 'Vocabulary', 'Cultural'],
         },
         severity: {
+          type: 'number',
+          description: 'Error severity from 1 (minor) to 10 (critical)',
+        },
+        user_sentence: {
           type: 'string',
-          description: 'How significant the struggle was',
-          enum: ['minor', 'moderate', 'significant'],
+          description: 'The approximate sentence the user just said',
+        },
+        correction: {
+          type: 'string',
+          description: 'The correct native way to say it',
+        },
+        explanation: {
+          type: 'string',
+          description: 'A very brief explanation of the rule',
         },
       },
-      required: ['word', 'struggle_type', 'context', 'timestamp'],
+      required: ['error_type', 'user_sentence', 'correction', 'severity'],
     },
   },
   {
@@ -189,11 +192,14 @@ export interface FunctionResponse {
 // ==================== DEFAULT FUNCTION CALLING INSTRUCTIONS ====================
 export const DEFAULT_FUNCTION_CALLING_INSTRUCTIONS = `You have access to the following functions that you should use autonomously during the conversation:
 
-1. **save_struggle_item** - Call this when you notice the student:
-   - Mispronouncing a word or struggling to say it correctly
-   - Misunderstanding the meaning of a word or phrase
-   - Using incorrect grammar or sentence structure
-   - Struggling to express themselves or find the right words
+1. **mark_for_review** - Call this SILENTLY when the student makes a linguistic error:
+   - Grammar mistakes (wrong tense, word order, conjugation)
+   - Pronunciation errors (incorrect sounds, stress, intonation)
+   - Vocabulary misuse (wrong word choice, false friends)
+   - Cultural/pragmatic errors (inappropriate formality, expressions)
+
+   Include the severity (1-10), what they said, the correction, and brief explanation.
+   Do NOT interrupt the conversation flow - just log it silently.
 
 2. **update_user_profile** - Call this when you discover:
    - Topics the student enjoys talking about

@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast, Toaster } from 'sonner';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
@@ -156,6 +157,7 @@ export default function ChatPage() {
     messages: geminiMessages,
     sessionSummary,
     newBadges,
+    sessionTimedOut,
     reconnect,
     triggerSessionEnd,
     clearSessionSummary,
@@ -248,6 +250,22 @@ export default function ChatPage() {
       setShowBadgeModal(true);
     }
   }, [newBadges, showSummary, isFirstSession, sessionSummary, showFirstSessionCelebration, showBadgeModal]);
+
+  // Handle session timeout - Gemini didn't respond to end prompt within 30s
+  // Navigate home with a toast (no summary modal since we don't have summary data)
+  useEffect(() => {
+    if (sessionTimedOut) {
+      toast.success('Session complete - Great practice!', {
+        duration: 3000,
+        position: 'top-center',
+      });
+      // Small delay to let the toast appear before navigation
+      const timer = setTimeout(() => {
+        navigate('/');
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [sessionTimedOut, navigate]);
 
   // Auto-send "Hi" when connection is established
   // This triggers the AI to start the conversation immediately
@@ -534,6 +552,18 @@ export default function ChatPage() {
           />
         </div>
       )}
+
+      {/* Toast notifications for session timeout */}
+      <Toaster
+        theme="dark"
+        toastOptions={{
+          style: {
+            background: 'rgba(30, 20, 50, 0.95)',
+            border: '1px solid rgba(216, 180, 254, 0.3)',
+            color: '#F5E6FA',
+          },
+        }}
+      />
     </div>
   );
 }

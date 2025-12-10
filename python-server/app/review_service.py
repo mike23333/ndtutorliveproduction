@@ -18,8 +18,23 @@ from app.config import config
 
 
 @dataclass
+class ReviewItem:
+    """Review item document from Firestore (new schema)."""
+    id: str
+    error_type: str  # Grammar, Pronunciation, Vocabulary, Cultural
+    severity: int  # 1-10 scale
+    user_sentence: str
+    correction: str
+    explanation: Optional[str]
+    review_count: int
+    mastered: bool
+    last_reviewed_at: Optional[datetime]
+
+
+# Legacy type for backwards compatibility during migration
+@dataclass
 class StruggleItem:
-    """Struggle document from Firestore."""
+    """Struggle document from Firestore (legacy)."""
     id: str
     word: str
     struggle_type: str
@@ -156,19 +171,20 @@ Return only the system prompt, no explanation or preamble."""
             print(f'[Review] Error fetching user level: {e}, defaulting to B1')
             return 'B1'
 
-    def get_eligible_struggles(self, user_id: str) -> List[StruggleItem]:
+    def get_eligible_review_items(self, user_id: str) -> List[ReviewItem]:
         """
-        Get struggles eligible for review.
+        Get review items eligible for weekly review.
 
         Criteria:
         - mastered = false
         - reviewCount < 3
         - lastReviewedAt is null OR > 7 days ago
         """
-        struggles_ref = self._db.collection(f'users/{user_id}/struggles')
+        # Use new reviewItems collection
+        review_items_ref = self._db.collection(f'users/{user_id}/reviewItems')
 
-        # Query for unmastered struggles
-        query = struggles_ref.where('mastered', '==', False)
+        # Query for unmastered review items
+        query = review_items_ref.where('mastered', '==', False)
         docs = query.stream()
 
         eligible = []
@@ -197,6 +213,58 @@ Return only the system prompt, no explanation or preamble."""
                 if last_reviewed_dt and last_reviewed_dt > cutoff_date:
                     continue
 
+            eligible.append(ReviewItem(
+                id=doc.id,
+                error_type=data.get('errorType', 'Vocabulary'),
+                severity=data.get('severity', 5),  # Now 1-10 scale
+                user_sentence=data.get('userSentence', ''),
+                correction=data.get('correction', ''),
+                explanation=data.get('explanation'),
+                review_count=data.get('reviewCount', 0),
+                mastered=data.get('mastered', False),
+                last_reviewed_at=last_reviewed,
+            ))
+
+        # Sort by severity (higher = more critical, prioritize) then by review count (lower first)
+        # New severity is 1-10 where 10 is most critical
+        eligible.sort(key=lambda r: (-r.severity, r.review_count))
+
+        return eligible[:self.MAX_STRUGGLES]
+
+    # Legacy method - kept for backwards compatibility during migration
+    def get_eligible_struggles(self, user_id: str) -> List[StruggleItem]:
+        """
+        @deprecated Use get_eligible_review_items instead.
+        Get struggles eligible for review from legacy collection.
+        """
+        struggles_ref = self._db.collection(f'users/{user_id}/struggles')
+
+        query = struggles_ref.where('mastered', '==', False)
+        docs = query.stream()
+
+        eligible = []
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=self.REVIEW_COOLDOWN_DAYS)
+
+        for doc in docs:
+            data = doc.to_dict()
+
+            if data.get('reviewCount', 0) >= self.MAX_REVIEW_COUNT:
+                continue
+
+            last_reviewed = data.get('lastReviewedAt')
+            if last_reviewed:
+                if hasattr(last_reviewed, 'timestamp'):
+                    last_reviewed_dt = datetime.fromtimestamp(
+                        last_reviewed.timestamp(), tz=timezone.utc
+                    )
+                elif isinstance(last_reviewed, datetime):
+                    last_reviewed_dt = last_reviewed.replace(tzinfo=timezone.utc)
+                else:
+                    last_reviewed_dt = None
+
+                if last_reviewed_dt and last_reviewed_dt > cutoff_date:
+                    continue
+
             eligible.append(StruggleItem(
                 id=doc.id,
                 word=data.get('word', ''),
@@ -208,16 +276,60 @@ Return only the system prompt, no explanation or preamble."""
                 last_reviewed_at=last_reviewed,
             ))
 
-        # Sort by severity (significant first) then by review count (lower first)
         severity_order = {'significant': 0, 'moderate': 1, 'minor': 2}
         eligible.sort(key=lambda s: (severity_order.get(s.severity, 1), s.review_count))
 
         return eligible[:self.MAX_STRUGGLES]
 
+    def generate_review_prompt_from_items(self, items: List[ReviewItem], level: str) -> str:
+        """
+        Generate a conversational system prompt from review items (new schema).
+        Uses Gemini 2.5 Flash for natural language generation.
+        """
+        template = self.get_meta_prompt_template()
+
+        # Format review items with enhanced detail
+        item_descriptions = []
+        for item in items:
+            desc = f'- {item.error_type} error (severity {item.severity}/10):\n'
+            desc += f'  Student said: "{item.user_sentence}"\n'
+            desc += f'  Correct: "{item.correction}"'
+            if item.explanation:
+                desc += f'\n  Rule: {item.explanation}'
+            item_descriptions.append(desc)
+
+        items_text = '\n'.join(item_descriptions)
+
+        # Substitute placeholders
+        prompt = template.replace('{{level}}', level)
+        prompt = template.replace('{{struggles}}', items_text)
+
+        # Generate the actual conversation prompt using Gemini 2.5 Flash
+        try:
+            response = self._client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+            )
+            return response.text.strip()
+
+        except Exception as e:
+            print(f'[Review] Error generating prompt with Gemini: {e}')
+            return self._create_fallback_prompt_from_items(items, level)
+
+    def _create_fallback_prompt_from_items(self, items: List[ReviewItem], level: str) -> str:
+        """Create a basic fallback prompt from review items if Gemini fails."""
+        corrections = ', '.join([f'"{r.correction}"' for r in items[:5]])
+        return f"""You are Sam, a friendly cafe owner helping a customer.
+The student is at {level} level.
+During your natural conversation about their coffee order and day,
+find opportunities to practice these phrases: {corrections}.
+Be warm and encouraging. Help gently if they struggle."""
+
     def generate_review_prompt(self, struggles: List[StruggleItem], level: str) -> str:
         """
+        @deprecated Use generate_review_prompt_from_items instead.
         Generate a conversational system prompt incorporating struggle words.
-        Uses Gemini 2.0 Flash for natural language generation.
+        Uses Gemini 2.5 Flash for natural language generation.
         """
         # Fetch the editable template from Firestore
         template = self.get_meta_prompt_template()
@@ -271,7 +383,8 @@ Be warm and encouraging. Help gently if they struggle."""
         """
         Create a weekly review lesson for a user.
 
-        Returns None if user has insufficient struggles or review already exists.
+        Returns None if user has insufficient review items or review already exists.
+        Uses new reviewItems collection.
         """
         # Check for existing review this week
         week_start = self._get_week_start()
@@ -283,29 +396,33 @@ Be warm and encouraging. Help gently if they struggle."""
             print(f'[Review] Review already exists for user {user_id} week {week_start}')
             return None
 
-        # Get eligible struggles
-        struggles = self.get_eligible_struggles(user_id)
+        # Get eligible review items (new collection)
+        review_items = self.get_eligible_review_items(user_id)
 
-        if len(struggles) < self.MIN_STRUGGLES:
-            print(f'[Review] Insufficient struggles ({len(struggles)}) for user {user_id}')
+        if len(review_items) < self.MIN_STRUGGLES:
+            print(f'[Review] Insufficient review items ({len(review_items)}) for user {user_id}')
             return None
 
         # Get user's level
         level = self.get_user_level(user_id)
 
-        # Generate prompt
-        generated_prompt = self.generate_review_prompt(struggles, level)
+        # Generate prompt using new method
+        generated_prompt = self.generate_review_prompt_from_items(review_items, level)
 
         # Create review document
         now = datetime.now(timezone.utc)
+
+        # Use corrections as "struggle_words" for UI display
+        display_words = [r.correction[:50] for r in review_items]  # Truncate long corrections
+
         review = ReviewLesson(
             id=review_id,
             user_id=user_id,
             week_start=week_start,
             status='ready',
             generated_prompt=generated_prompt,
-            target_struggles=[s.id for s in struggles],
-            struggle_words=[s.word for s in struggles],
+            target_struggles=[r.id for r in review_items],  # IDs for tracking
+            struggle_words=display_words,  # Display in UI
             user_level=level,
             estimated_minutes=5,
             created_at=now,
@@ -329,10 +446,10 @@ Be warm and encouraging. Help gently if they struggle."""
         }
         existing_ref.set(review_data)
 
-        # Update struggles with review inclusion
-        for struggle in struggles:
-            struggle_ref = self._db.document(f'users/{user_id}/struggles/{struggle.id}')
-            new_review_count = struggle.review_count + 1
+        # Update review items with review inclusion (new collection)
+        for item in review_items:
+            item_ref = self._db.document(f'users/{user_id}/reviewItems/{item.id}')
+            new_review_count = item.review_count + 1
             update_data = {
                 'reviewCount': new_review_count,
                 'lastReviewedAt': now,
@@ -341,9 +458,9 @@ Be warm and encouraging. Help gently if they struggle."""
             # Mark as mastered if this is the 3rd review
             if new_review_count >= self.MAX_REVIEW_COUNT:
                 update_data['mastered'] = True
-            struggle_ref.update(update_data)
+            item_ref.update(update_data)
 
-        print(f'[Review] Created review for user {user_id} with {len(struggles)} struggles at level {level}')
+        print(f'[Review] Created review for user {user_id} with {len(review_items)} items at level {level}')
         return review
 
 

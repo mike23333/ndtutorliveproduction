@@ -24,8 +24,13 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // User struggles subcollection (for review lessons)
+      // User struggles subcollection (DEPRECATED - use reviewItems)
       match /struggles/{struggleId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      // User review items subcollection (for tracking errors and weekly reviews)
+      match /reviewItems/{reviewItemId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 

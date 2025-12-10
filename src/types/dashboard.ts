@@ -72,11 +72,17 @@ export interface StudentAnalytics {
   avgStars: number;
 }
 
+/**
+ * StruggleItem for teacher dashboard display
+ * Updated to work with new reviewItems schema
+ * - text: The correction (what they should say) or truncated userSentence
+ * - type: Error type (Grammar, Pronunciation, Vocabulary, Cultural)
+ */
 export interface StruggleItem {
-  text: string;
-  type: string;
+  text: string;  // Correction or userSentence (truncated)
+  type: string;  // Error type: Grammar, Pronunciation, Vocabulary, Cultural
   count: number;
-  severity: 'low' | 'medium' | 'high';
+  severity: 'low' | 'medium' | 'high';  // Mapped from 1-10 scale
 }
 
 export interface CostData {
