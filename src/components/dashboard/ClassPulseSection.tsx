@@ -4,6 +4,41 @@ import { SparklesIcon } from '../../theme/icons';
 import { ClassPulseAlert } from './ClassPulseAlert';
 import type { ClassPulseInsight } from '../../types/dashboard';
 
+// Simple spinning loader
+const Spinner: React.FC<{ size?: number }> = ({ size = 16 }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    style={{
+      animation: 'spin 1s linear infinite',
+    }}
+  >
+    <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+    <circle
+      cx="12"
+      cy="12"
+      r="10"
+      stroke={AppColors.accentPurple}
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeDasharray="31.4 31.4"
+      opacity={0.3}
+    />
+    <circle
+      cx="12"
+      cy="12"
+      r="10"
+      stroke={AppColors.accentPurple}
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeDasharray="31.4 31.4"
+      strokeDashoffset="23.5"
+    />
+  </svg>
+);
+
 interface ClassPulseSectionProps {
   insights: ClassPulseInsight[];
   loading: boolean;
@@ -51,12 +86,34 @@ export const ClassPulseSection: React.FC<ClassPulseSectionProps> = ({
             opacity: isDisabled ? 0.6 : 1,
           }}
         >
-          <SparklesIcon size={14} />
+          {generating ? <Spinner size={14} /> : <SparklesIcon size={14} />}
           {generating ? 'Generating...' : 'Refresh Insights'}
         </button>
       </div>
 
-      {loading ? (
+      {generating ? (
+        <div
+          style={{
+            background: AppColors.surfaceLight,
+            borderRadius: 'clamp(8px, 2vw, 10px)',
+            padding: 'clamp(28px, 6vw, 40px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 'clamp(12px, 3vw, 16px)',
+          }}
+        >
+          <Spinner size={32} />
+          <p style={{
+            fontSize: 'clamp(13px, 2.8vw, 14px)',
+            color: AppColors.textSecondary,
+            margin: 0,
+            textAlign: 'center',
+          }}>
+            Analyzing your class data...
+          </p>
+        </div>
+      ) : loading ? (
         <div
           style={{
             background: AppColors.surfaceLight,

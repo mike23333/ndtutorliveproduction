@@ -381,7 +381,6 @@ Keep this section light — 3 insights maximum. The data comes from session summ
 #### Section 5: Settings
 Simple list:
 - Edit profile (name,  avatar)
-- Change level (with confirmation dialog)
 - Sign out
 
 #### What NOT to Include

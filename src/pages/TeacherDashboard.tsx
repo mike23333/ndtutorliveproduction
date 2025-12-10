@@ -21,14 +21,16 @@ import { usePromptTemplates } from '../hooks/usePromptTemplates';
 // Components
 import {
   TabButton,
-  ClassPulseSection,
   LessonFormModal,
   SaveTemplateModal,
   LessonsTab,
   StudentsTab,
-  AnalyticsTab,
   TemplatesTab,
+  InsightsTab,
+  BillingTab,
 } from '../components/dashboard';
+import { getStudentsForTeacher } from '../services/firebase/students';
+import type { UserDocument } from '../types/firestore';
 
 // Types
 import type { TabType, LessonData } from '../types/dashboard';
@@ -75,14 +77,34 @@ const TeacherDashboard: React.FC = () => {
     generateInsights: handleGeneratePulse,
   } = useClassPulse(user?.uid);
 
+  // Analytics data for billing tab
   const {
     data: analyticsData,
     loading: analyticsLoading,
     period: analyticsPeriod,
-    level: analyticsLevel,
     setPeriod: setAnalyticsPeriod,
-    setLevel: setAnalyticsLevel,
-  } = useTeacherAnalytics(user?.uid, activeTab === 'analytics');
+  } = useTeacherAnalytics(user?.uid, activeTab === 'billing');
+
+  // Students list for insights tab
+  const [students, setStudents] = React.useState<UserDocument[]>([]);
+  const [studentsLoading, setStudentsLoading] = React.useState(false);
+
+  // Fetch students when insights tab is active
+  React.useEffect(() => {
+    if (activeTab === 'insights' && user?.uid && students.length === 0) {
+      setStudentsLoading(true);
+      getStudentsForTeacher(user.uid)
+        .then(setStudents)
+        .catch(console.error)
+        .finally(() => setStudentsLoading(false));
+    }
+  }, [activeTab, user?.uid, students.length]);
+
+  // Handler to navigate to student in Students tab
+  const handleNavigateToStudent = useCallback((studentId: string) => {
+    setActiveTab('students');
+    // Note: Could add filtering logic here if StudentsTab supports it
+  }, []);
 
   const {
     templates: promptTemplates,
@@ -312,6 +334,7 @@ const TeacherDashboard: React.FC = () => {
             background: AppColors.surfaceLight,
             padding: 'clamp(4px, 1vw, 6px)',
             borderRadius: 'clamp(20px, 5vw, 24px)',
+            overflowX: 'auto',
           }}
         >
           <TabButton
@@ -327,9 +350,15 @@ const TeacherDashboard: React.FC = () => {
             icon={<UserIcon size={16} />}
           />
           <TabButton
-            label="Analytics"
-            isActive={activeTab === 'analytics'}
-            onClick={() => setActiveTab('analytics')}
+            label="Insights"
+            isActive={activeTab === 'insights'}
+            onClick={() => setActiveTab('insights')}
+            icon={<BarChartIcon size={16} />}
+          />
+          <TabButton
+            label="Billing"
+            isActive={activeTab === 'billing'}
+            onClick={() => setActiveTab('billing')}
             icon={<BarChartIcon size={16} />}
           />
           <TabButton
@@ -339,15 +368,6 @@ const TeacherDashboard: React.FC = () => {
             icon={<SettingsIcon size={16} />}
           />
         </div>
-
-        {/* Class Pulse Section */}
-        <ClassPulseSection
-          insights={classPulseInsights}
-          loading={pulseLoading}
-          generating={pulseGenerating}
-          lastGenerated={pulseLastGenerated}
-          onGenerate={() => handleGeneratePulse(false)}
-        />
 
         {/* Tab Content */}
         {activeTab === 'lessons' && (
@@ -367,14 +387,25 @@ const TeacherDashboard: React.FC = () => {
           />
         )}
 
-        {activeTab === 'analytics' && (
-          <AnalyticsTab
+        {activeTab === 'insights' && user && (
+          <InsightsTab
+            teacherId={user.uid}
+            students={students}
+            onNavigateToStudent={handleNavigateToStudent}
+            classPulseInsights={classPulseInsights}
+            classPulseLoading={pulseLoading}
+            classPulseGenerating={pulseGenerating}
+            classPulseLastGenerated={pulseLastGenerated}
+            onGeneratePulse={() => handleGeneratePulse(true)}
+          />
+        )}
+
+        {activeTab === 'billing' && (
+          <BillingTab
             data={analyticsData}
             loading={analyticsLoading}
             period={analyticsPeriod}
-            level={analyticsLevel}
             onPeriodChange={setAnalyticsPeriod}
-            onLevelChange={setAnalyticsLevel}
           />
         )}
 

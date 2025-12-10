@@ -43,33 +43,44 @@ class AnalyticsService:
     # Audio token rate: 32 tokens per second (from https://ai.google.dev/gemini-api/docs/tokens)
     AUDIO_TOKENS_PER_SECOND = 32
 
-    CLASS_PULSE_PROMPT = """You are an AI assistant helping English language teachers understand their class performance.
+    CLASS_PULSE_PROMPT = """You are helping an English teacher understand their class at a glance.
 
-Analyze the following class data and generate 2-3 actionable insights. Each insight should:
-1. Be specific and actionable (not vague like "students are struggling")
-2. Reference specific levels, lessons, or students when relevant
-3. Suggest what the teacher might do next
-4. Be encouraging but honest
+Write like you're a thoughtful colleague - warm, direct, and practical. Use plain language a teacher would use, not technical jargon.
 
-IMPORTANT GUIDELINES:
-- Max 3 insights, prioritize the most important
-- Use insight types: "warning" (needs attention), "info" (neutral observation), "success" (positive news)
-- If a lesson has low stars (<3.0), that's a warning
-- If students are inactive 7+ days, mention them
-- If students are ready to advance (high scores), celebrate that
-- If a word is causing trouble across multiple levels, flag it
+CRITICAL CONTEXT:
+- "Stars" are the AI tutor's assessment of student PERFORMANCE (1-5 scale), NOT student ratings of lessons
+- Low stars (< 3) means students are struggling with the material
+- High stars (4-5) means students are performing well
+- "Inactive" means the student hasn't practiced recently
+
+WRITING STYLE:
+- Use student names when relevant (e.g., "Nina seems to be struggling...")
+- Be specific about WHAT to do, not just what's wrong
+- Celebrate wins genuinely, don't just mention problems
+- One clear thought per insight - no run-on sentences
+- Write as if speaking to the teacher directly
+
+INSIGHT TYPES:
+- "warning": Something needs your attention soon (inactive students, struggling performers)
+- "success": Good news worth celebrating (strong performance, consistency)
+- "info": Neutral observation that might help (patterns, trends)
+
+Generate 2-3 insights, prioritizing:
+1. Students who need help (inactive or struggling)
+2. Wins worth celebrating
+3. Patterns across your class
 
 CLASS DATA:
 {class_data}
 
-Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
+Respond with ONLY valid JSON:
 {{
   "insights": [
     {{
       "type": "warning|info|success",
-      "level": "B1|B2|null",
-      "title": "Short title (max 5 words)",
-      "message": "Detailed message with specific advice (1-2 sentences)"
+      "level": "A2|B1|B2|null",
+      "title": "Brief headline (3-5 words)",
+      "message": "One clear sentence with specific action or observation."
     }}
   ]
 }}"""
@@ -769,57 +780,59 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
         analytics: Dict
     ) -> str:
         """Format analytics data into a readable prompt for Gemini."""
-        lines = [f"Teacher ID: {teacher_id}", "Period: Last 7 days", ""]
+        lines = ["CLASS OVERVIEW (Last 7 days)", ""]
 
         for level, data in sorted(analytics['byLevel'].items()):
             student_count = data.get('studentCount', 0)
-            lines.append(f"=== {level} LEVEL ({student_count} students) ===")
+            if student_count == 0:
+                continue
 
-            # Struggles
+            lines.append(f"--- {level} Students ({student_count}) ---")
+
+            # Students with details
+            students = data.get('students', [])
+            for s in students[:8]:
+                name = s.get('displayName', 'Unknown')
+                status = s.get('activityStatus', 'unknown')
+                avg_stars = s.get('avgStars')
+
+                status_label = {
+                    'active': 'practicing regularly',
+                    'warning': 'hasn\'t practiced in a few days',
+                    'inactive': 'inactive 7+ days'
+                }.get(status, status)
+
+                if avg_stars:
+                    perf = 'struggling' if avg_stars < 3 else ('solid' if avg_stars < 4 else 'excellent')
+                    lines.append(f"  • {name}: {perf} performance ({avg_stars:.1f}/5 stars), {status_label}")
+                else:
+                    lines.append(f"  • {name}: {status_label}")
+
+            # Common mistakes at this level
             struggles = data.get('topStruggles', [])
             if struggles:
-                lines.append("STRUGGLES:")
-                for s in struggles[:5]:
-                    lines.append(f"- \"{s['text']}\" - {s['count']} occurrences, {s['type']}")
-            else:
-                lines.append("STRUGGLES: None recorded")
+                lines.append(f"  Common mistakes:")
+                for s in struggles[:3]:
+                    lines.append(f"    - \"{s['text']}\" ({s['type']}, {s['count']}x)")
 
-            # Sessions/Lessons
+            # Lessons practiced
             lessons = data.get('lessons', [])
             if lessons:
-                lines.append("SESSIONS:")
-                for lesson in lessons[:5]:
-                    warning = " ⚠️" if lesson.get('warning') else ""
+                lines.append(f"  Lessons practiced:")
+                for lesson in lessons[:3]:
                     lines.append(
-                        f"- \"{lesson['title']}\" ({level}): {lesson['avgStars']} avg stars, "
-                        f"{lesson['completions']} completions{warning}"
+                        f"    - \"{lesson['title']}\": avg {lesson['avgStars']:.1f}/5 stars across {lesson['completions']} practices"
                     )
-
-            # Inactive students
-            students = data.get('students', [])
-            inactive = [s['displayName'] for s in students if s.get('activityStatus') == 'inactive']
-            if inactive:
-                lines.append(f"INACTIVE (7+ days): {', '.join(inactive[:5])}")
-
-            # Advancement candidates
-            advancing = [s['displayName'] for s in students if s.get('advancementCandidate')]
-            if advancing:
-                lines.append(f"READY TO ADVANCE: {', '.join(advancing[:5])}")
 
             lines.append("")
 
-        # Cross-level concerns
+        # Cross-level patterns
         cross = analytics.get('crossLevelInsights', {})
-        if any([cross.get('levelMismatches'), cross.get('universalStruggles'), cross.get('advancementCandidates')]):
-            lines.append("=== CROSS-LEVEL CONCERNS ===")
-
-            mismatches = cross.get('levelMismatches', [])
-            for m in mismatches[:3]:
-                lines.append(f"- {m['displayName']} ({m['currentLevel']}) has {m['evidence']}")
-
-            universal = cross.get('universalStruggles', [])
+        universal = cross.get('universalStruggles', [])
+        if universal:
+            lines.append("PATTERNS ACROSS LEVELS:")
             for u in universal[:3]:
-                lines.append(f"- \"{u['text']}\" difficult across {', '.join(u['affectedLevels'])}")
+                lines.append(f"  • \"{u['text']}\" causing trouble for {', '.join(u['affectedLevels'])} students")
 
         return "\n".join(lines)
 
@@ -888,6 +901,117 @@ Respond with ONLY valid JSON in this exact format (no markdown, no explanation):
             'stillValidAt': None,
             'isNew': False,
             'skippedReason': reason
+        }
+
+    # ==================== CLASS MISTAKES ENDPOINT ====================
+
+    def get_class_mistakes(
+        self,
+        teacher_id: str,
+        period: str = "week"
+    ) -> Dict[str, Any]:
+        """
+        Get all student mistakes/errors for a teacher's class.
+
+        Used by the Insights tab to show common mistakes across all students.
+
+        Args:
+            teacher_id: Teacher's user ID
+            period: Time period - "week", "month", or "all-time"
+
+        Returns:
+            Dict with mistakes array and summary counts by error type
+        """
+        print(f"[Mistakes] Getting mistakes for teacher {teacher_id}, period={period}", flush=True)
+
+        start_time, end_time = self._get_time_range(period)
+
+        # Get students for this teacher
+        # Students have a teacherId field linking them to their teacher
+        students_query = self._db.collection('users').where('teacherId', '==', teacher_id)
+        students = {}
+        for doc in students_query.stream():
+            students[doc.id] = doc.to_dict()
+
+        if not students:
+            print(f"[Mistakes] No students found for teacher {teacher_id}", flush=True)
+            return self._empty_mistakes_response()
+
+        print(f"[Mistakes] Found {len(students)} students for teacher {teacher_id}", flush=True)
+
+        # Query reviewItems for each student
+        mistakes = []
+        summary = {
+            'Grammar': 0,
+            'Pronunciation': 0,
+            'Vocabulary': 0,
+            'Cultural': 0
+        }
+
+        for student_id, student_data in students.items():
+            try:
+                query = (
+                    self._db.collection('users').document(student_id)
+                    .collection('reviewItems')
+                    .where('createdAt', '>=', start_time)
+                    .where('createdAt', '<=', end_time)
+                    .order_by('createdAt', direction=firestore.Query.DESCENDING)
+                )
+
+                for doc in query.stream():
+                    item = doc.to_dict()
+                    error_type = item.get('errorType', 'Vocabulary')
+
+                    # Count by error type
+                    if error_type in summary:
+                        summary[error_type] += 1
+
+                    # Build mistake object
+                    created_at = item.get('createdAt')
+                    if hasattr(created_at, 'isoformat'):
+                        created_at_str = created_at.isoformat()
+                    elif hasattr(created_at, 'timestamp'):
+                        created_at_str = datetime.fromtimestamp(
+                            created_at.timestamp(), tz=timezone.utc
+                        ).isoformat()
+                    else:
+                        created_at_str = str(created_at) if created_at else None
+
+                    mistakes.append({
+                        'id': doc.id,
+                        'studentId': student_id,
+                        'studentName': student_data.get('displayName', 'Student'),
+                        'errorType': error_type,
+                        'userSentence': item.get('userSentence', ''),
+                        'correction': item.get('correction', ''),
+                        'explanation': item.get('explanation', ''),
+                        'audioUrl': item.get('audioUrl'),
+                        'createdAt': created_at_str
+                    })
+
+            except Exception as e:
+                print(f"[Mistakes] Error querying reviewItems for {student_id}: {e}", flush=True)
+
+        # Sort by createdAt descending (most recent first)
+        mistakes.sort(key=lambda x: x.get('createdAt') or '', reverse=True)
+
+        print(f"[Mistakes] Found {len(mistakes)} total mistakes", flush=True)
+
+        return {
+            'mistakes': mistakes,
+            'summary': summary
+        }
+
+    def _empty_mistakes_response(self) -> Dict[str, Any]:
+        """Return empty mistakes response."""
+        return {
+            'mistakes': [],
+            'summary': {
+                'Grammar': 0,
+                'Pronunciation': 0,
+                'Vocabulary': 0,
+                'Cultural': 0
+            }
         }
 
 

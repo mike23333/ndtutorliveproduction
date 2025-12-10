@@ -2,7 +2,7 @@
 
 import type { ProficiencyLevel } from './firestore';
 
-export type TabType = 'lessons' | 'students' | 'analytics' | 'templates';
+export type TabType = 'lessons' | 'students' | 'insights' | 'billing' | 'templates';
 
 export interface LessonData {
   id: string;
@@ -122,3 +122,38 @@ export interface AnalyticsData {
 
 export type AnalyticsPeriod = 'week' | 'month' | 'all-time';
 export type AnalyticsLevel = 'all' | 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
+
+// Class Insights types
+export type MistakeErrorType = 'Grammar' | 'Pronunciation' | 'Vocabulary' | 'Cultural';
+
+export interface ClassMistake {
+  id: string;
+  studentId: string;
+  studentName: string;
+  errorType: MistakeErrorType;
+  userSentence: string;
+  correction: string;
+  explanation?: string;
+  audioUrl?: string;
+  createdAt: string; // ISO string from Timestamp
+}
+
+export interface MistakesSummary {
+  Grammar: number;
+  Pronunciation: number;
+  Vocabulary: number;
+  Cultural: number;
+}
+
+export interface ClassMistakesData {
+  mistakes: ClassMistake[];
+  summary: MistakesSummary;
+}
+
+export interface StudentActivityInfo {
+  id: string;
+  name: string;
+  reason: string; // e.g., "3 days inactive" or "low scores (2.1 avg)"
+  daysInactive?: number;
+  avgStars?: number;
+}

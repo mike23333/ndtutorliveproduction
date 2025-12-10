@@ -155,6 +155,7 @@ async def root():
             "review_generate": "POST /api/review/generate",
             "review_batch": "POST /api/review/generate-batch",
             "analytics": "GET /api/analytics/teacher/{teacherId}",
+            "mistakes": "GET /api/mistakes/teacher/{teacherId}",
             "pulse_get": "GET /api/pulse/teacher/{teacherId}",
             "pulse_generate": "POST /api/pulse/teacher/{teacherId}"
         },
@@ -315,6 +316,38 @@ async def get_teacher_analytics(
         return result
     except Exception as e:
         print(f"[Analytics] Error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== CLASS MISTAKES ENDPOINTS ====================
+
+@app.get("/api/mistakes/teacher/{teacherId}")
+async def get_class_mistakes(
+    teacherId: str,
+    period: str = "week"
+):
+    """
+    Get all student mistakes/errors for a teacher's class.
+
+    Used by the Insights tab to show common mistakes across all students.
+
+    Query Parameters:
+        period: Time period - "week", "month", or "all-time" (default: "week")
+
+    Returns:
+        mistakes: Array of mistake objects with student info and audio URLs
+        summary: Counts by error type (Grammar, Pronunciation, Vocabulary, Cultural)
+    """
+    # Validate period
+    if period not in ["week", "month", "all-time"]:
+        raise HTTPException(status_code=400, detail="Invalid period. Use: week, month, all-time")
+
+    try:
+        analytics_service = get_analytics_service()
+        result = analytics_service.get_class_mistakes(teacherId, period)
+        return result
+    except Exception as e:
+        print(f"[Mistakes] Error: {e}", flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

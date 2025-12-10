@@ -182,122 +182,186 @@ This positions them as "bonus" practice beyond teacher assignments.
 
 ---
 
-## Part 2: Completion Tracking (No New Collections Needed)
+## Part 2: Assignment System
 
-### Existing Data Already Handles This
+### Concept
 
-After reviewing the codebase, we don't need a new `assignments` collection. The existing structure already supports everything:
+Teachers assign specific scenarios to students/groups. Students see assignments with completion tracking. Teachers see who completed what.
 
-| Need | Existing Solution |
-|------|-------------------|
-| What to practice | `MissionDocument` with `targetLevel` |
-| Who sees what | `getMissionsForStudent()` filters by teacher + level |
-| Who completed what | `uniqueScenariosCompleted` on `UserDocument` |
-| Session details | `SessionDocument` tracks every session |
+### Data Model Changes
 
-### How It Works
+#### New Collection: `assignments`
 
-**Missions are implicitly "assigned" via level:**
-- Teacher creates mission with `targetLevel: 'A2'`
-- All A2 students see it automatically
-- No separate assignment step needed
-
-**Completion is already tracked:**
 ```typescript
-// UserDocument already has:
+// Collection: teachers/{teacherId}/assignments/{assignmentId}
+interface AssignmentDocument {
+  id: string;
+  teacherId: string;
+
+  // What to practice
+  missionId: string;  // Reference to mission/lesson
+  missionTitle: string;  // Denormalized for display
+
+  // Who should practice
+  targetType: 'all' | 'level' | 'individual';
+  targetLevels?: ProficiencyLevel[];  // If level-based, e.g., ['A2', 'B1']
+  targetStudentIds?: string[];  // If individual(s)
+
+  // When
+  assignedAt: Timestamp;
+  dueDate?: Timestamp;  // Optional deadline
+
+  // Tracking
+  completedBy: string[];  // Array of studentIds who completed
+
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+```
+
+#### Groups = Levels (No Separate Collection Needed)
+
+Students already have a `level` field (A1, A2, B1, B2, C1, C2). Use this as the natural grouping:
+
+```typescript
+// No new collection needed!
+// Students are grouped by their existing `level` field in UserDocument
+
+// When assigning to a "group", just target a level:
+targetType: 'all' | 'level' | 'individual'
+targetLevel?: ProficiencyLevel;  // e.g., 'A2', 'B1'
+```
+
+**Benefits:**
+- No extra data model complexity
+- Levels already exist and are maintained
+- Teachers already think in terms of levels
+- Lessons already have `targetLevel` field
+
+**Teacher assigns by level:**
+```
+Assign "At the Café" to:
+○ All students
+● Level: [A1] [A2] [B1] [B2] [C1] [C2]  ← Multi-select
+○ Individual students
+```
+
+#### UserDocument Updates
+
+```typescript
 interface UserDocument {
-  uniqueScenariosCompleted?: string[];  // Array of missionIds
-  // ... other fields
+  // ... existing fields ...
+
+  // Assignment tracking (for students)
+  completedAssignments?: string[];  // Array of assignmentIds
+  lastAssignmentCompletedAt?: Timestamp;
 }
 ```
 
-### Changes Needed
+### Student Experience
 
-#### 1. Homepage: Show Completion Status
-
-```typescript
-// In HomePage.tsx
-const completedMissionIds = userDocument?.uniqueScenariosCompleted || [];
-
-// When mapping lessons for display
-const lessonsWithStatus = lessons.map(lesson => ({
-  ...lesson,
-  completed: completedMissionIds.includes(lesson.id)
-}));
-```
-
-#### 2. CompactLessonCard: Display Checkmark
+#### Homepage Shows Assignments
 
 ```typescript
-interface CompactLessonCardProps {
-  lesson: Lesson;
-  completed: boolean;  // NEW
-  onClick: () => void;
-}
-```
-
-Card shows ✓ when completed, ○ when not.
-
-#### 3. Teacher Dashboard: Completion Rates
-
-Query sessions to show completion per mission:
-
-```typescript
-// Get completion stats for a mission
-async function getMissionCompletionStats(
+// Fetch assignments for this student
+async function getAssignmentsForStudent(
   teacherId: string,
-  missionId: string
-): Promise<{ completed: number; total: number; students: string[] }> {
-  // 1. Get all students for this teacher
-  const students = await getStudentsForTeacher(teacherId);
+  studentId: string,
+  studentLevel: ProficiencyLevel
+): Promise<Assignment[]> {
+  // Get all assignments where:
+  // - targetType === 'all' OR
+  // - targetType === 'level' AND studentLevel in targetLevels OR
+  // - targetType === 'individual' AND studentId in targetStudentIds
 
-  // 2. Filter to students whose level matches mission's targetLevel
-  const eligibleStudents = students.filter(s =>
-    s.uniqueScenariosCompleted?.includes(missionId) !== undefined
-  );
-
-  // 3. Count completed
-  const completedStudents = eligibleStudents.filter(s =>
-    s.uniqueScenariosCompleted?.includes(missionId)
-  );
-
-  return {
-    completed: completedStudents.length,
-    total: eligibleStudents.length,
-    students: completedStudents.map(s => s.displayName)
-  };
+  // Return with completion status for this student
 }
 ```
 
-#### 4. LessonsTab: Show Completion Bar
+**Query example:**
+```typescript
+// Get assignments relevant to a B1 student
+const assignments = await getDocs(query(
+  collection(db, `teachers/${teacherId}/assignments`),
+  where('targetType', 'in', ['all', 'level']),
+  // Then filter client-side for level match or 'all'
+));
+
+// Filter for this student's level
+const relevantAssignments = assignments.filter(a =>
+  a.targetType === 'all' ||
+  (a.targetType === 'level' && a.targetLevels?.includes(studentLevel)) ||
+  (a.targetType === 'individual' && a.targetStudentIds?.includes(studentId))
+);
+```
+
+#### Completion Tracking
+
+When student finishes a session:
+
+```typescript
+async function markAssignmentCompleted(
+  teacherId: string,
+  assignmentId: string,
+  studentId: string
+): Promise<void> {
+  // Update assignment.completedBy array
+  // Update student's completedAssignments array
+  // Update lastAssignmentCompletedAt
+}
+```
+
+### Teacher Experience
+
+#### Dashboard: "This Week" View
+
+New section in LessonsTab or separate AssignmentsTab:
 
 ```
+This Week's Assignments
+
 ┌─────────────────────────────────────────────────┐
-│ "At the Café"                          A2 • 5min│
+│ "At the Café"                                   │
+│ Assigned: Mon, Dec 9 • Due: Fri, Dec 13         │
 │                                                 │
 │ ████████████████░░░░░░░░░░ 18/24 completed      │
+│                                                 │
+│ Not started: Maria S., Juan P., +4 more         │
 └─────────────────────────────────────────────────┘
 ```
 
-### What We're NOT Building
+#### Assigning Lessons
 
-- ❌ Separate `assignments` collection (redundant)
-- ❌ Due dates (keep it simple for launch)
-- ❌ Individual student assignment (level-based is enough)
-- ❌ Assignment notifications (future feature)
+When creating/editing a lesson, add assignment options:
 
-### Future Enhancement: Due Dates
-
-If needed later, add to `MissionDocument`:
-
-```typescript
-interface MissionDocument {
-  // ... existing fields ...
-  dueDate?: Timestamp;  // Optional deadline
-}
+```
+┌─────────────────────────────────────────────────┐
+│ Assign to Students                              │
+│                                                 │
+│ ○ All students                                  │
+│ ○ Select group: [Dropdown]                      │
+│ ○ Select individuals: [Multi-select]            │
+│                                                 │
+│ Due date (optional): [Date picker]              │
+└─────────────────────────────────────────────────┘
 ```
 
-But for launch, implicit assignment via levels is sufficient.
+### Implementation Phases
+
+**Phase 1: Simple "All Students" Assignments**
+- All lessons auto-assigned to all students
+- Track completion per student
+- Show completion status in grid
+
+**Phase 2: Groups**
+- Teachers can create groups
+- Assign lessons to specific groups
+- Student belongs to one or more groups
+
+**Phase 3: Due Dates & Notifications**
+- Optional due dates on assignments
+- "Due soon" indicators
+- Teacher notifications for incomplete
 
 ---
 
@@ -532,23 +596,21 @@ async function getFirstLesson(teacherId: string, studentLevel: string): Promise<
 
 ### Phase 1: Simplified Homepage (Week 1)
 
-1. Create `CompactLessonCard` component (with completion checkmark)
-2. Create `LessonGrid` component (replaces carousel)
-3. Create `PrimaryActionCard` component (smart start)
+1. Create `CompactLessonCard` component
+2. Create `AssignmentGrid` component
+3. Create `PrimaryActionCard` component
 4. Refactor `HomePage.tsx` to use new structure
-5. Rename ToolsSection to "Quick Practice"
-6. Move Stats to `ProfilePage.tsx`
-7. Add completion status from `uniqueScenariosCompleted`
-8. Test and polish
+5. Move Tools/Stats/CustomLessons to `ProfilePage.tsx`
+6. Test and polish
 
 ### Phase 2: Enhanced Streaks (Week 2)
 
-1. Create `useStreak` hook with milestone detection
+1. Create `useStreak` hook with milestone detection  (might already have something for this we use on badges page and check ones below)
 2. Create `StreakMilestoneModal` component
 3. Create `StreakAtRiskBanner` component
-4. Create `StreakReminder` component (post-session)
+4. Create `StreakReminder` component
 5. Integrate into HomePage and ChatPage
-6. Add streak column to StudentsTab
+6. Add streak to StudentsTab
 
 ### Phase 3: First-Run Experience (Week 2-3)
 
@@ -558,12 +620,14 @@ async function getFirstLesson(teacherId: string, studentLevel: string): Promise<
 4. Integrate with session flow
 5. Test with fresh accounts
 
-### Phase 4: Teacher Completion View (Week 3)
+### Phase 4: Assignment System (Week 3-4)
 
-1. Create `getMissionCompletionStats()` service function
-2. Add completion progress bar to `LessonListCard`
-3. Add "who hasn't completed" expandable list
-4. Test with multiple students
+1. Create Firestore collections and types
+2. Create assignment service functions
+3. Update HomePage to show completion status
+4. Add assignment UI to teacher dashboard
+5. Create completion tracking
+6. Add "This Week" teacher view
 
 ---
 

@@ -1,0 +1,179 @@
+# Review Lesson Enhancements - Implementation Plan
+
+## Overview
+Enhance the weekly review lesson with audio playback of student mistakes and intelligent mastery tracking.
+
+---
+
+## Feature 1: Play Student Audio During Review
+
+### Concept
+AI tutor can play back the student's original audio when they made a mistake, creating a powerful "mirror moment" for self-awareness.
+
+### Function Tool Definition
+```typescript
+{
+  name: "play_student_audio",
+  description: "Play a short audio clip of a mistake the student made previously. Use when hearing themselves would help the student understand and correct the error.",
+  parameters: {
+    type: "object",
+    properties: {
+      review_item_id: {
+        type: "string",
+        description: "ID of the reviewItem containing the audio"
+      }
+    },
+    required: ["review_item_id"]
+  }
+}
+```
+
+### UX Flow
+```
+AI: "Last week you had trouble with the 'th' sound. Let me play what you said..."
+
+[plays 2-3 second audio clip from reviewItem.audioUrl]
+
+AI: "You said 'I sink' instead of 'I think'. The 'th' sound needs
+     your tongue between your teeth. Let's practice - say 'think'."
+
+[student speaks]
+
+AI: "Much better! I can hear the 'th' clearly now."
+```
+
+### Frontend Implementation
+- Listen for `play_student_audio` function call in chat
+- Fetch audioUrl from reviewItem document
+- Play audio using existing audio player component
+- Return confirmation to AI that audio played
+
+### Design Principles
+- Frame with empathy: "Let me show you..." not "You said this wrong"
+- AI decides when audio is pedagogically useful (not every time)
+- Keep clips short (2-3 seconds max)
+
+---
+
+## Feature 2: Mark Item as Mastered
+
+### Concept
+AI tutor marks a reviewItem as mastered when student demonstrates clear understanding - not just repetition, but natural usage.
+
+### Function Tool Definition
+```typescript
+{
+  name: "mark_item_mastered",
+  description: "Mark a review item as mastered when the student demonstrates clear understanding and correct usage.",
+  parameters: {
+    type: "object",
+    properties: {
+      review_item_id: {
+        type: "string",
+        description: "ID of the reviewItem to mark as mastered"
+      },
+      confidence: {
+        type: "string",
+        enum: ["low", "medium", "high"],
+        description: "AI's confidence in mastery based on student's response"
+      }
+    },
+    required: ["review_item_id", "confidence"]
+  }
+}
+```
+
+### Document Update
+```typescript
+// users/{userId}/reviewItems/{reviewItemId}
+{
+  mastered: true,
+  masteredAt: Timestamp.now(),
+  masteredConfidence: "high" | "medium" | "low",
+  reviewCount: increment(1)
+}
+```
+
+### When AI Should Call This
+- Student produces correct form naturally in conversation
+- Student self-corrects without prompting
+- Student explains why the original was wrong (metacognition)
+
+### When AI Should NOT Call This
+- Student just repeats after AI (parroting)
+- Student hesitates significantly before correct answer
+- Student gets it right but seems unsure
+
+---
+
+## Feature 3: Resurface Mastered Items
+
+### Concept
+If a student makes the same mistake again in a regular lesson, the mastered item should "un-master" and re-enter the review queue.
+
+### Logic in `mark_for_review` / `saveReviewItem`
+```typescript
+// When saving a new mistake
+const existingMastered = await findSimilarMasteredItem(
+  userId,
+  errorType,
+  userSentence  // fuzzy match on the error pattern
+);
+
+if (existingMastered) {
+  // Resurface instead of duplicate
+  await updateDoc(existingMastered.ref, {
+    mastered: false,
+    resurfacedAt: Timestamp.now(),
+    resurfaceCount: increment(1),
+    // Keep original fields for history
+  });
+} else {
+  // Create new reviewItem as normal
+}
+```
+
+### Matching Logic
+- Same `errorType` (Grammar, Pronunciation, etc.)
+- Similar `userSentence` pattern (fuzzy match or same root error)
+- Example: "I go to store" and "I go to school" are same error pattern
+
+### New Fields on reviewItem
+```typescript
+{
+  resurfacedAt: Timestamp | null,    // When it was un-mastered
+  resurfaceCount: number,            // How many times it came back
+}
+```
+
+### Teacher Dashboard Insight (Future)
+> "Nina has resurfaced 'past tense' errors 3 times - may need focused attention"
+
+---
+
+## Implementation Order
+
+1. **mark_item_mastered** - Simplest, standalone value
+2. **play_student_audio** - Requires audio player integration
+3. **Resurface logic** - Requires fuzzy matching, more complex
+
+---
+
+## Files to Modify
+
+| File | Changes |
+|------|---------|
+| `src/types/functions.ts` | Add MarkItemMasteredParams type |
+| `src/services/firebase/sessionData.ts` | Add markItemMastered(), findSimilarMasteredItem() |
+| `src/hooks/useGeminiChat.ts` | Handle play_student_audio, mark_item_mastered function calls |
+| `src/types/firestore.ts` | Add masteredAt, masteredConfidence, resurfacedAt, resurfaceCount to ReviewItemDocument |
+| System prompt for review lesson | Add function definitions |
+
+---
+
+## Open Questions
+
+1. **Fuzzy matching threshold** - How similar must errors be to count as "same"?
+2. **Resurface limit** - Should items that resurface 5+ times get flagged differently?
+3. **Audio availability** - What if reviewItem has no audioUrl? (Skip audio playback gracefully)
+4. **Multiple errors per session** - Rate limit mastery marking? (Don't mark 10 items in 30 seconds)
