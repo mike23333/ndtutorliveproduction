@@ -16,6 +16,9 @@ interface AudioHandlerInstance {
   stopRecording(): void;
   playChunk(base64Data: string): Promise<void>;
   destroy(): void;
+  // Audio capture for error review
+  extractAudioAsWav(): Blob | null;
+  clearTurnBuffer(): void;
 }
 
 export type AudioDataCallback = (base64Data: string) => void;
@@ -127,6 +130,41 @@ export class WebAudioManager {
     } catch (error) {
       console.error('Failed to play audio chunk:', error);
       throw new Error('Failed to play audio: ' + (error as Error).message);
+    }
+  }
+
+  /**
+   * Extract the entire turn's audio as WAV blob for error capture
+   * Used when mark_for_review is triggered to capture the student's error
+   * @returns WAV Blob or null if no data available
+   */
+  extractErrorAudio(): Blob | null {
+    if (!this.audioHandler) {
+      console.warn('WebAudioManager: AudioHandler not initialized for audio extraction');
+      return null;
+    }
+
+    try {
+      return this.audioHandler.extractAudioAsWav();
+    } catch (error) {
+      console.error('WebAudioManager: Failed to extract error audio:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Clear the turn buffer - call when Gemini finishes responding
+   * This marks the start of a new user turn
+   */
+  clearTurnBuffer(): void {
+    if (!this.audioHandler) {
+      return;
+    }
+
+    try {
+      this.audioHandler.clearTurnBuffer();
+    } catch (error) {
+      console.error('WebAudioManager: Failed to clear turn buffer:', error);
     }
   }
 

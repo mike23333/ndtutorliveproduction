@@ -16,6 +16,9 @@ interface AudioHandlerInstance {
   stopRecording(): void;
   playChunk(base64Data: string): Promise<void>;
   destroy(): void;
+  // Audio capture for error review
+  extractAudioAsWav(): Blob | null;
+  clearTurnBuffer(): void;
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

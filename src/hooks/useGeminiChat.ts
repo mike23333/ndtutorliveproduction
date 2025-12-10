@@ -22,6 +22,7 @@ import {
   updateUserPreference,
   saveSessionSummary,
 } from '../services/firebase/sessionData';
+import { getWebAudioManager } from '../services/webAudioBridge';
 import type { AIRole } from '../types/ai-role';
 import type { UsageMetadata, GeminiFunctionCall, GeminiFunctionResponse } from '../types/gemini';
 import type {
@@ -140,6 +141,7 @@ export function useGeminiChat(
   const userIdRef = useRef(userId || `user_${Date.now()}`);
   const missionIdRef = useRef<string | null>(null);
   const sessionEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const recentReviewItems = useRef<Map<string, number>>(new Map()); // Deduplication map: key -> timestamp
 
   /**
    * Generate next message ID
@@ -293,12 +295,54 @@ export function useGeminiChat(
         switch (fc.name) {
           case 'mark_for_review': {
             const params = fc.args as unknown as MarkForReviewParams;
+
+            // Validate required fields (Gemini sometimes echoes back our response as a new call)
+            if (!params.user_sentence || !params.error_type) {
+              console.warn('[Function] Invalid mark_for_review params, skipping:', fc.args);
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Invalid parameters - skipped' }
+              });
+              break;
+            }
+
+            // Deduplication: Check if we've seen this exact error recently (within 30s)
+            const dedupeKey = `${params.user_sentence}|${params.error_type}`;
+            const now = Date.now();
+            if (recentReviewItems.current.has(dedupeKey)) {
+              const lastSeen = recentReviewItems.current.get(dedupeKey)!;
+              if (now - lastSeen < 30000) { // 30 second window
+                console.log('[Function] Skipping duplicate mark_for_review:', params.user_sentence.substring(0, 30));
+                responses.push({
+                  id: fc.id,
+                  name: fc.name,
+                  response: { result: 'Duplicate - already saved recently' }
+                });
+                break;
+              }
+            }
+            recentReviewItems.current.set(dedupeKey, now);
+
+            // Extract entire turn's audio (before any awaits to minimize latency)
+            let audioBlob: Blob | null = null;
+            try {
+              const audioManager = getWebAudioManager();
+              audioBlob = audioManager.extractErrorAudio(); // Entire turn
+              console.log('[Function] Extracted error audio:',
+                audioBlob ? `${(audioBlob.size / 1024).toFixed(1)} KB` : 'null');
+            } catch (audioError) {
+              console.warn('[Function] Audio extraction failed:', audioError);
+              // Continue without audio - it's an enhancement, not required
+            }
+
             if (sessionIdRef.current) {
               await saveReviewItem(
                 sessionIdRef.current,
                 userIdRef.current,
                 params,
-                missionIdRef.current || undefined
+                missionIdRef.current || undefined,
+                audioBlob // Pass extracted audio for background upload
               );
             }
             responses.push({
@@ -521,6 +565,12 @@ Base your assessment on our entire conversation. Call the show_session_summary f
         },
         onTurnComplete: () => {
           console.log('[Gemini] Turn complete');
+          // Clear the audio buffer to start fresh for user's next turn
+          try {
+            getWebAudioManager().clearTurnBuffer();
+          } catch (e) {
+            // Ignore - audio manager may not be ready
+          }
         },
         onSessionUpdate: (_handle: string) => {
           console.log('[Gemini] Session handle updated');

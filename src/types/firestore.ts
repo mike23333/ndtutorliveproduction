@@ -271,6 +271,9 @@ export interface ReviewItemDocument {
   lastReviewedAt: Timestamp | null;
   mastered: boolean;
   includedInReviews: string[];  // Array of review IDs this item was included in
+  // Audio capture for error review playback
+  audioUrl?: string;          // Firebase Storage download URL
+  audioStoragePath?: string;  // Storage path for cleanup/deletion
 }
 
 /**

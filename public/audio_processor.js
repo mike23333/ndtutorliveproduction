@@ -17,6 +17,11 @@ class AudioHandler {
     this.TARGET_SAMPLE_RATE = 16000; // Gemini expects 16kHz input
     this.PLAYBACK_SAMPLE_RATE = 24000; // Gemini sends 24kHz output
     this.BUFFER_SIZE = 4096;
+
+    // Turn-based buffer for error audio capture (grows dynamically per turn)
+    this.turnBuffer = [];  // Array of Int16Array chunks, grows during user's turn
+    this.turnBufferSampleCount = 0;
+    this.MAX_TURN_SECONDS = 120;  // Safety limit: 120 seconds max per turn
   }
 
   /**
@@ -35,6 +40,26 @@ class AudioHandler {
     }
 
     return this.audioContext;
+  }
+
+  /**
+   * Initialize turn buffer for audio capture
+   * Called when recording starts
+   */
+  initTurnBuffer() {
+    this.turnBuffer = [];
+    this.turnBufferSampleCount = 0;
+    console.log('AudioHandler: Turn buffer initialized');
+  }
+
+  /**
+   * Clear the turn buffer - call this when Gemini finishes responding
+   * This marks the start of a new user turn
+   */
+  clearTurnBuffer() {
+    this.turnBuffer = [];
+    this.turnBufferSampleCount = 0;
+    console.log('AudioHandler: Turn buffer cleared (new turn started)');
   }
 
   /**
@@ -61,6 +86,9 @@ class AudioHandler {
       this.microphoneStream = stream;
       this.mediaStreamSource = this.audioContext.createMediaStreamSource(stream);
 
+      // Initialize turn buffer for error audio capture
+      this.initTurnBuffer();
+
       // Create script processor for audio data
       this.scriptProcessor = this.audioContext.createScriptProcessor(
         this.BUFFER_SIZE,
@@ -82,6 +110,14 @@ class AudioHandler {
 
         // Convert to 16-bit PCM
         const pcmData = this.floatTo16BitPCM(downsampledData);
+
+        // Store in turn buffer for error audio capture (grows dynamically)
+        const maxSamples = this.TARGET_SAMPLE_RATE * this.MAX_TURN_SECONDS;
+        if (this.turnBufferSampleCount < maxSamples) {
+          // Store a copy of the chunk
+          this.turnBuffer.push(new Int16Array(pcmData));
+          this.turnBufferSampleCount += pcmData.length;
+        }
 
         // Convert to base64
         const base64Data = this.arrayBufferToBase64(pcmData.buffer);
@@ -128,6 +164,10 @@ class AudioHandler {
     }
 
     this.onDataCallback = null;
+
+    // Clear turn buffer to free memory
+    this.turnBuffer = [];
+    this.turnBufferSampleCount = 0;
   }
 
   /**
@@ -294,6 +334,88 @@ class AudioHandler {
     }
 
     return bytes.buffer;
+  }
+
+  /**
+   * Extract the entire turn buffer as WAV Blob
+   * Used for capturing error audio when mark_for_review is triggered
+   * @returns {Blob|null} WAV blob or null if no data
+   */
+  extractAudioAsWav() {
+    if (!this.turnBuffer || this.turnBuffer.length === 0 || this.turnBufferSampleCount === 0) {
+      console.warn('AudioHandler: No audio data in turn buffer');
+      return null;
+    }
+
+    // Concatenate all chunks into one array
+    const allSamples = new Int16Array(this.turnBufferSampleCount);
+    let offset = 0;
+    for (const chunk of this.turnBuffer) {
+      allSamples.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    const actualSeconds = (this.turnBufferSampleCount / this.TARGET_SAMPLE_RATE).toFixed(1);
+    console.log('AudioHandler: Extracted', actualSeconds, 'seconds of turn audio (', this.turnBufferSampleCount, 'samples)');
+
+    // Create WAV blob
+    return this.createWavBlob(allSamples, this.TARGET_SAMPLE_RATE);
+  }
+
+  /**
+   * Create WAV blob from Int16 PCM samples
+   * Generates proper RIFF/WAV header for mono 16-bit audio
+   * @param {Int16Array} samples - PCM audio samples
+   * @param {number} sampleRate - Sample rate (16000)
+   * @returns {Blob} WAV blob
+   */
+  createWavBlob(samples, sampleRate) {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const bytesPerSample = bitsPerSample / 8;
+    const dataSize = samples.length * bytesPerSample;
+    const headerSize = 44;
+    const fileSize = headerSize + dataSize;
+
+    const buffer = new ArrayBuffer(fileSize);
+    const view = new DataView(buffer);
+
+    // RIFF header
+    this.writeString(view, 0, 'RIFF');
+    view.setUint32(4, fileSize - 8, true);  // File size minus RIFF header
+    this.writeString(view, 8, 'WAVE');
+
+    // fmt subchunk
+    this.writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);  // Subchunk size (16 for PCM)
+    view.setUint16(20, 1, true);   // Audio format (1 = PCM)
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * bytesPerSample, true);  // Byte rate
+    view.setUint16(32, numChannels * bytesPerSample, true);  // Block align
+    view.setUint16(34, bitsPerSample, true);
+
+    // data subchunk
+    this.writeString(view, 36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // Write PCM samples (copy Int16 data)
+    const int16View = new Int16Array(buffer, 44);
+    int16View.set(samples);
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  /**
+   * Helper to write ASCII string to DataView
+   * @param {DataView} view - DataView to write to
+   * @param {number} offset - Byte offset
+   * @param {string} string - ASCII string to write
+   */
+  writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+      view.setUint8(offset + i, string.charCodeAt(i));
+    }
   }
 
   /**

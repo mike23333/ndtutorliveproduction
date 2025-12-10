@@ -171,19 +171,27 @@ export const saveStruggleItem = async (
  *
  * Stored under users/{userId}/reviewItems for weekly review lesson generation.
  * Enhanced schema captures more linguistic context than legacy struggles.
+ *
+ * @param sessionId - Current session ID
+ * @param userId - User ID
+ * @param params - Mark for review parameters from Gemini
+ * @param missionId - Optional lesson context
+ * @param audioBlob - Optional WAV blob of error audio (uploaded in background)
  */
 export const saveReviewItem = async (
   sessionId: string,
   userId: string,
   params: MarkForReviewParams,
-  missionId?: string
+  missionId?: string,
+  audioBlob?: Blob | null
 ): Promise<ReviewItemDocument> => {
   if (!db) throw new Error('Firebase not configured');
 
   const reviewItemRef = doc(collection(db, `users/${userId}/reviewItems`));
+  const reviewItemId = reviewItemRef.id;
 
   const reviewItem: ReviewItemDocument = {
-    id: reviewItemRef.id,
+    id: reviewItemId,
     userId,
     sessionId,
     missionId: missionId || null,
@@ -200,11 +208,50 @@ export const saveReviewItem = async (
     includedInReviews: [],
   };
 
+  // Save document immediately (non-blocking audio upload)
   await setDoc(reviewItemRef, reviewItem);
   console.log('[SessionData] Saved review item:', params.error_type, '-', params.user_sentence.substring(0, 30) + '...');
 
+  // Upload audio in background if available (non-blocking, fire-and-forget)
+  if (audioBlob) {
+    uploadErrorAudioAndUpdate(reviewItemId, userId, audioBlob).catch((error) => {
+      console.warn('[SessionData] Audio upload failed (non-blocking):', error);
+    });
+  }
+
   return reviewItem;
 };
+
+/**
+ * Helper to upload audio and update Firestore document
+ * Runs in background, doesn't block conversation flow
+ */
+async function uploadErrorAudioAndUpdate(
+  reviewItemId: string,
+  userId: string,
+  audioBlob: Blob
+): Promise<void> {
+  try {
+    const { uploadErrorAudio } = await import('./errorAudioStorage');
+    const { downloadUrl, storagePath } = await uploadErrorAudio(
+      audioBlob,
+      reviewItemId,
+      userId
+    );
+
+    // Update document with audio URL
+    const reviewItemRef = doc(db!, `users/${userId}/reviewItems`, reviewItemId);
+    await updateDoc(reviewItemRef, {
+      audioUrl: downloadUrl,
+      audioStoragePath: storagePath,
+    });
+
+    console.log('[SessionData] Updated review item with audio URL');
+  } catch (error) {
+    console.error('[SessionData] Failed to upload error audio:', error);
+    // Don't re-throw - audio is an optional enhancement
+  }
+}
 
 /**
  * Get all review items for a user (for weekly review lessons)
