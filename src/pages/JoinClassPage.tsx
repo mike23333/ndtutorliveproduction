@@ -1,17 +1,29 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { useAuth } from '../hooks/useAuth';
 import { validateClassCode, assignStudentToTeacher } from '../services/firebase/classCode';
+import {
+  validatePrivateStudentCode,
+  usePrivateStudentCode,
+  assignPrivateStudentToTeacher
+} from '../services/firebase/privateStudentCode';
 
 const JoinClassPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, userDocument } = useAuth();
   const [classCode, setClassCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState('');
-  const [teacherInfo, setTeacherInfo] = useState<{ teacherId: string; teacherName: string } | null>(null);
+  const [teacherInfo, setTeacherInfo] = useState<{
+    teacherId: string;
+    teacherName: string;
+    isPrivate?: boolean;
+    codeId?: string;
+  } | null>(null);
+  const hasAutoFilledRef = useRef(false);
 
   // Redirect if already has teacherId
   useEffect(() => {
@@ -25,9 +37,46 @@ const JoinClassPage: React.FC = () => {
     }
   }, [userDocument, navigate]);
 
-  // Debounced validation of class code
+  // Auto-fill code from URL params or sessionStorage (for shareable links)
+  useEffect(() => {
+    if (hasAutoFilledRef.current) return;
+
+    // First priority: URL param
+    const codeFromUrl = searchParams.get('code');
+    if (codeFromUrl) {
+      hasAutoFilledRef.current = true;
+      const normalizedCode = codeFromUrl.toUpperCase();
+      setClassCode(normalizedCode);
+      // Save to sessionStorage so it survives auth redirect
+      sessionStorage.setItem('pendingClassCode', normalizedCode);
+      return;
+    }
+
+    // Second priority: sessionStorage (recovered after auth redirect)
+    const savedCode = sessionStorage.getItem('pendingClassCode');
+    if (savedCode) {
+      hasAutoFilledRef.current = true;
+      setClassCode(savedCode);
+      // Clear it after use
+      sessionStorage.removeItem('pendingClassCode');
+    }
+  }, [searchParams]);
+
+  // Check if code looks like a private code (PRV-XXXXXX format)
+  const isPrivateCodeFormat = (code: string): boolean => {
+    return code.toUpperCase().startsWith('PRV-') && code.length === 10;
+  };
+
+  // Debounced validation of class code (supports both group and private codes)
   const validateCode = useCallback(async (code: string) => {
-    if (code.length < 6) {
+    const normalized = code.toUpperCase().trim();
+
+    // Private codes need exactly 10 chars (PRV-XXXXXX)
+    // Group codes need exactly 6 chars
+    const isPrivateFormat = normalized.startsWith('PRV-');
+    const minLength = isPrivateFormat ? 10 : 6;
+
+    if (normalized.length < minLength) {
       setTeacherInfo(null);
       setError('');
       return;
@@ -37,13 +86,34 @@ const JoinClassPage: React.FC = () => {
     setError('');
 
     try {
-      const result = await validateClassCode(code);
-      if (result) {
-        setTeacherInfo(result);
-        setError('');
+      if (isPrivateCodeFormat(normalized)) {
+        // Validate as private code
+        const result = await validatePrivateStudentCode(normalized);
+        if (result && result.isValid) {
+          setTeacherInfo({
+            teacherId: result.teacherId,
+            teacherName: result.teacherName,
+            isPrivate: true,
+            codeId: result.codeId,
+          });
+          setError('');
+        } else {
+          setTeacherInfo(null);
+          setError('Invalid private code. Please check with your teacher.');
+        }
+      } else if (normalized.length === 6) {
+        // Validate as group class code
+        const result = await validateClassCode(normalized);
+        if (result) {
+          setTeacherInfo({ ...result, isPrivate: false });
+          setError('');
+        } else {
+          setTeacherInfo(null);
+          setError('Invalid class code. Please check with your teacher.');
+        }
       } else {
         setTeacherInfo(null);
-        setError('Invalid class code. Please check with your teacher.');
+        setError('Invalid code format.');
       }
     } catch (err) {
       console.error('Error validating code:', err);
@@ -57,7 +127,11 @@ const JoinClassPage: React.FC = () => {
   // Debounce the validation
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (classCode.length >= 6) {
+      const normalized = classCode.toUpperCase();
+      // Validate when we have enough characters for either code type
+      const isPrivateFormat = normalized.startsWith('PRV-');
+      const minLength = isPrivateFormat ? 10 : 6;
+      if (classCode.length >= minLength) {
         validateCode(classCode);
       }
     }, 500);
@@ -66,16 +140,21 @@ const JoinClassPage: React.FC = () => {
   }, [classCode, validateCode]);
 
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+    // Allow alphanumeric and hyphens (for private codes like PRV-ABC123)
+    const value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 10);
     setClassCode(value);
-    if (value.length < 6) {
+
+    // Reset state when code is incomplete
+    const isPrivateFormat = value.startsWith('PRV-');
+    const minLength = isPrivateFormat ? 10 : 6;
+    if (value.length < minLength) {
       setTeacherInfo(null);
       setError('');
     }
   };
 
   const handleJoinClass = async () => {
-    if (!teacherInfo || !user) {
+    if (!teacherInfo || !user || !userDocument) {
       return;
     }
 
@@ -83,8 +162,22 @@ const JoinClassPage: React.FC = () => {
     setError('');
 
     try {
-      await assignStudentToTeacher(user.uid, teacherInfo.teacherId, teacherInfo.teacherName);
-      navigate('/select-level');
+      if (teacherInfo.isPrivate && teacherInfo.codeId) {
+        // Private tutoring: mark code as used and assign with private flag
+        await usePrivateStudentCode(teacherInfo.codeId, user.uid, userDocument.displayName);
+        await assignPrivateStudentToTeacher(
+          user.uid,
+          teacherInfo.teacherId,
+          teacherInfo.teacherName,
+          teacherInfo.codeId
+        );
+        // Private students also need to select their level
+        navigate('/select-level');
+      } else {
+        // Group class: standard assignment
+        await assignStudentToTeacher(user.uid, teacherInfo.teacherId, teacherInfo.teacherName);
+        navigate('/select-level');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to join class. Please try again.');
     } finally {
@@ -142,7 +235,7 @@ const JoinClassPage: React.FC = () => {
               margin: 'clamp(8px, 2vw, 12px) 0 0 0',
             }}
           >
-            Enter the 6-digit class code from your teacher
+            Enter your class code or private tutoring code
           </p>
         </div>
 
@@ -180,7 +273,7 @@ const JoinClassPage: React.FC = () => {
             type="text"
             value={classCode}
             onChange={handleCodeChange}
-            placeholder="ABC123"
+            placeholder="ABC123 or PRV-ABC123"
             autoFocus
             autoComplete="off"
             style={{
@@ -191,7 +284,7 @@ const JoinClassPage: React.FC = () => {
               letterSpacing: '0.3em',
               textAlign: 'center',
               background: AppColors.surfaceLight,
-              border: `2px solid ${teacherInfo ? AppColors.successGreen : classCode.length === 6 && !validating && !teacherInfo ? AppColors.errorRose : AppColors.borderColor}`,
+              border: `2px solid ${teacherInfo ? AppColors.successGreen : ((classCode.length === 6 || classCode.length === 10) && !validating && !teacherInfo) ? AppColors.errorRose : AppColors.borderColor}`,
               borderRadius: 'clamp(10px, 2.5vw, 12px)',
               color: AppColors.textPrimary,
               outline: 'none',
@@ -268,7 +361,7 @@ const JoinClassPage: React.FC = () => {
                   marginBottom: '2px',
                 }}
               >
-                Joining class with
+                {teacherInfo.isPrivate ? 'Private tutoring with' : 'Joining class with'}
               </div>
               <div
                 style={{
@@ -305,7 +398,7 @@ const JoinClassPage: React.FC = () => {
             opacity: loading || !teacherInfo ? 0.7 : 1,
           }}
         >
-          {loading ? 'Joining...' : 'Join Class'}
+          {loading ? 'Joining...' : teacherInfo?.isPrivate ? 'Start Private Tutoring' : 'Join Class'}
         </button>
 
         {/* Help Text */}
@@ -318,7 +411,7 @@ const JoinClassPage: React.FC = () => {
             lineHeight: 1.5,
           }}
         >
-          Don't have a class code? Ask your teacher for the 6-digit code to join their class.
+          Don't have a code? Ask your teacher for a class code (6 digits) or private tutoring code (PRV-XXXXXX).
         </p>
       </div>
 

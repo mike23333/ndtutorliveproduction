@@ -13,6 +13,7 @@ interface UseLessonFormResult {
   setImageStoragePath: (path: string | null) => void;
   setImage: (url: string, path: string) => void;
   clearImage: () => void;
+  setAssignedStudentIds: (studentIds: string[]) => void;
   reset: () => void;
   loadFromLesson: (lesson: LessonData) => void;
   loadFromFormData: (data: LessonFormData) => void;
@@ -31,6 +32,7 @@ const initialFormData: LessonFormData = {
   imageStoragePath: null,
   targetLevel: null,
   isFirstLesson: false,
+  assignedStudentIds: [],
 };
 
 export function useLessonForm(): UseLessonFormResult {
@@ -75,6 +77,10 @@ export function useLessonForm(): UseLessonFormResult {
     setFormData(prev => ({ ...prev, imageUrl: null, imageStoragePath: null }));
   }, []);
 
+  const setAssignedStudentIds = useCallback((assignedStudentIds: string[]) => {
+    setFormData(prev => ({ ...prev, assignedStudentIds }));
+  }, []);
+
   const reset = useCallback(() => {
     setFormData(initialFormData);
     setSaving(false);
@@ -90,6 +96,7 @@ export function useLessonForm(): UseLessonFormResult {
       imageStoragePath: lesson.imageStoragePath || null,
       targetLevel: lesson.targetLevel || null,
       isFirstLesson: lesson.isFirstLesson || false,
+      assignedStudentIds: lesson.assignedStudentIds || [],
     });
   }, []);
 
@@ -110,6 +117,7 @@ export function useLessonForm(): UseLessonFormResult {
     setImageStoragePath,
     setImage,
     clearImage,
+    setAssignedStudentIds,
     reset,
     loadFromLesson,
     loadFromFormData,

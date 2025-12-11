@@ -35,6 +35,7 @@ function mapMissionToLesson(
     totalStudents: completionStats?.totalEligible || 0,
     targetLevel: mission.targetLevel || null,
     isFirstLesson: mission.isFirstLesson || false,
+    assignedStudentIds: mission.assignedStudentIds || [],
     notCompletedStudents: completionStats?.notCompletedStudents || [],
   };
 }
@@ -97,6 +98,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       functionCallingEnabled: true,
       isActive: true,
       isFirstLesson: data.isFirstLesson || false,
+      assignedStudentIds: data.assignedStudentIds?.length ? data.assignedStudentIds : undefined,
     });
 
     const newLesson = mapMissionToLesson(newMission);
@@ -120,6 +122,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
     if (data.imageStoragePath !== undefined) updateData.imageStoragePath = data.imageStoragePath;
     if (data.isFirstLesson !== undefined) updateData.isFirstLesson = data.isFirstLesson;
+    if (data.assignedStudentIds !== undefined) updateData.assignedStudentIds = data.assignedStudentIds;
 
     updateData.functionCallingEnabled = true;
 

@@ -145,5 +145,28 @@ service cloud.firestore {
       // Only admin can write badge definitions
       allow write: if false;
     }
+
+    // Private Student Codes - for 1:1 private tutoring
+    // Teachers can manage their own codes, anyone can read to validate during onboarding
+    match /privateStudentCodes/{codeId} {
+      // Anyone authenticated can read codes (needed for validation during student join)
+      allow read: if request.auth != null;
+      // Only teachers can create codes (must set themselves as teacherId)
+      allow create: if request.auth != null
+        && request.resource.data.teacherId == request.auth.uid;
+      // Teachers can update/delete their own codes
+      // Students can update ONLY to mark as used (when code is active)
+      allow update: if request.auth != null && (
+        // Teacher can update their own codes
+        resource.data.teacherId == request.auth.uid ||
+        // Student can mark an active code as used (setting themselves as the user)
+        (resource.data.status == 'active' &&
+         request.resource.data.status == 'used' &&
+         request.resource.data.usedByStudentId == request.auth.uid)
+      );
+      // Only the owning teacher can delete codes
+      allow delete: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+    }
   }
 }

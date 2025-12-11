@@ -51,6 +51,17 @@ interface TemplatesTabProps {
   pronunciationLoading: boolean;
   pronunciationSaving: boolean;
   pronunciationHasChanges: boolean;
+
+  // Default Intro Lesson Template
+  introLessonTemplate: SystemTemplateDocument | null;
+  editedIntroLessonTemplate: string;
+  onIntroLessonTemplateChange: (template: string) => void;
+  onSaveIntroLesson: () => Promise<void>;
+  onDiscardIntroLessonChanges: () => void;
+  onResetIntroLessonToDefault: () => void;
+  introLessonLoading: boolean;
+  introLessonSaving: boolean;
+  introLessonHasChanges: boolean;
 }
 
 // Collapsible section component
@@ -337,6 +348,16 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   pronunciationLoading,
   pronunciationSaving,
   pronunciationHasChanges,
+  // Default Intro Lesson
+  introLessonTemplate,
+  editedIntroLessonTemplate,
+  onIntroLessonTemplateChange,
+  onSaveIntroLesson,
+  onDiscardIntroLessonChanges,
+  onResetIntroLessonToDefault,
+  introLessonLoading,
+  introLessonSaving,
+  introLessonHasChanges,
 }) => {
   const [expandedSection, setExpandedSection] = useState<string | null>('review');
 
@@ -398,6 +419,24 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
       loading: pronunciationLoading,
       saving: pronunciationSaving,
       hasChanges: pronunciationHasChanges,
+    },
+    {
+      id: 'introLesson',
+      title: 'Default Intro Lesson',
+      description: 'First lesson shown to new students with no assigned lessons (3-min intro conversation)',
+      placeholders: [
+        { code: '{{level}}', description: "Student's CEFR level (A1-C2)" },
+        { code: '{{studentName}}', description: "Student's display name" },
+      ],
+      template: introLessonTemplate,
+      editedTemplate: editedIntroLessonTemplate,
+      onTemplateChange: onIntroLessonTemplateChange,
+      onSave: onSaveIntroLesson,
+      onDiscardChanges: onDiscardIntroLessonChanges,
+      onResetToDefault: onResetIntroLessonToDefault,
+      loading: introLessonLoading,
+      saving: introLessonSaving,
+      hasChanges: introLessonHasChanges,
     },
   ];
 

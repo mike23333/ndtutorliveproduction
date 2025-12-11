@@ -85,23 +85,26 @@ const TeacherDashboard: React.FC = () => {
     setPeriod: setAnalyticsPeriod,
   } = useTeacherAnalytics(user?.uid, activeTab === 'billing');
 
-  // Students list for insights tab
+  // Students list for insights tab and private student assignment
   const [students, setStudents] = React.useState<UserDocument[]>([]);
-  const [studentsLoading, setStudentsLoading] = React.useState(false);
 
-  // Fetch students when insights tab is active
+  // Fetch students on mount (needed for private student assignment in lesson modal)
   React.useEffect(() => {
-    if (activeTab === 'insights' && user?.uid && students.length === 0) {
-      setStudentsLoading(true);
+    if (user?.uid && students.length === 0) {
       getStudentsForTeacher(user.uid)
         .then(setStudents)
-        .catch(console.error)
-        .finally(() => setStudentsLoading(false));
+        .catch(console.error);
     }
-  }, [activeTab, user?.uid, students.length]);
+  }, [user?.uid, students.length]);
+
+  // Filter private students for lesson assignment
+  const privateStudents = React.useMemo(() =>
+    students.filter(s => s.isPrivateStudent),
+    [students]
+  );
 
   // Handler to navigate to student in Students tab
-  const handleNavigateToStudent = useCallback((studentId: string) => {
+  const handleNavigateToStudent = useCallback((_studentId: string) => {
     setActiveTab('students');
     // Note: Could add filtering logic here if StudentsTab supports it
   }, []);
@@ -141,6 +144,16 @@ const TeacherDashboard: React.FC = () => {
     pronunciationTemplateLoading,
     pronunciationTemplateSaving,
     pronunciationTemplateChanged,
+    // Default intro lesson template
+    introLessonTemplate,
+    editedIntroLessonTemplate,
+    setEditedIntroLessonTemplate,
+    saveIntroLessonTemplate,
+    discardIntroLessonChanges,
+    resetIntroLessonToDefault,
+    introLessonTemplateLoading,
+    introLessonTemplateSaving,
+    introLessonTemplateChanged,
   } = usePromptTemplates(user?.uid, activeTab === 'templates');
 
   // Handlers
@@ -382,6 +395,7 @@ const TeacherDashboard: React.FC = () => {
         {activeTab === 'students' && user && (
           <StudentsTab
             teacherId={user.uid}
+            teacherName={userDocument?.displayName || user.email || 'Teacher'}
             classCode={classCode}
             onClassCodeRegenerated={setClassCode}
           />
@@ -441,6 +455,16 @@ const TeacherDashboard: React.FC = () => {
             pronunciationLoading={pronunciationTemplateLoading}
             pronunciationSaving={pronunciationTemplateSaving}
             pronunciationHasChanges={pronunciationTemplateChanged}
+            // Default Intro Lesson Template
+            introLessonTemplate={introLessonTemplate}
+            editedIntroLessonTemplate={editedIntroLessonTemplate}
+            onIntroLessonTemplateChange={setEditedIntroLessonTemplate}
+            onSaveIntroLesson={saveIntroLessonTemplate}
+            onDiscardIntroLessonChanges={discardIntroLessonChanges}
+            onResetIntroLessonToDefault={resetIntroLessonToDefault}
+            introLessonLoading={introLessonTemplateLoading}
+            introLessonSaving={introLessonTemplateSaving}
+            introLessonHasChanges={introLessonTemplateChanged}
           />
         )}
       </div>
@@ -467,6 +491,8 @@ const TeacherDashboard: React.FC = () => {
         selectedTemplateId={selectedTemplateId}
         onTemplateSelect={handleTemplateSelect}
         onSaveAsTemplate={() => setShowSaveTemplateModal(true)}
+        privateStudents={privateStudents}
+        onAssignedStudentsChange={lessonForm.setAssignedStudentIds}
       />
 
       {/* Save Template Modal */}

@@ -10,9 +10,12 @@ import {
   updateCustomLessonTemplate,
   getPronunciationCoachTemplate,
   updatePronunciationCoachTemplate,
+  getDefaultIntroLessonTemplate,
+  updateDefaultIntroLessonTemplate,
   DEFAULT_WEEKLY_REVIEW_TEMPLATE,
   DEFAULT_CUSTOM_LESSON_TEMPLATE,
   DEFAULT_PRONUNCIATION_COACH_TEMPLATE,
+  DEFAULT_INTRO_LESSON_TEMPLATE,
 } from '../services/firebase/systemTemplates';
 import type { PromptTemplateDocument, SystemTemplateDocument } from '../types/firestore';
 
@@ -56,6 +59,17 @@ interface UsePromptTemplatesResult {
   pronunciationTemplateLoading: boolean;
   pronunciationTemplateSaving: boolean;
   pronunciationTemplateChanged: boolean;
+
+  // Default intro lesson template
+  introLessonTemplate: SystemTemplateDocument | null;
+  editedIntroLessonTemplate: string;
+  setEditedIntroLessonTemplate: (template: string) => void;
+  saveIntroLessonTemplate: () => Promise<void>;
+  discardIntroLessonChanges: () => void;
+  resetIntroLessonToDefault: () => void;
+  introLessonTemplateLoading: boolean;
+  introLessonTemplateSaving: boolean;
+  introLessonTemplateChanged: boolean;
 }
 
 export function usePromptTemplates(
@@ -85,6 +99,12 @@ export function usePromptTemplates(
   const [pronunciationTemplateLoading, setPronunciationTemplateLoading] = useState(false);
   const [pronunciationTemplateSaving, setPronunciationTemplateSaving] = useState(false);
 
+  // System template state - Default Intro Lesson
+  const [introLessonTemplate, setIntroLessonTemplate] = useState<SystemTemplateDocument | null>(null);
+  const [editedIntroLessonTemplate, setEditedIntroLessonTemplate] = useState('');
+  const [introLessonTemplateLoading, setIntroLessonTemplateLoading] = useState(false);
+  const [introLessonTemplateSaving, setIntroLessonTemplateSaving] = useState(false);
+
   // Fetch prompt templates
   useEffect(() => {
     const fetchTemplates = async () => {
@@ -108,16 +128,18 @@ export function usePromptTemplates(
     const fetchSystemTemplates = async () => {
       if (!isTemplatesTabActive) return;
 
-      // Fetch all three templates in parallel
+      // Fetch all four templates in parallel
       setReviewTemplateLoading(true);
       setCustomLessonTemplateLoading(true);
       setPronunciationTemplateLoading(true);
+      setIntroLessonTemplateLoading(true);
 
       try {
-        const [review, customLesson, pronunciation] = await Promise.all([
+        const [review, customLesson, pronunciation, introLesson] = await Promise.all([
           getWeeklyReviewTemplate(),
           getCustomLessonTemplate(),
           getPronunciationCoachTemplate(),
+          getDefaultIntroLessonTemplate(),
         ]);
 
         setReviewTemplate(review);
@@ -128,12 +150,16 @@ export function usePromptTemplates(
 
         setPronunciationTemplate(pronunciation);
         setEditedPronunciationTemplate(pronunciation.template);
+
+        setIntroLessonTemplate(introLesson);
+        setEditedIntroLessonTemplate(introLesson.template);
       } catch (error) {
         console.error('Error fetching system templates:', error);
       } finally {
         setReviewTemplateLoading(false);
         setCustomLessonTemplateLoading(false);
         setPronunciationTemplateLoading(false);
+        setIntroLessonTemplateLoading(false);
       }
     };
 
@@ -242,9 +268,36 @@ export function usePromptTemplates(
     setEditedPronunciationTemplate(DEFAULT_PRONUNCIATION_COACH_TEMPLATE);
   }, []);
 
+  // Default Intro Lesson Template handlers
+  const saveIntroLessonTemplate = useCallback(async () => {
+    if (!teacherId || !editedIntroLessonTemplate.trim()) return;
+
+    setIntroLessonTemplateSaving(true);
+    try {
+      await updateDefaultIntroLessonTemplate(editedIntroLessonTemplate, teacherId);
+      setIntroLessonTemplate(prev => prev ? { ...prev, template: editedIntroLessonTemplate } : prev);
+    } catch (error) {
+      console.error('Error saving intro lesson template:', error);
+      throw error;
+    } finally {
+      setIntroLessonTemplateSaving(false);
+    }
+  }, [teacherId, editedIntroLessonTemplate]);
+
+  const discardIntroLessonChanges = useCallback(() => {
+    if (introLessonTemplate) {
+      setEditedIntroLessonTemplate(introLessonTemplate.template);
+    }
+  }, [introLessonTemplate]);
+
+  const resetIntroLessonToDefault = useCallback(() => {
+    setEditedIntroLessonTemplate(DEFAULT_INTRO_LESSON_TEMPLATE);
+  }, []);
+
   const reviewTemplateChanged = editedReviewTemplate !== reviewTemplate?.template;
   const customLessonTemplateChanged = editedCustomLessonTemplate !== customLessonTemplate?.template;
   const pronunciationTemplateChanged = editedPronunciationTemplate !== pronunciationTemplate?.template;
+  const introLessonTemplateChanged = editedIntroLessonTemplate !== introLessonTemplate?.template;
 
   return {
     templates,
@@ -282,5 +335,15 @@ export function usePromptTemplates(
     pronunciationTemplateLoading,
     pronunciationTemplateSaving,
     pronunciationTemplateChanged,
+    // Default intro lesson template
+    introLessonTemplate,
+    editedIntroLessonTemplate,
+    setEditedIntroLessonTemplate,
+    saveIntroLessonTemplate,
+    discardIntroLessonChanges,
+    resetIntroLessonToDefault,
+    introLessonTemplateLoading,
+    introLessonTemplateSaving,
+    introLessonTemplateChanged,
   };
 }

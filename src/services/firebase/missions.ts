@@ -91,6 +91,7 @@ export const createMission = async (
     if (missionData.functionCallingEnabled !== undefined) mission.functionCallingEnabled = missionData.functionCallingEnabled;
     if (missionData.functionCallingInstructions) mission.functionCallingInstructions = missionData.functionCallingInstructions;
     if (missionData.isFirstLesson !== undefined) mission.isFirstLesson = missionData.isFirstLesson;
+    if (missionData.assignedStudentIds?.length) mission.assignedStudentIds = missionData.assignedStudentIds;
 
     // If this is marked as first lesson, clear the flag from other lessons
     if (missionData.isFirstLesson) {

@@ -19,6 +19,7 @@ export interface LessonData {
   totalStudents: number;
   targetLevel?: ProficiencyLevel | null;
   isFirstLesson?: boolean;
+  assignedStudentIds?: string[]; // For private student assignment
   notCompletedStudents?: { uid: string; name: string; level?: ProficiencyLevel }[];
 }
 
@@ -30,6 +31,7 @@ export interface LessonFormData {
   imageStoragePath: string | null;
   targetLevel: ProficiencyLevel | null;
   isFirstLesson?: boolean;
+  assignedStudentIds?: string[]; // For private student assignment
 }
 
 export interface ClassPulseInsight {

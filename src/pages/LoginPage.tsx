@@ -17,7 +17,16 @@ const LoginPage: React.FC = () => {
 
     try {
       await signInWithEmail(email, password);
-      navigate('/');
+
+      // Check for saved return URL (e.g., from join-class link)
+      const returnUrl = sessionStorage.getItem('authReturnUrl');
+      sessionStorage.removeItem('authReturnUrl');
+
+      if (returnUrl) {
+        navigate(returnUrl);
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to sign in');
     } finally {

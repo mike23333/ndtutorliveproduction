@@ -48,11 +48,20 @@ export const getStudentsForTeacher = async (
 
 /**
  * Get active missions for a student based on their assigned teacher
- * Optionally filters by student's proficiency level
+ *
+ * For GROUP students (isPrivateStudent = false/undefined):
+ *   - Returns missions filtered by level compatibility
+ *   - Excludes missions with assignedStudentIds (those are private-only)
+ *
+ * For PRIVATE students (isPrivateStudent = true):
+ *   - Returns ONLY missions where their studentId is in assignedStudentIds
+ *   - No level filtering - they see whatever the teacher assigns
  */
 export const getMissionsForStudent = async (
   teacherId: string,
-  level?: ProficiencyLevel
+  level?: ProficiencyLevel,
+  studentId?: string,
+  isPrivateStudent?: boolean
 ): Promise<MissionDocument[]> => {
   if (!db) {
     throw new Error('Firebase is not configured. Please check your environment variables.');
@@ -73,18 +82,32 @@ export const getMissionsForStudent = async (
       orderBy('createdAt', 'desc'),
     ];
 
-    // Note: We filter by level in JavaScript since Firestore doesn't support
-    // filtering on optional fields well with inequality + ordering
     const q = query(missionsRef, ...constraints);
     const querySnapshot = await getDocs(q);
 
     let missions = querySnapshot.docs.map(doc => doc.data() as MissionDocument);
 
-    // If level is provided, filter missions that match the student's level or have no targetLevel
-    if (level) {
+    if (isPrivateStudent && studentId) {
+      // PRIVATE STUDENT: Only see lessons explicitly assigned to them
+      // No level filtering - teacher controls what they see
       missions = missions.filter(mission =>
-        !mission.targetLevel || mission.targetLevel === level || isLevelCompatible(level, mission.targetLevel)
+        mission.assignedStudentIds?.includes(studentId)
       );
+    } else {
+      // GROUP STUDENT: Level-based filtering + exclude private-only lessons
+
+      // First, filter out lessons that are assigned to specific students (private lessons)
+      missions = missions.filter(mission =>
+        !mission.assignedStudentIds || mission.assignedStudentIds.length === 0
+      );
+
+      // Then apply level filtering if a level is provided
+      // Only show missions at the student's EXACT level (or missions with no level set)
+      if (level) {
+        missions = missions.filter(mission =>
+          !mission.targetLevel || mission.targetLevel === level
+        );
+      }
     }
 
     return missions;

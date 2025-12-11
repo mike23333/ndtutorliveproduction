@@ -170,3 +170,44 @@ export const regenerateClassCode = async (teacherId: string): Promise<string> =>
     throw error;
   }
 };
+
+/**
+ * Suspend a student (blocks access to lessons without removing from class)
+ * Used for payment/access control
+ */
+export const suspendStudent = async (studentId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase is not configured. Please check your environment variables.');
+  }
+
+  try {
+    const studentDocRef = doc(db, USERS_COLLECTION, studentId);
+    await updateDoc(studentDocRef, {
+      status: 'suspended',
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error('Error suspending student:', error);
+    throw error;
+  }
+};
+
+/**
+ * Reactivate a suspended student (restores access to lessons)
+ */
+export const reactivateStudent = async (studentId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase is not configured. Please check your environment variables.');
+  }
+
+  try {
+    const studentDocRef = doc(db, USERS_COLLECTION, studentId);
+    await updateDoc(studentDocRef, {
+      status: 'active',
+      updatedAt: Timestamp.now(),
+    });
+  } catch (error) {
+    console.error('Error reactivating student:', error);
+    throw error;
+  }
+};

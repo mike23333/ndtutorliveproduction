@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { UserRole } from '../types/firestore';
 
@@ -17,6 +17,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   redirectTo = '/login',
 }) => {
   const { user, userDocument, loading } = useAuth();
+  const location = useLocation();
 
   // Show nothing while loading auth state
   if (loading) {
@@ -38,6 +39,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Redirect to login if auth is required but user is not logged in
   if (requireAuth && !user) {
+    // Save the intended URL (with query params) so we can return after login
+    const fullPath = location.pathname + location.search;
+    if (fullPath !== '/') {
+      sessionStorage.setItem('authReturnUrl', fullPath);
+    }
     return <Navigate to={redirectTo} replace />;
   }
 

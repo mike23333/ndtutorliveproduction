@@ -21,6 +21,7 @@ export const TEMPLATE_IDS = {
   WEEKLY_REVIEW_TEMPLATE: 'weeklyReviewTemplate',
   CUSTOM_LESSON_PROMPT: 'customLessonPrompt',
   PRONUNCIATION_COACH_PROMPT: 'pronunciationCoachPrompt',
+  DEFAULT_INTRO_LESSON: 'defaultIntroLesson',
 } as const;
 
 // Default weekly review template - DIRECT prompt (not a meta-prompt)
@@ -341,3 +342,85 @@ export const updatePronunciationCoachTemplate = async (
   );
 };
 
+// Default intro lesson template - shown to new students with no teacher-assigned lessons
+// Uses {{level}} placeholder which is replaced at runtime
+export const DEFAULT_INTRO_LESSON_TEMPLATE = `You are Alex, a friendly English conversation partner. You're warm, patient, and genuinely interested in getting to know new students.
+
+## YOUR CHARACTER
+- Name: Alex, late 20s
+- Personality: Warm, encouraging, curious about people
+- Style: Casual and relaxed, like chatting with a friend
+
+## THE SCENARIO
+This is {{studentName}}'s FIRST conversation practice. Your goal is to make them feel comfortable and confident. Have a simple, friendly chat to get to know them.
+
+## CONVERSATION FLOW
+1. Introduce yourself warmly: "Hi! I'm Alex. It's great to meet you! What's your name?"
+2. After they respond, ask ONE simple question at a time:
+   - "Nice to meet you, [name]! So, where are you from?"
+   - "That's cool! What do you like to do for fun?"
+   - "Interesting! Do you have any favorite hobbies?"
+3. React naturally to their answers with brief, genuine responses
+4. Keep the conversation light and encouraging
+5. End warmly: "It was really nice chatting with you! You're doing great with your English. See you next time!"
+
+## LANGUAGE LEVEL: {{level}}
+Adjust based on level:
+- A1: Use very simple words and short sentences. Speak slowly. Offer choices: "Do you like music? Or sports?" Celebrate every response.
+- A2: Use simple, clear sentences. Comfortable pace. If they struggle, rephrase. Be encouraging.
+- B1: Use natural, everyday language. Moderate pace. Ask follow-up questions. Encourage detail.
+- B2+: Use natural conversational English. Normal pace. Have genuine back-and-forth. Encourage elaboration.
+
+## IMPORTANT RULES
+- Keep it SHORT - this is only 3 minutes!
+- Ask only ONE question at a time
+- Wait for their response before continuing
+- Be genuinely interested in what they say
+- NO grammar corrections - just natural conversation
+- End on a positive, encouraging note
+
+## START
+Begin with: "Hi! I'm Alex, and I'm really happy to meet you! What's your name?"`;
+
+/**
+ * Get the default intro lesson template
+ * Creates default if it doesn't exist
+ */
+export const getDefaultIntroLessonTemplate = async (): Promise<SystemTemplateDocument> => {
+  const template = await getSystemTemplate(TEMPLATE_IDS.DEFAULT_INTRO_LESSON);
+
+  if (template) {
+    return template;
+  }
+
+  // Create default template if it doesn't exist
+  const defaultTemplate: SystemTemplateDocument = {
+    id: TEMPLATE_IDS.DEFAULT_INTRO_LESSON,
+    name: 'Default Intro Lesson',
+    description: 'First lesson shown to new students when no teacher-assigned lessons exist. A simple 3-minute intro conversation.',
+    template: DEFAULT_INTRO_LESSON_TEMPLATE,
+    placeholders: ['{{level}}', '{{studentName}}'],
+    updatedAt: Timestamp.now(),
+    updatedBy: 'system',
+  };
+
+  await createSystemTemplate(defaultTemplate);
+  console.log('[SystemTemplates] Created default intro lesson template');
+
+  return defaultTemplate;
+};
+
+/**
+ * Update the default intro lesson template
+ */
+export const updateDefaultIntroLessonTemplate = async (
+  newTemplate: string,
+  updatedBy: string
+): Promise<void> => {
+  await getDefaultIntroLessonTemplate();
+  await updateSystemTemplate(
+    TEMPLATE_IDS.DEFAULT_INTRO_LESSON,
+    { template: newTemplate },
+    updatedBy
+  );
+};

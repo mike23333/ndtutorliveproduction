@@ -5,8 +5,8 @@ import { UserIcon } from '../theme/icons';
 import { getMissionsForStudent } from '../services/firebase/students';
 import { getMissionsForTeacher } from '../services/firebase/missions';
 import { getUserStarStats, getActiveReviewLesson } from '../services/firebase/sessionData';
-import { getPronunciationCoachTemplate } from '../services/firebase/systemTemplates';
-import { MissionDocument, ProficiencyLevel, ReviewLessonDocument, CustomLessonDocument } from '../types/firestore';
+import { getPronunciationCoachTemplate, getDefaultIntroLessonTemplate } from '../services/firebase/systemTemplates';
+import { MissionDocument, ReviewLessonDocument, CustomLessonDocument } from '../types/firestore';
 import { useAuth } from '../hooks/useAuth';
 import { useCustomLessons } from '../hooks/useCustomLessons';
 import { useStreak } from '../hooks/useStreak';
@@ -163,29 +163,28 @@ export default function HomePage() {
     longestStreak: 0,
   });
   const [activeReview, setActiveReview] = useState<ReviewLessonDocument | null>(null);
+  const [introLessonTemplate, setIntroLessonTemplate] = useState<string | null>(null);
+
+  // Single source of truth for student's display name (used in header and all prompts)
+  const studentDisplayName = userDocument?.displayName || user?.displayName || 'Student';
 
   // Custom lessons state
-  const studentName = userDocument?.displayName || user?.displayName || undefined;
   const {
     lessons: customLessons,
     createLesson,
     updateLesson,
     deleteLesson,
-  } = useCustomLessons(user?.uid, studentName);
+  } = useCustomLessons(user?.uid, studentDisplayName);
   const [showCreateOwnModal, setShowCreateOwnModal] = useState(false);
   const [showPronunciationModal, setShowPronunciationModal] = useState(false);
   const [editingLesson, setEditingLesson] = useState<CustomLessonDocument | null>(null);
 
-  // Get levels at or below user's level for filtering (memoized to prevent infinite re-renders)
-  const userLevelFilter = useMemo(() => {
-    const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-    const userLevel = userDocument?.level;
-    if (!userLevel) return [];
-
-    const userLevelIndex = allLevels.indexOf(userLevel);
-    if (userLevelIndex === -1) return [];
-
-    return allLevels.slice(Math.max(0, userLevelIndex - 1), userLevelIndex + 2);
+  // Get user's exact level for filtering (memoized to prevent infinite re-renders)
+  const userLevelFilter = useMemo((): string[] => {
+    const level = userDocument?.level;
+    if (!level) return [];
+    // Only show lessons at the student's exact level
+    return [level];
   }, [userDocument?.level]);
 
   // Stable reference for completed scenarios (prevents infinite re-renders from array comparison)
@@ -194,6 +193,9 @@ export default function HomePage() {
     [userDocument?.uniqueScenariosCompleted]
   );
 
+  // Check if student is suspended
+  const isSuspended = userDocument?.role === 'student' && userDocument?.status === 'suspended';
+
   // Redirect students without teacherId to join class page
   useEffect(() => {
     if (userDocument && userDocument.role === 'student') {
@@ -201,6 +203,7 @@ export default function HomePage() {
         navigate('/join-class');
         return;
       }
+      // All students (including private) need to select a level
       if (!userDocument.level) {
         navigate('/select-level');
         return;
@@ -215,10 +218,17 @@ export default function HomePage() {
         console.log('[HomePage] Fetching lessons for student:', {
           teacherId: userDocument.teacherId,
           level: userDocument.level,
+          isPrivateStudent: userDocument.isPrivateStudent,
         });
         try {
           const completedMissionIds = userDocument.uniqueScenariosCompleted || [];
-          const missions = await getMissionsForStudent(userDocument.teacherId, userDocument.level);
+          // Pass studentId and isPrivateStudent for proper filtering
+          const missions = await getMissionsForStudent(
+            userDocument.teacherId,
+            userDocument.level,
+            user?.uid,
+            userDocument.isPrivateStudent
+          );
           console.log('[HomePage] Fetched missions:', missions.length);
 
           if (missions.length > 0) {
@@ -226,8 +236,8 @@ export default function HomePage() {
               missionToLesson(m, completedMissionIds)
             );
 
-            // Additional level filtering if needed
-            if (userDocument.level && userLevelFilter.length > 0) {
+            // Additional level filtering only for group students (private students see all assigned)
+            if (!userDocument.isPrivateStudent && userDocument.level && userLevelFilter.length > 0) {
               const beforeFilter = fetchedLessons.length;
               fetchedLessons = fetchedLessons.filter((lesson) =>
                 userLevelFilter.includes(lesson.level)
@@ -316,6 +326,20 @@ export default function HomePage() {
     fetchReview();
   }, [user?.uid]);
 
+  // Fetch default intro lesson template
+  useEffect(() => {
+    const fetchIntroTemplate = async () => {
+      try {
+        const template = await getDefaultIntroLessonTemplate();
+        setIntroLessonTemplate(template.template);
+      } catch (error) {
+        console.error('[HomePage] Error fetching intro lesson template:', error);
+      }
+    };
+
+    fetchIntroTemplate();
+  }, []);
+
   // Get first incomplete lesson for smart CTA
   const firstIncompleteLesson = lessons.find((l) => !l.completed) || null;
   const smartDefaultLesson = lessons[0] || null;
@@ -323,17 +347,46 @@ export default function HomePage() {
   // Detect first-time user (no sessions completed)
   const isFirstTimeUser = !userDocument?.totalSessions || userDocument.totalSessions === 0;
 
+  // Default intro lesson - used when no teacher-assigned lessons exist
+  const userLevel = userDocument?.level || 'A2';
+  const defaultIntroLesson: LessonWithCompletion = useMemo(() => {
+    // Replace placeholders in the template
+    const processedPrompt = introLessonTemplate
+      ? introLessonTemplate
+          .replace(/\{\{level\}\}/g, userLevel)
+          .replace(/\{\{studentName\}\}/g, studentDisplayName)
+      : `You are Alex, a friendly English conversation partner. Have a simple 3-minute intro chat with ${studentDisplayName} at ${userLevel} level. Ask their name, where they're from, and their hobbies. Be warm and encouraging.`;
+
+    return {
+      id: 'default-intro',
+      title: 'Meet Your Tutor',
+      level: userLevel,
+      duration: '3 min',
+      durationMinutes: 3,
+      completed: false,
+      isFirstLesson: true,
+      tone: 'friendly',
+      functionCallingEnabled: true,
+      systemPrompt: processedPrompt,
+    };
+  }, [userLevel, studentDisplayName, introLessonTemplate]);
+
   // Get first lesson for first-time guidance
-  // Priority: 1) Teacher-designated first lesson, 2) Shortest lesson at user's level
+  // For first-time users, ALWAYS show the intro lesson first
   const getFirstLesson = (): LessonWithCompletion | null => {
-    if (lessons.length === 0) return null;
+    // For first-time users, always show the intro lesson
+    if (isFirstTimeUser) {
+      return defaultIntroLesson;
+    }
+
+    // If no teacher-assigned lessons, use the default intro
+    if (lessons.length === 0) return defaultIntroLesson;
 
     // Priority 1: Teacher-designated first lesson
     const designatedFirst = lessons.find(l => l.isFirstLesson);
     if (designatedFirst) return designatedFirst;
 
     // Priority 2: Shortest lesson at user's level
-    const userLevel = userDocument?.level || 'A2';
     const levelLessons = lessons.filter(l => l.level === userLevel);
     const sortedLessons = levelLessons.length > 0 ? levelLessons : lessons;
     return sortedLessons.sort((a, b) => (a.durationMinutes || 5) - (b.durationMinutes || 5))[0];
@@ -458,11 +511,12 @@ export default function HomePage() {
   const handlePronunciationSubmit = async (words: string) => {
     try {
       const templateDoc = await getPronunciationCoachTemplate();
-      const userLevel = userDocument?.level || 'B1';
+      const level = userDocument?.level || 'B1';
 
       const systemPrompt = templateDoc.template
-        .replace(/\{\{level\}\}/g, userLevel)
-        .replace(/\{\{words\}\}/g, words);
+        .replace(/\{\{level\}\}/g, level)
+        .replace(/\{\{words\}\}/g, words)
+        .replace(/\{\{studentName\}\}/g, studentDisplayName);
 
       const roleConfig = {
         id: `pronunciation-${Date.now()}`,
@@ -485,6 +539,80 @@ export default function HomePage() {
       alert('Failed to start pronunciation session. Please try again.');
     }
   };
+
+  // Show suspended state for blocked students
+  if (isSuspended) {
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: gradientBackground,
+          color: AppColors.textPrimary,
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 'clamp(16px, 4vw, 24px)',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '400px',
+            textAlign: 'center',
+            background: AppColors.surfaceDark,
+            borderRadius: 'clamp(16px, 4vw, 24px)',
+            padding: 'clamp(24px, 6vw, 40px)',
+            border: `1px solid ${AppColors.borderColor}`,
+          }}
+        >
+          <div style={{ fontSize: 'clamp(48px, 12vw, 64px)', marginBottom: '16px' }}>
+            ⏸️
+          </div>
+          <h1
+            style={{
+              fontSize: 'clamp(20px, 5vw, 24px)',
+              fontWeight: 700,
+              color: AppColors.textPrimary,
+              margin: '0 0 12px 0',
+            }}
+          >
+            Account Paused
+          </h1>
+          <p
+            style={{
+              fontSize: 'clamp(14px, 3.5vw, 16px)',
+              color: AppColors.textSecondary,
+              margin: '0 0 24px 0',
+              lineHeight: 1.5,
+            }}
+          >
+            Your access to lessons has been temporarily paused. Please contact your teacher
+            {userDocument?.teacherName && ` (${userDocument.teacherName})`} to restore access.
+          </p>
+          <button
+            onClick={() => navigate('/profile')}
+            style={{
+              padding: 'clamp(12px, 3vw, 16px) clamp(24px, 6vw, 32px)',
+              borderRadius: '12px',
+              border: `1px solid ${AppColors.borderColor}`,
+              background: AppColors.surfaceLight,
+              color: AppColors.textPrimary,
+              fontSize: 'clamp(14px, 3.5vw, 16px)',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            View Profile
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -526,7 +654,7 @@ export default function HomePage() {
       >
         {/* Header */}
         <Header
-          userName={userDocument?.displayName || user?.displayName || 'Learner'}
+          userName={studentDisplayName}
           streakDays={currentStreak}
           onProfileClick={() => navigate('/profile')}
         />

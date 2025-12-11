@@ -3,7 +3,7 @@ import { AppColors } from '../../theme/colors';
 import { XIcon } from '../../theme/icons';
 import { InputField, SelectField, ImageUpload } from '../forms';
 import type { LessonFormData } from '../../types/dashboard';
-import type { PromptTemplateDocument, ProficiencyLevel } from '../../types/firestore';
+import type { PromptTemplateDocument, ProficiencyLevel, UserDocument } from '../../types/firestore';
 
 interface LessonFormModalProps {
   isOpen: boolean;
@@ -26,6 +26,9 @@ interface LessonFormModalProps {
   selectedTemplateId: string;
   onTemplateSelect: (id: string) => void;
   onSaveAsTemplate: () => void;
+  // Private student assignment
+  privateStudents?: UserDocument[];
+  onAssignedStudentsChange?: (studentIds: string[]) => void;
 }
 
 const LEVEL_OPTIONS = [
@@ -59,7 +62,25 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   selectedTemplateId,
   onTemplateSelect,
   onSaveAsTemplate,
+  privateStudents = [],
+  onAssignedStudentsChange,
 }) => {
+  const hasAssignedStudents = (formData.assignedStudentIds?.length || 0) > 0;
+
+  const handleStudentToggle = (studentId: string) => {
+    if (!onAssignedStudentsChange) return;
+    const current = formData.assignedStudentIds || [];
+    const updated = current.includes(studentId)
+      ? current.filter(id => id !== studentId)
+      : [...current, studentId];
+    onAssignedStudentsChange(updated);
+  };
+
+  const handleClearAssignments = () => {
+    if (onAssignedStudentsChange) {
+      onAssignedStudentsChange([]);
+    }
+  };
   if (!isOpen) return null;
 
   const handleDurationChange = (value: string) => {
@@ -319,6 +340,156 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Private Student Assignment - Refined Design */}
+        {privateStudents.length > 0 && onAssignedStudentsChange && (
+          <div
+            style={{
+              marginBottom: 'clamp(16px, 4vw, 20px)',
+              padding: '20px',
+              background: hasAssignedStudents
+                ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)'
+                : 'rgba(255, 255, 255, 0.03)',
+              border: `1px solid ${hasAssignedStudents ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+              borderRadius: '16px',
+              transition: 'all 0.3s ease',
+            }}
+          >
+            {/* Header */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <span style={{ fontSize: '18px' }}>👤</span>
+                <label
+                  style={{
+                    fontSize: 'clamp(14px, 3vw, 15px)',
+                    fontWeight: 600,
+                    color: AppColors.textPrimary,
+                    letterSpacing: '-0.01em',
+                  }}
+                >
+                  Assign to Students
+                </label>
+                {hasAssignedStudents && (
+                  <span style={{
+                    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%)',
+                    color: 'white',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    padding: '3px 8px',
+                    borderRadius: '10px',
+                  }}>
+                    {formData.assignedStudentIds?.length}
+                  </span>
+                )}
+              </div>
+              <p style={{
+                margin: 0,
+                fontSize: 'clamp(12px, 2.5vw, 13px)',
+                color: AppColors.textSecondary,
+                lineHeight: 1.4,
+              }}>
+                Select students for personalized access
+              </p>
+            </div>
+
+            {/* Student Chips */}
+            <div style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '10px',
+            }}>
+              {privateStudents.map(student => {
+                const isSelected = formData.assignedStudentIds?.includes(student.uid) || false;
+                return (
+                  <button
+                    key={student.uid}
+                    type="button"
+                    onClick={() => handleStudentToggle(student.uid)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 16px',
+                      background: isSelected
+                        ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%)'
+                        : 'rgba(255, 255, 255, 0.05)',
+                      border: `1px solid ${isSelected ? 'transparent' : 'rgba(255, 255, 255, 0.15)'}`,
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                    }}
+                  >
+                    {/* Avatar */}
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '8px',
+                        background: isSelected
+                          ? 'rgba(255, 255, 255, 0.2)'
+                          : 'linear-gradient(135deg, rgba(99, 102, 241, 0.3) 0%, rgba(139, 92, 246, 0.3) 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: isSelected ? 'white' : AppColors.textPrimary,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {isSelected ? '✓' : student.displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <span style={{
+                      color: isSelected ? 'white' : AppColors.textPrimary,
+                      fontSize: 'clamp(13px, 2.8vw, 14px)',
+                      fontWeight: 500,
+                    }}>
+                      {student.displayName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Clear All - subtle link */}
+            {hasAssignedStudents && (
+              <div style={{
+                marginTop: '14px',
+                paddingTop: '14px',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <span style={{
+                  fontSize: 'clamp(12px, 2.5vw, 13px)',
+                  color: AppColors.textSecondary,
+                }}>
+                  Only these students will see this lesson
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClearAssignments}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    padding: '4px 8px',
+                    color: AppColors.textSecondary,
+                    fontSize: 'clamp(12px, 2.5vw, 13px)',
+                    cursor: 'pointer',
+                    opacity: 0.7,
+                    transition: 'opacity 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Image Upload */}
         <ImageUpload

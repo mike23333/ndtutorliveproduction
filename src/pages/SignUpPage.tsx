@@ -39,8 +39,14 @@ const SignUpPage: React.FC = () => {
     try {
       await signUpWithEmail(email, password, name.trim(), role);
 
-      // If student, go to join class; if teacher, go to dashboard
-      if (role === 'student') {
+      // Check for saved return URL (e.g., from join-class link)
+      const returnUrl = sessionStorage.getItem('authReturnUrl');
+      sessionStorage.removeItem('authReturnUrl');
+
+      if (returnUrl && role === 'student') {
+        // Return to the original URL (preserves query params like ?code=)
+        navigate(returnUrl);
+      } else if (role === 'student') {
         navigate('/join-class');
       } else {
         navigate('/teacher');

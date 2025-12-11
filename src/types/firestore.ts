@@ -49,6 +49,11 @@ export interface UserDocument {
   teacherId?: string;        // Teacher's UID who owns this student
   teacherName?: string;      // Denormalized for display
   joinedClassAt?: Timestamp; // When student joined the class
+  // Private tutoring fields
+  isPrivateStudent?: boolean;    // true = private tutoring (sees only assigned lessons)
+  privateStudentCode?: string;   // The private code used to join (for reference)
+  // Student status (for payment/access control)
+  status?: 'active' | 'suspended';  // undefined or 'active' = can access, 'suspended' = blocked
   // Teacher fields
   classCode?: string;        // Unique 6-char code for students to join (teachers only)
   // Aggregate stats for fast UI reads (denormalized)
@@ -110,6 +115,8 @@ export interface MissionDocument {
   functionCallingEnabled?: boolean; // Whether to enable function calling
   functionCallingInstructions?: string; // Custom instructions for function calling
   isFirstLesson?: boolean; // Teacher-designated first lesson for new students
+  // Private tutoring assignment
+  assignedStudentIds?: string[]; // UIDs of private students assigned to this lesson
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -164,6 +171,24 @@ export interface SessionDocument {
 }
 
 // GroupDocument removed - using direct teacherId on students instead
+
+/**
+ * Private Student Code Document
+ * Collection: privateStudentCodes
+ * One-time use codes for private tutoring students
+ */
+export type PrivateStudentCodeStatus = 'active' | 'used' | 'revoked';
+
+export interface PrivateStudentCodeDocument {
+  id: string;                    // The code itself (e.g., "PRV-A7K3MN")
+  teacherId: string;
+  teacherName: string;
+  status: PrivateStudentCodeStatus;
+  usedByStudentId?: string;      // Student UID who used this code
+  usedByStudentName?: string;    // Denormalized for display
+  usedAt?: Timestamp;
+  createdAt: Timestamp;
+}
 
 /**
  * Analytics aggregation for teacher dashboard
