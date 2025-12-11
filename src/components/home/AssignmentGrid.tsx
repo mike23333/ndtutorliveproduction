@@ -1,5 +1,4 @@
 import { AppColors } from '../../theme/colors';
-import { ChevronRightIcon } from '../../theme/icons';
 import { CompactLessonCard } from './CompactLessonCard';
 
 export interface LessonWithCompletion {
@@ -10,7 +9,6 @@ export interface LessonWithCompletion {
   durationMinutes?: number;
   completed: boolean;
   completedAt?: Date;
-  // Pass-through fields for navigation
   systemPrompt?: string;
   functionCallingEnabled?: boolean;
   functionCallingInstructions?: string;
@@ -29,8 +27,8 @@ interface AssignmentGridProps {
 }
 
 /**
- * 3-column grid of compact lesson cards.
- * Shows teacher name header and "See all" link if more lessons than maxVisible.
+ * 2-column lesson grid
+ * Clean layout with generous spacing
  */
 export const AssignmentGrid = ({
   teacherName,
@@ -41,97 +39,69 @@ export const AssignmentGrid = ({
 }: AssignmentGridProps) => {
   const visibleLessons = lessons.slice(0, maxVisible);
   const hasMore = lessons.length > maxVisible;
+  const completedCount = lessons.filter((l) => l.completed).length;
 
   if (lessons.length === 0) {
-    return (
-      <div style={{ padding: '0 clamp(16px, 4vw, 24px)', marginBottom: '16px' }}>
-        {/* Header */}
-        <h2
-          style={{
-            margin: '0 0 clamp(12px, 3vw, 16px) 0',
-            fontSize: 'clamp(14px, 3.5vw, 16px)',
-            fontWeight: '600',
-            color: AppColors.textPrimary,
-          }}
-        >
-          From {teacherName}
-        </h2>
-
-        {/* Empty state */}
-        <div
-          style={{
-            padding: 'clamp(20px, 5vw, 32px)',
-            borderRadius: '16px',
-            backgroundColor: AppColors.surfaceMedium,
-            border: `1px dashed ${AppColors.borderColor}`,
-            textAlign: 'center',
-          }}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontSize: 'clamp(13px, 3vw, 15px)',
-              color: AppColors.textSecondary,
-            }}
-          >
-            No lessons assigned yet. Check back soon!
-          </p>
-        </div>
-      </div>
-    );
+    return null; // Don't show empty section
   }
 
   return (
-    <div style={{ padding: '0 clamp(16px, 4vw, 24px)', marginBottom: '16px' }}>
+    <section style={{ padding: '0 20px', marginBottom: '24px' }}>
       {/* Header */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'baseline',
           justifyContent: 'space-between',
-          marginBottom: 'clamp(12px, 3vw, 16px)',
+          marginBottom: '16px',
         }}
       >
-        <h2
-          style={{
-            margin: 0,
-            fontSize: 'clamp(14px, 3.5vw, 16px)',
-            fontWeight: '600',
-            color: AppColors.textPrimary,
-          }}
-        >
-          From {teacherName}
-        </h2>
+        <div>
+          <h2
+            style={{
+              margin: 0,
+              fontSize: '17px',
+              fontWeight: '600',
+              color: AppColors.textPrimary,
+            }}
+          >
+            Your Lessons
+          </h2>
+          <p
+            style={{
+              margin: '4px 0 0 0',
+              fontSize: '13px',
+              color: AppColors.textSecondary,
+            }}
+          >
+            From {teacherName} · {completedCount}/{lessons.length} done
+          </p>
+        </div>
 
         {hasMore && onSeeAll && (
           <button
             onClick={onSeeAll}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '6px 10px',
-              borderRadius: '16px',
+              padding: '8px 0',
               border: 'none',
               backgroundColor: 'transparent',
-              color: AppColors.accentPurple,
-              fontSize: '13px',
-              fontWeight: '600',
+              color: AppColors.accent,
+              fontSize: '14px',
+              fontWeight: '500',
               cursor: 'pointer',
             }}
           >
             See all
-            <ChevronRightIcon size={14} />
           </button>
         )}
       </div>
 
-      {/* Grid */}
+      {/* 2-column Grid */}
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 'clamp(8px, 2vw, 12px)',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '12px',
         }}
       >
         {visibleLessons.map((lesson, index) => (
@@ -146,20 +116,6 @@ export const AssignmentGrid = ({
           />
         ))}
       </div>
-
-      {/* Completion summary */}
-      {lessons.length > 0 && (
-        <div
-          style={{
-            marginTop: 'clamp(10px, 2.5vw, 14px)',
-            fontSize: '12px',
-            color: AppColors.textSecondary,
-            textAlign: 'center',
-          }}
-        >
-          {lessons.filter((l) => l.completed).length} of {lessons.length} completed
-        </div>
-      )}
-    </div>
+    </section>
   );
 };

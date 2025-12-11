@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AppColors, gradientBackground } from '../theme/colors';
+import { AppColors } from '../theme/colors';
 import { useAuth } from '../hooks/useAuth';
 import { validateClassCode, assignStudentToTeacher } from '../services/firebase/classCode';
 import {
@@ -189,7 +189,7 @@ const JoinClassPage: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
-        background: gradientBackground,
+        background: AppColors.bgPrimary,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

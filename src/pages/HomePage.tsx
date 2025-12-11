@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppColors, gradientBackground } from '../theme/colors';
+import { AppColors } from '../theme/colors';
 import { UserIcon } from '../theme/icons';
 import { getMissionsForStudent } from '../services/firebase/students';
 import { getMissionsForTeacher } from '../services/firebase/missions';
@@ -57,7 +57,7 @@ const missionToLesson = (
   };
 };
 
-// Header component with streak
+// Header component - Vibrant purple/indigo style
 const Header = ({
   userName,
   streakDays,
@@ -67,19 +67,20 @@ const Header = ({
   streakDays: number;
   onProfileClick: () => void;
 }) => (
-  <div
+  <header
     style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: 'clamp(12px, 3vw, 20px) clamp(16px, 4vw, 24px)',
+      padding: '16px 20px',
     }}
   >
+    {/* Greeting */}
     <div>
       <p
         style={{
           margin: '0 0 4px 0',
-          fontSize: 'clamp(12px, 3vw, 14px)',
+          fontSize: '14px',
           color: AppColors.textSecondary,
         }}
       >
@@ -88,7 +89,7 @@ const Header = ({
       <h1
         style={{
           margin: 0,
-          fontSize: 'clamp(20px, 5vw, 28px)',
+          fontSize: '24px',
           fontWeight: '700',
           color: AppColors.textPrimary,
         }}
@@ -97,54 +98,54 @@ const Header = ({
       </h1>
     </div>
 
+    {/* Right side: Streak + Profile */}
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 'clamp(8px, 2vw, 14px)',
+        gap: '12px',
       }}
     >
-      {/* Streak */}
-      <button
-        onClick={onProfileClick}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: 'clamp(6px, 1.5vw, 10px) clamp(10px, 2.5vw, 14px)',
-          borderRadius: '20px',
-          backgroundColor: 'rgba(251, 191, 36, 0.15)',
-          color: AppColors.whisperAmber,
-          border: 'none',
-          cursor: 'pointer',
-        }}
-      >
-        <span style={{ fontSize: 'clamp(14px, 3.5vw, 18px)' }}>🔥</span>
-        <span style={{ fontSize: 'clamp(12px, 3vw, 15px)', fontWeight: '700' }}>
-          {streakDays}
-        </span>
-      </button>
+      {/* Streak badge */}
+      {streakDays > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 12px',
+            borderRadius: '20px',
+            backgroundColor: 'rgba(251, 191, 36, 0.15)',
+            color: AppColors.whisperAmber,
+          }}
+        >
+          <span style={{ fontSize: '16px' }}>🔥</span>
+          <span style={{ fontSize: '14px', fontWeight: '700' }}>{streakDays}</span>
+        </div>
+      )}
 
-      {/* Profile */}
+      {/* Profile button */}
       <button
         onClick={onProfileClick}
+        aria-label="View profile"
         style={{
-          width: 'clamp(38px, 10vw, 48px)',
-          height: 'clamp(38px, 10vw, 48px)',
+          width: '44px',
+          height: '44px',
           borderRadius: '50%',
           border: `2px solid ${AppColors.borderColor}`,
-          backgroundColor: 'rgba(255,255,255,0.1)',
+          backgroundColor: AppColors.surfaceLight,
           color: AppColors.textSecondary,
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          transition: 'all 150ms ease',
         }}
       >
         <UserIcon size={20} />
       </button>
     </div>
-  </div>
+  </header>
 );
 
 export default function HomePage() {
@@ -550,61 +551,76 @@ export default function HomePage() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: gradientBackground,
+          background: AppColors.bgPrimary,
           color: AppColors.textPrimary,
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 'clamp(16px, 4vw, 24px)',
+          padding: '24px',
         }}
       >
         <div
           style={{
-            maxWidth: '400px',
+            maxWidth: '360px',
             textAlign: 'center',
-            background: AppColors.surfaceDark,
-            borderRadius: 'clamp(16px, 4vw, 24px)',
-            padding: 'clamp(24px, 6vw, 40px)',
+            background: AppColors.bgTertiary,
+            borderRadius: '20px',
+            padding: '40px 32px',
             border: `1px solid ${AppColors.borderColor}`,
           }}
         >
-          <div style={{ fontSize: 'clamp(48px, 12vw, 64px)', marginBottom: '16px' }}>
-            ⏸️
+          <div
+            style={{
+              width: '64px',
+              height: '64px',
+              margin: '0 auto 20px',
+              borderRadius: '16px',
+              background: AppColors.bgElevated,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px',
+            }}
+          >
+            ⏸
           </div>
           <h1
             style={{
-              fontSize: 'clamp(20px, 5vw, 24px)',
-              fontWeight: 700,
+              fontSize: '22px',
+              fontWeight: 600,
               color: AppColors.textPrimary,
-              margin: '0 0 12px 0',
+              margin: '0 0 8px 0',
+              letterSpacing: '-0.3px',
             }}
           >
             Account Paused
           </h1>
           <p
             style={{
-              fontSize: 'clamp(14px, 3.5vw, 16px)',
+              fontSize: '15px',
               color: AppColors.textSecondary,
-              margin: '0 0 24px 0',
-              lineHeight: 1.5,
+              margin: '0 0 28px 0',
+              lineHeight: 1.6,
             }}
           >
-            Your access to lessons has been temporarily paused. Please contact your teacher
+            Your access has been temporarily paused. Contact your teacher
             {userDocument?.teacherName && ` (${userDocument.teacherName})`} to restore access.
           </p>
           <button
             onClick={() => navigate('/profile')}
             style={{
-              padding: 'clamp(12px, 3vw, 16px) clamp(24px, 6vw, 32px)',
+              width: '100%',
+              padding: '14px 24px',
               borderRadius: '12px',
-              border: `1px solid ${AppColors.borderColor}`,
-              background: AppColors.surfaceLight,
+              border: 'none',
+              background: AppColors.bgElevated,
               color: AppColors.textPrimary,
-              fontSize: 'clamp(14px, 3.5vw, 16px)',
-              fontWeight: 600,
+              fontSize: '15px',
+              fontWeight: 500,
               cursor: 'pointer',
+              transition: 'all 150ms ease',
             }}
           >
             View Profile
@@ -622,9 +638,9 @@ export default function HomePage() {
         left: 0,
         right: 0,
         bottom: 0,
-        background: gradientBackground,
+        background: AppColors.bgPrimary,
         color: AppColors.textPrimary,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -632,12 +648,13 @@ export default function HomePage() {
     >
       <style>{`
         * { box-sizing: border-box; }
-        ::-webkit-scrollbar { display: none; }
-        @media (min-width: 768px) {
-          .home-content { max-width: 800px; margin: 0 auto; }
+        .home-content::-webkit-scrollbar { width: 0; display: none; }
+        .home-content { -ms-overflow-style: none; scrollbar-width: none; }
+        @media (min-width: 640px) {
+          .home-content { max-width: 540px; margin: 0 auto; }
         }
         @media (min-width: 1024px) {
-          .home-content { max-width: 1000px; }
+          .home-content { max-width: 640px; }
         }
       `}</style>
 
@@ -649,7 +666,7 @@ export default function HomePage() {
           overflowY: 'auto',
           overflowX: 'hidden',
           width: '100%',
-          paddingBottom: 'clamp(24px, 5vw, 40px)',
+          paddingBottom: '40px',
         }}
       >
         {/* Header */}

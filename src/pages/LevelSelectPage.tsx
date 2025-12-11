@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppColors, gradientBackground } from '../theme/colors';
+import { AppColors } from '../theme/colors';
 import { useAuth } from '../hooks/useAuth';
 import { updateUserProfile } from '../services/firebase/auth';
 import { checkAndAwardBadges } from '../services/firebase/badges';
@@ -97,7 +97,7 @@ const LevelSelectPage: React.FC = () => {
         left: 0,
         right: 0,
         bottom: 0,
-        background: gradientBackground,
+        background: AppColors.bgPrimary,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

@@ -8,7 +8,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast, Toaster } from 'sonner';
-import { AppColors, gradientBackground } from '../theme/colors';
+import { AppColors } from '../theme/colors';
 import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
 import { useUserId } from '../hooks/useAuth';
@@ -432,7 +432,7 @@ export default function ChatPage() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: gradientBackground,
+        background: AppColors.bgPrimary,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -447,7 +447,7 @@ export default function ChatPage() {
     <div style={{
       height: '100vh',
       width: '100%',
-      background: gradientBackground,
+      background: AppColors.bgPrimary,
       color: AppColors.textPrimary,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       display: 'flex',
@@ -571,7 +571,7 @@ export default function ChatPage() {
             left: 0,
             right: 0,
             bottom: 0,
-            background: gradientBackground,
+            background: AppColors.bgPrimary,
             zIndex: 1000,
             display: 'flex',
             alignItems: 'center',

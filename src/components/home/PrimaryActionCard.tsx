@@ -1,5 +1,5 @@
 import { AppColors } from '../../theme/colors';
-import { PlayIcon, SparklesIcon } from '../../theme/icons';
+import { PlayIcon } from '../../theme/icons';
 import { ReviewLessonDocument } from '../../types/firestore';
 import { LessonWithCompletion } from './AssignmentGrid';
 
@@ -10,17 +10,11 @@ interface CurrentLessonInfo {
 }
 
 interface PrimaryActionCardProps {
-  /** In-progress lesson from currentLesson field */
   inProgressLesson?: CurrentLessonInfo | null;
-  /** Weekly review when available */
   weeklyReview?: ReviewLessonDocument | null;
-  /** First incomplete assignment */
   nextAssignment?: LessonWithCompletion | null;
-  /** Smart default lesson if nothing else */
   smartDefault?: LessonWithCompletion | null;
-  /** User's proficiency level */
   userLevel?: string;
-  /** Callbacks for different action types */
   onContinue?: () => void;
   onReview?: () => void;
   onStartAssignment?: (lesson: LessonWithCompletion) => void;
@@ -33,17 +27,14 @@ interface ActionConfig {
   type: ActionType;
   label: string;
   subtitle: string;
-  icon: React.ReactNode;
-  gradientColors: [string, string];
+  progress?: number;
   onClick: () => void;
+  imageUrl?: string | null;
 }
 
 /**
- * Smart primary action card that shows the most relevant action:
- * 1. Continue Practice (if in-progress lesson exists)
- * 2. Weekly Review (if available)
- * 3. Start Assignment (first incomplete)
- * 4. Start Practice (smart default)
+ * Continue Learning Card
+ * Vibrant gradient style matching the new design system
  */
 export const PrimaryActionCard = ({
   inProgressLesson,
@@ -57,51 +48,43 @@ export const PrimaryActionCard = ({
 }: PrimaryActionCardProps) => {
   // Determine which action to show based on priority
   const getActionConfig = (): ActionConfig | null => {
-    // Priority 1: Continue in-progress lesson
     if (inProgressLesson && onContinue) {
       return {
         type: 'continue',
-        label: 'Continue Practice',
-        subtitle: inProgressLesson.title,
-        icon: <PlayIcon size={20} />,
-        gradientColors: [AppColors.accentPurple, AppColors.accentBlue],
+        label: inProgressLesson.title,
+        subtitle: 'Continue where you left off',
+        progress: 65, // Could be passed in from props
         onClick: onContinue,
+        imageUrl: inProgressLesson.imageUrl,
       };
     }
 
-    // Priority 2: Weekly review
     if (weeklyReview && weeklyReview.status === 'ready' && onReview) {
       return {
         type: 'review',
         label: 'Weekly Review',
-        subtitle: `Practice ${weeklyReview.struggleWords?.length || 0} words from this week`,
-        icon: <SparklesIcon size={20} />,
-        gradientColors: ['#fbbf24', '#f59e0b'],
+        subtitle: `${weeklyReview.struggleWords?.length || 0} words to practice`,
         onClick: onReview,
       };
     }
 
-    // Priority 3: First incomplete assignment
     if (nextAssignment && onStartAssignment) {
       return {
         type: 'assignment',
-        label: `Start: ${nextAssignment.title}`,
-        subtitle: `${nextAssignment.level} • ${nextAssignment.duration}`,
-        icon: <PlayIcon size={20} />,
-        gradientColors: [AppColors.accentPurple, '#8b5cf6'],
+        label: nextAssignment.title,
+        subtitle: `${nextAssignment.duration} · ${nextAssignment.level}`,
         onClick: () => onStartAssignment(nextAssignment),
+        imageUrl: nextAssignment.image,
       };
     }
 
-    // Priority 4: Smart default
     if (smartDefault && onStartDefault) {
       return {
         type: 'default',
-        label: 'Start Practice',
-        subtitle: smartDefault.title,
-        icon: <PlayIcon size={20} />,
-        gradientColors: [AppColors.accentBlue, '#3b82f6'],
+        label: smartDefault.title,
+        subtitle: `${smartDefault.duration} · ${smartDefault.level}`,
         onClick: () => onStartDefault(smartDefault),
+        imageUrl: smartDefault.image,
       };
     }
 
@@ -111,14 +94,13 @@ export const PrimaryActionCard = ({
   const action = getActionConfig();
 
   if (!action) {
-    // No lessons available
     return (
       <div
         style={{
-          margin: '0 clamp(16px, 4vw, 24px) clamp(16px, 4vw, 20px)',
-          padding: 'clamp(16px, 4vw, 24px)',
+          margin: '0 20px 24px',
+          padding: '32px 24px',
           borderRadius: '16px',
-          backgroundColor: AppColors.surfaceMedium,
+          backgroundColor: AppColors.bgTertiary,
           border: `1px solid ${AppColors.borderColor}`,
           textAlign: 'center',
         }}
@@ -126,53 +108,50 @@ export const PrimaryActionCard = ({
         <p
           style={{
             margin: 0,
-            fontSize: '14px',
+            fontSize: '15px',
             color: AppColors.textSecondary,
+            lineHeight: 1.5,
           }}
         >
-          No lessons available yet. Ask your teacher to create some!
+          No lessons available yet.
+          <br />
+          Ask your teacher to assign some!
         </p>
       </div>
     );
   }
 
-  // Get image URL for continue type
-  const imageUrl = action.type === 'continue' && inProgressLesson?.imageUrl
-    ? inProgressLesson.imageUrl
-    : action.type === 'assignment' && nextAssignment?.image
-    ? nextAssignment.image
-    : action.type === 'default' && smartDefault?.image
-    ? smartDefault.image
-    : null;
-
   return (
     <div
       onClick={action.onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === 'Enter' && action.onClick()}
       style={{
-        margin: '0 clamp(16px, 4vw, 24px) clamp(16px, 4vw, 20px)',
-        padding: 'clamp(12px, 3vw, 18px)',
+        margin: '0 20px 24px',
+        padding: '16px',
         borderRadius: '16px',
-        background: `linear-gradient(135deg, ${action.gradientColors[0]}22 0%, ${action.gradientColors[1]}22 100%)`,
-        border: `1px solid ${action.gradientColors[0]}44`,
+        background: `linear-gradient(135deg, ${AppColors.accentPurple}22 0%, ${AppColors.accentBlue}22 100%)`,
+        border: `1px solid ${AppColors.accentPurple}44`,
         cursor: 'pointer',
-        transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+        transition: 'all 200ms ease',
       }}
     >
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 'clamp(10px, 2.5vw, 14px)',
+          gap: '12px',
         }}
       >
-        {/* Image thumbnail or Icon */}
-        {imageUrl ? (
+        {/* Thumbnail image */}
+        {action.imageUrl ? (
           <img
-            src={imageUrl}
-            alt=""
+            src={action.imageUrl}
+            alt={action.label}
             style={{
-              width: 'clamp(50px, 15vw, 70px)',
-              height: 'clamp(50px, 15vw, 70px)',
+              width: '60px',
+              height: '60px',
               borderRadius: '12px',
               objectFit: 'cover',
               flexShrink: 0,
@@ -181,102 +160,105 @@ export const PrimaryActionCard = ({
         ) : (
           <div
             style={{
-              width: 'clamp(50px, 15vw, 70px)',
-              height: 'clamp(50px, 15vw, 70px)',
+              width: '60px',
+              height: '60px',
               borderRadius: '12px',
-              background: `linear-gradient(135deg, ${action.gradientColors[0]} 0%, ${action.gradientColors[1]} 100%)`,
+              backgroundColor: AppColors.surfaceMedium,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: AppColors.textDark,
               flexShrink: 0,
             }}
           >
-            {action.icon}
+            <PlayIcon size={24} />
           </div>
         )}
 
         {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
+          {/* Type label */}
           <p
             style={{
               margin: '0 0 4px 0',
-              fontSize: 'clamp(10px, 2.5vw, 12px)',
-              fontWeight: '700',
-              color: action.gradientColors[0],
-              letterSpacing: '0.5px',
+              fontSize: '11px',
+              color: AppColors.accentPurple,
+              fontWeight: '600',
               textTransform: 'uppercase',
+              letterSpacing: '0.5px',
             }}
           >
-            {action.type === 'continue' ? 'CONTINUE' : action.type === 'review' ? 'READY FOR YOU' : 'RECOMMENDED'}
+            {action.type === 'continue'
+              ? 'Continue Learning'
+              : action.type === 'review'
+                ? 'Review Ready'
+                : 'Up Next'}
           </p>
+
+          {/* Title */}
           <h3
             style={{
-              margin: '0 0 4px 0',
-              fontSize: 'clamp(15px, 4vw, 18px)',
+              margin: '0 0 8px 0',
+              fontSize: '16px',
               fontWeight: '600',
               color: AppColors.textPrimary,
-              whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {action.label}
           </h3>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 'clamp(12px, 3vw, 14px)',
-              color: AppColors.textSecondary,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {action.subtitle}
-          </p>
+
+          {/* Progress bar (for continue type) */}
+          {action.type === 'continue' && action.progress !== undefined ? (
+            <div
+              style={{
+                width: '100%',
+                height: '4px',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '2px',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  width: `${action.progress}%`,
+                  height: '100%',
+                  backgroundColor: AppColors.success,
+                  borderRadius: '2px',
+                }}
+              />
+            </div>
+          ) : (
+            <p
+              style={{
+                margin: 0,
+                fontSize: '13px',
+                color: AppColors.textSecondary,
+              }}
+            >
+              {action.subtitle}
+            </p>
+          )}
         </div>
 
         {/* Play button */}
         <div
           style={{
-            width: 'clamp(36px, 10vw, 48px)',
-            height: 'clamp(36px, 10vw, 48px)',
+            width: '44px',
+            height: '44px',
             borderRadius: '50%',
-            background: `linear-gradient(135deg, ${action.gradientColors[0]} 0%, ${action.gradientColors[1]} 100%)`,
+            backgroundColor: AppColors.accentPurple,
+            color: AppColors.textDark,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: AppColors.textDark,
             flexShrink: 0,
           }}
         >
-          <PlayIcon size={16} />
+          <PlayIcon size={18} />
         </div>
       </div>
-
-      {/* Progress bar for continue type - matches original ContinueLearningCard */}
-      {action.type === 'continue' && (
-        <div
-          style={{
-            marginTop: '8px',
-            width: '100%',
-            height: '4px',
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            borderRadius: '2px',
-            overflow: 'hidden',
-          }}
-        >
-          <div
-            style={{
-              width: '65%',
-              height: '100%',
-              backgroundColor: AppColors.successGreen,
-              borderRadius: '2px',
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 };

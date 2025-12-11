@@ -1,5 +1,5 @@
 import { AppColors } from '../../theme/colors';
-import { PlayIcon, SparklesIcon } from '../../theme/icons';
+import { PlayIcon } from '../../theme/icons';
 import { LessonWithCompletion } from '../home/AssignmentGrid';
 
 interface FirstTimeGuidanceProps {
@@ -9,8 +9,8 @@ interface FirstTimeGuidanceProps {
 }
 
 /**
- * Prominent guidance card for first-time users.
- * Replaces PrimaryActionCard for users with 0 sessions.
+ * Welcome card for first-time users
+ * Vibrant purple/indigo design
  */
 export const FirstTimeGuidance = ({
   teacherName,
@@ -20,115 +20,101 @@ export const FirstTimeGuidance = ({
   return (
     <div
       style={{
-        margin: '0 clamp(16px, 4vw, 24px) clamp(16px, 4vw, 20px)',
-        padding: 'clamp(20px, 5vw, 28px)',
+        margin: '0 20px 24px',
+        padding: '32px 24px',
         borderRadius: '20px',
-        background: `linear-gradient(135deg, ${AppColors.accentPurple}22 0%, ${AppColors.accentBlue}22 100%)`,
-        border: `2px solid ${AppColors.accentPurple}44`,
+        background: `linear-gradient(135deg, ${AppColors.accentPurple}15 0%, ${AppColors.accentBlue}15 100%)`,
+        border: `1px solid ${AppColors.accentPurple}33`,
         textAlign: 'center',
       }}
     >
-      {/* Welcome icon */}
+      {/* Welcome emoji */}
       <div
         style={{
-          width: '64px',
-          height: '64px',
-          margin: '0 auto 16px',
-          borderRadius: '50%',
-          background: `linear-gradient(135deg, ${AppColors.accentPurple} 0%, ${AppColors.accentBlue} 100%)`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          fontSize: '48px',
+          marginBottom: '16px',
         }}
       >
-        <SparklesIcon size={28} />
+        👋
       </div>
 
       {/* Welcome message */}
       <h2
         style={{
           margin: '0 0 8px 0',
-          fontSize: 'clamp(18px, 5vw, 24px)',
+          fontSize: '24px',
           fontWeight: '700',
           color: AppColors.textPrimary,
         }}
       >
-        Welcome! 👋
+        Welcome!
       </h2>
 
-      {teacherName && (
-        <p
-          style={{
-            margin: '0 0 16px 0',
-            fontSize: 'clamp(13px, 3.5vw, 15px)',
-            color: AppColors.textSecondary,
-          }}
-        >
-          {teacherName} set up practice lessons for you
-        </p>
-      )}
-
-      {/* Instructions */}
-      <div
+      <p
         style={{
-          padding: '12px 16px',
-          borderRadius: '12px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          marginBottom: '20px',
+          margin: '0 0 24px 0',
+          fontSize: '15px',
+          color: AppColors.textSecondary,
+          lineHeight: 1.6,
         }}
       >
-        <p
-          style={{
-            margin: 0,
-            fontSize: 'clamp(12px, 3vw, 14px)',
-            color: AppColors.textSecondary,
-            lineHeight: 1.6,
-          }}
-        >
-          You'll have a conversation with an AI tutor. Speak naturally — it's okay to make mistakes!
-        </p>
-      </div>
+        {teacherName ? (
+          <>
+            {teacherName} has set up lessons for you.
+            <br />
+            Let's start with a quick conversation.
+          </>
+        ) : (
+          <>
+            Practice speaking English with an AI tutor.
+            <br />
+            It's okay to make mistakes — that's how we learn.
+          </>
+        )}
+      </p>
 
-      {/* First lesson info */}
+      {/* First lesson preview */}
       {firstLesson && (
         <div
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            marginBottom: '16px',
+            padding: '16px',
+            marginBottom: '24px',
+            borderRadius: '12px',
+            backgroundColor: AppColors.surfaceMedium,
+            textAlign: 'left',
           }}
         >
-          <span
+          <p
             style={{
-              fontSize: '12px',
-              color: AppColors.textSecondary,
+              margin: '0 0 4px 0',
+              fontSize: '11px',
+              color: AppColors.accentPurple,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontWeight: '600',
             }}
           >
-            First lesson:
-          </span>
-          <span
+            Your first lesson
+          </p>
+          <p
             style={{
-              fontSize: '14px',
+              margin: 0,
+              fontSize: '16px',
               fontWeight: '600',
               color: AppColors.textPrimary,
             }}
           >
             {firstLesson.title}
-          </span>
-          <span
+          </p>
+          <p
             style={{
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '10px',
-              fontWeight: '700',
-              backgroundColor: 'rgba(74, 222, 128, 0.2)',
-              color: '#4ade80',
+              margin: '4px 0 0 0',
+              fontSize: '14px',
+              color: AppColors.textSecondary,
             }}
           >
-            {firstLesson.level}
-          </span>
+            {firstLesson.duration} · {firstLesson.level}
+          </p>
         </div>
       )}
 
@@ -137,25 +123,23 @@ export const FirstTimeGuidance = ({
         onClick={onStart}
         style={{
           width: '100%',
-          maxWidth: '280px',
-          padding: 'clamp(14px, 4vw, 18px)',
-          borderRadius: '14px',
+          padding: '16px 24px',
+          borderRadius: '12px',
           border: 'none',
-          background: `linear-gradient(135deg, ${AppColors.accentPurple} 0%, ${AppColors.accentBlue} 100%)`,
+          backgroundColor: AppColors.accentPurple,
           color: AppColors.textDark,
-          fontSize: 'clamp(15px, 4vw, 17px)',
-          fontWeight: '700',
+          fontSize: '16px',
+          fontWeight: '600',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           gap: '8px',
-          margin: '0 auto',
-          transition: 'transform 0.2s ease',
+          transition: 'all 150ms ease',
         }}
       >
         <PlayIcon size={18} />
-        Start Your First Practice
+        Start Practice
       </button>
     </div>
   );

@@ -2,33 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
-/* App Color System */
+/* ============================================
+   Vibrant Purple/Indigo Design System
+   ============================================ */
+
 :root {
-  /* Gradient stops */
+  /* Gradient */
   --gradient-start: #1e3a8a;
   --gradient-mid: #5b21b6;
   --gradient-end: #1e1b4b;
 
-  /* Surface colors */
+  /* Backgrounds */
+  --bg-primary: #1e1b4b;
+  --bg-secondary: #252047;
+  --bg-tertiary: #2d2854;
+  --bg-elevated: #363161;
+
+  /* Surfaces */
   --surface-light: rgba(255, 255, 255, 0.1);
   --surface-medium: rgba(99, 102, 241, 0.2);
+  --surface-dark: rgba(30, 27, 75, 0.95);
+  --surface-hover: rgba(255, 255, 255, 0.15);
 
-  /* Text colors */
+  /* Text */
   --text-primary: #ffffff;
   --text-secondary: #d8b4fe;
+  --text-muted: rgba(216, 180, 254, 0.6);
   --text-dark: #1e1b4b;
 
-  /* Accent colors */
-  --accent-purple: #d8b4fe;
+  /* Accents */
+  --accent: #d8b4fe;
+  --accent-hover: #e9d5ff;
   --accent-blue: #60a5fa;
-  --success-green: #4ade80;
-  --whisper-amber: #fbbf24;
-  --error-rose: #f87171;
+  --accent-muted: rgba(216, 180, 254, 0.15);
+
+  /* Semantic */
+  --success: #4ade80;
+  --success-muted: rgba(74, 222, 128, 0.15);
+  --warning: #fbbf24;
+  --error: #f87171;
 
   /* Border */
-  --border-color: rgba(129, 140, 248, 0.3);
+  --border: rgba(129, 140, 248, 0.3);
+  --border-hover: rgba(129, 140, 248, 0.5);
 
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Spacing */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-xxl: 48px;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-xxl: 24px;
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-xs: 11px;
+  --font-sm: 12px;
+  --font-md: 13px;
+  --font-base: 14px;
+  --font-lg: 16px;
+  --font-xl: 18px;
+  --font-2xl: 20px;
+  --font-3xl: 24px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Font stack */
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;
@@ -50,14 +100,17 @@ html, body, #root {
 }
 
 body {
-  background: linear-gradient(to bottom, var(--gradient-start) 0%, var(--gradient-mid) 50%, var(--gradient-end) 100%);
+  background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
 }
 
-/* Custom scrollbar */
+/* ============================================
+   Scrollbar - Minimal
+   ============================================ */
 ::-webkit-scrollbar {
   width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -65,75 +118,96 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(216, 180, 254, 0.3);
+  background: rgba(129, 140, 248, 0.3);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(216, 180, 254, 0.5);
+  background: rgba(129, 140, 248, 0.5);
 }
 
-/* Animations */
-@keyframes pulse {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.05); }
+/* Hide scrollbars on horizontal scroll containers */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
-@keyframes pulse-ring {
-  0% {
-    transform: scale(0.8);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(1);
-    opacity: 0.4;
-  }
-  100% {
-    transform: scale(0.8);
-    opacity: 0.8;
-  }
+.hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-@keyframes bounce-subtle {
-  0%, 100% {
+/* ============================================
+   Animations
+   ============================================ */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
     transform: translateY(0);
   }
-  50% {
-    transform: translateY(-8px);
-  }
 }
 
-.animate-pulse-ring {
-  animation: pulse-ring 2s ease-in-out infinite;
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
 }
 
-.animate-bounce-subtle {
-  animation: bounce-subtle 2s ease-in-out infinite;
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
 }
 
-/* Glass effect */
-.glass {
-  background: var(--surface-light);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color);
+@keyframes breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
 }
 
-/* Button styles */
+.animate-fade-in {
+  animation: fadeIn var(--transition-normal) ease-out;
+}
+
+.animate-slide-up {
+  animation: slideUp var(--transition-slow) ease-out;
+}
+
+.animate-pulse {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.animate-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+/* ============================================
+   Button Styles
+   ============================================ */
 .btn-primary {
-  padding: 12px 24px;
-  background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 12px 20px;
+  background: var(--accent);
   color: var(--text-dark);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-base);
   font-weight: 600;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all var(--transition-fast);
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(216, 180, 254, 0.4);
+  background: var(--accent-hover);
+  transform: translateY(-1px);
 }
 
 .btn-primary:active {
@@ -141,76 +215,247 @@ body {
 }
 
 .btn-primary:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
   transform: none;
 }
 
 .btn-secondary {
-  padding: 12px 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: 12px 20px;
   background: var(--surface-light);
   color: var(--text-primary);
-  border-radius: 16px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-base);
   font-weight: 600;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   cursor: pointer;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(8px);
+  transition: all var(--transition-fast);
 }
 
 .btn-secondary:hover {
-  background: var(--surface-medium);
-  transform: translateY(-2px);
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
 }
 
-.btn-secondary:active {
-  transform: scale(0.98);
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  font-size: var(--font-md);
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-/* Card styles */
-.card {
-  padding: 20px;
-  border-radius: 20px;
+.btn-ghost:hover {
   background: var(--surface-light);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border-color);
+  color: var(--text-primary);
 }
 
-/* Recording indicator */
-.recording-indicator {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background-color: #ef4444;
-  animation: pulse 1s ease-in-out infinite;
+/* ============================================
+   Card Styles
+   ============================================ */
+.card {
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  transition: all var(--transition-fast);
 }
 
-/* Page container */
+.card:hover {
+  border-color: var(--border-hover);
+}
+
+.card-interactive {
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  background: var(--bg-elevated);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.15);
+}
+
+.card-gradient {
+  background: linear-gradient(135deg, rgba(216, 180, 254, 0.15) 0%, rgba(96, 165, 250, 0.15) 100%);
+  border: 1px solid rgba(216, 180, 254, 0.3);
+}
+
+/* ============================================
+   Level Badges
+   ============================================ */
+.level-badge {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.level-a1, .level-a2 {
+  background-color: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+
+.level-b1, .level-b2 {
+  background-color: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+.level-c1, .level-c2 {
+  background-color: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+/* ============================================
+   Category Pills
+   ============================================ */
+.pill {
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-md);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.pill-active {
+  background-color: var(--accent);
+  color: var(--text-dark);
+}
+
+.pill-inactive {
+  background-color: var(--surface-light);
+  color: var(--text-secondary);
+}
+
+.pill-inactive:hover {
+  background-color: var(--surface-hover);
+  color: var(--text-primary);
+}
+
+/* ============================================
+   Page Layout
+   ============================================ */
 .page-container {
   min-height: 100vh;
   width: 100%;
-  background: linear-gradient(to bottom, var(--gradient-start) 0%, var(--gradient-mid) 50%, var(--gradient-end) 100%);
+  background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Responsive container */
 .content-container {
-  max-width: 800px;
+  max-width: 420px;
   margin: 0 auto;
-  padding: 16px;
 }
 
 @media (min-width: 768px) {
   .content-container {
-    padding: 24px;
+    max-width: 480px;
   }
 }
 
-/* Text utilities */
-.text-gradient {
-  background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-blue) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+/* ============================================
+   Progress Bar
+   ============================================ */
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background-color: var(--surface-light);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: var(--success);
+  border-radius: 2px;
+  transition: width 300ms ease;
+}
+
+/* ============================================
+   Recording indicator
+   ============================================ */
+.recording-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--error);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   Streak Badge
+   ============================================ */
+.streak-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-full);
+  background-color: rgba(251, 191, 36, 0.15);
+  color: var(--warning);
+  font-size: var(--font-base);
+  font-weight: 700;
+}
+
+/* ============================================
+   Focus states
+   ============================================ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* ============================================
+   Typography Utilities
+   ============================================ */
+.text-accent {
+  color: var(--accent);
+}
+
+.text-secondary {
+  color: var(--text-secondary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-warning {
+  color: var(--warning);
+}
+
+.text-error {
+  color: var(--error);
+}
+
+/* ============================================
+   Carousel
+   ============================================ */
+.carousel {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.carousel > * {
+  scroll-snap-align: center;
 }

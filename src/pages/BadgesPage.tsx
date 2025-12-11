@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppColors, gradientBackground } from '../theme/colors';
+import { AppColors } from '../theme/colors';
 import { ChevronLeftIcon } from '../theme/icons';
 import { useAuth } from '../hooks/useAuth';
 import { useBadgeProgress } from '../hooks/useBadges';
@@ -33,7 +33,7 @@ export default function BadgesPage() {
       left: 0,
       right: 0,
       bottom: 0,
-      background: gradientBackground,
+      background: AppColors.bgPrimary,
       color: AppColors.textPrimary,
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       display: 'flex',

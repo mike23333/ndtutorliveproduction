@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AppColors, gradientBackground } from '../theme/colors';
+import { AppColors } from '../theme/colors';
 import { useAuth } from '../hooks/useAuth';
 import {
   PlusIcon,
@@ -257,7 +257,7 @@ const TeacherDashboard: React.FC = () => {
         left: 0,
         right: 0,
         bottom: 0,
-        background: gradientBackground,
+        background: AppColors.bgPrimary,
         color: AppColors.textPrimary,
         fontFamily: 'system-ui, -apple-system, sans-serif',
         overflowY: 'auto',

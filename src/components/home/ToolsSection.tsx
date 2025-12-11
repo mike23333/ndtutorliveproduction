@@ -8,49 +8,39 @@ interface ToolsSectionProps {
   onPronunciationCoach: () => void;
 }
 
+/**
+ * Tools Section - Quick practice tools
+ * Clean 2-column layout
+ */
 export const ToolsSection: React.FC<ToolsSectionProps> = ({
   onCreateOwn,
   onPronunciationCoach,
 }) => {
   return (
-    <div
-      style={{
-        padding: '0 clamp(16px, 4vw, 24px)',
-        marginTop: 'clamp(16px, 4vw, 24px)',
-      }}
-    >
-      {/* Section title */}
+    <section style={{ padding: '0 20px', marginBottom: '24px' }}>
+      {/* Header */}
       <h2
         style={{
-          margin: '0 0 clamp(12px, 3vw, 16px) 0',
-          fontSize: 'clamp(16px, 4vw, 20px)',
-          fontWeight: 700,
+          margin: '0 0 12px 0',
+          fontSize: '17px',
+          fontWeight: '600',
           color: AppColors.textPrimary,
         }}
       >
         Quick Practice
       </h2>
 
-      {/* Cards container - responsive layout */}
+      {/* 2-column grid */}
       <div
         style={{
-          display: 'flex',
-          gap: 'clamp(12px, 3vw, 16px)',
-          flexWrap: 'wrap',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: '12px',
         }}
       >
         <CreateOwnCard onClick={onCreateOwn} />
         <PronunciationCard onClick={onPronunciationCoach} />
       </div>
-
-      {/* Mobile stacking via CSS */}
-      <style>{`
-        @media (max-width: 600px) {
-          .tools-section > div:last-child {
-            flex-direction: column;
-          }
-        }
-      `}</style>
-    </div>
+    </section>
   );
 };

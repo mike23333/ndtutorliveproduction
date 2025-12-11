@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { AppColors, gradientBackground } from '../theme/colors';
+import { AppColors } from '../theme/colors';
 import { signInWithEmail } from '../services/firebase/auth';
 
 const LoginPage: React.FC = () => {
@@ -38,7 +38,7 @@ const LoginPage: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
-        background: gradientBackground,
+        background: AppColors.bgPrimary,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
