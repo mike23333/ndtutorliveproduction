@@ -138,6 +138,16 @@ export interface AIRole {
   durationMinutes?: number;
 
   /**
+   * Whether this is a review lesson session
+   */
+  isReviewLesson?: boolean;
+
+  /**
+   * Review lesson ID (if isReviewLesson is true)
+   */
+  reviewId?: string;
+
+  /**
    * Creation timestamp
    */
   createdAt: Date;

@@ -21,6 +21,9 @@ import {
   saveReviewItem,
   updateUserPreference,
   saveSessionSummary,
+  getReviewItem,
+  markItemMastered,
+  startReviewLesson,
 } from '../services/firebase/sessionData';
 import { getWebAudioManager } from '../services/webAudioBridge';
 import type { AIRole } from '../types/ai-role';
@@ -29,6 +32,8 @@ import type {
   MarkForReviewParams,
   UpdateUserProfileParams,
   ShowSessionSummaryParams,
+  MarkItemMasteredParams,
+  PlayStudentAudioParams,
 } from '../types/functions';
 import type { BadgeDefinition } from '../types/badges';
 
@@ -39,6 +44,12 @@ export interface ChatMessage {
   isWhisper: boolean;
   translation?: string;
   audioData?: string;
+}
+
+// Audio playback request for play_student_audio function
+export interface AudioPlaybackRequest {
+  url: string;
+  itemId: string;
 }
 
 export interface UseGeminiChatResult {
@@ -75,6 +86,11 @@ export interface UseGeminiChatResult {
 
   // Session timed out (Gemini didn't respond to end prompt)
   sessionTimedOut: boolean;
+
+  // Audio playback for review lessons (play_student_audio function)
+  audioToPlay: AudioPlaybackRequest | null;
+  onAudioPlaybackComplete: () => void;
+  onAudioPlaybackError: (error: Error) => void;
 
   // Actions
   toggleMute: () => void;
@@ -132,6 +148,9 @@ export function useGeminiChat(
   // Session timeout state (when Gemini doesn't respond to end prompt)
   const [sessionTimedOut, setSessionTimedOut] = useState(false);
 
+  // Audio playback state for play_student_audio function
+  const [audioToPlay, setAudioToPlay] = useState<AudioPlaybackRequest | null>(null);
+
   // Refs
   const clientRef = useRef<GeminiDirectClient | null>(null);
   const roleRef = useRef<AIRole | undefined>(initialRole);
@@ -142,6 +161,8 @@ export function useGeminiChat(
   const missionIdRef = useRef<string | null>(null);
   const sessionEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recentReviewItems = useRef<Map<string, number>>(new Map()); // Deduplication map: key -> timestamp
+  const recentMasteryMarks = useRef<Map<string, number>>(new Map()); // Rate limiting for mark_item_mastered
+  const audioPlaybackResolverRef = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
 
   /**
    * Generate next message ID
@@ -279,6 +300,30 @@ export function useGeminiChat(
 
     console.log('[Gemini] Session force-ended successfully');
   }, [stopAudioStreaming]);
+
+  /**
+   * Callback for when audio playback completes successfully
+   */
+  const onAudioPlaybackComplete = useCallback(() => {
+    console.log('[Gemini] Audio playback completed');
+    setAudioToPlay(null);
+    if (audioPlaybackResolverRef.current) {
+      audioPlaybackResolverRef.current.resolve();
+      audioPlaybackResolverRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Callback for when audio playback fails
+   */
+  const onAudioPlaybackError = useCallback((error: Error) => {
+    console.error('[Gemini] Audio playback error:', error);
+    setAudioToPlay(null);
+    if (audioPlaybackResolverRef.current) {
+      audioPlaybackResolverRef.current.reject(error);
+      audioPlaybackResolverRef.current = null;
+    }
+  }, []);
 
   /**
    * Handle function calls from Gemini
@@ -420,6 +465,119 @@ export function useGeminiChat(
             break;
           }
 
+          case 'mark_item_mastered': {
+            const params = fc.args as unknown as MarkItemMasteredParams;
+
+            // Validate required fields
+            if (!params.review_item_id || !params.confidence) {
+              console.warn('[Function] Invalid mark_item_mastered params:', fc.args);
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Invalid parameters - skipped' }
+              });
+              break;
+            }
+
+            // Rate limiting: prevent marking same item multiple times in 10 seconds
+            const now = Date.now();
+            const lastMark = recentMasteryMarks.current.get(params.review_item_id);
+            if (lastMark && now - lastMark < 10000) {
+              console.log('[Function] Rate limiting mark_item_mastered:', params.review_item_id);
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Item recently marked - skipped' }
+              });
+              break;
+            }
+            recentMasteryMarks.current.set(params.review_item_id, now);
+
+            await markItemMastered(
+              userIdRef.current,
+              params.review_item_id,
+              params.confidence
+            );
+
+            responses.push({
+              id: fc.id,
+              name: fc.name,
+              response: { result: `Item marked as mastered (confidence: ${params.confidence})` }
+            });
+            break;
+          }
+
+          case 'play_student_audio': {
+            const params = fc.args as unknown as PlayStudentAudioParams;
+
+            // Validate required fields
+            if (!params.review_item_id) {
+              console.warn('[Function] Invalid play_student_audio params:', fc.args);
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Invalid parameters - skipped' }
+              });
+              break;
+            }
+
+            // Fetch the review item to get the audio URL
+            const reviewItem = await getReviewItem(userIdRef.current, params.review_item_id);
+
+            if (!reviewItem) {
+              console.warn('[Function] Review item not found:', params.review_item_id);
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Review item not found' }
+              });
+              break;
+            }
+
+            if (!reviewItem.audioUrl) {
+              console.log('[Function] No audio available for item:', params.review_item_id);
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'No audio available for this item' }
+              });
+              break;
+            }
+
+            // Create a promise that will be resolved when audio playback completes
+            const playbackPromise = new Promise<void>((resolve, reject) => {
+              audioPlaybackResolverRef.current = { resolve, reject };
+            });
+
+            // Signal UI to play audio
+            console.log('[Function] Triggering audio playback for:', params.review_item_id);
+            setAudioToPlay({ url: reviewItem.audioUrl, itemId: params.review_item_id });
+
+            // Wait for playback to complete (with timeout)
+            try {
+              const timeoutPromise = new Promise<never>((_, reject) => {
+                setTimeout(() => reject(new Error('Audio playback timeout')), 30000);
+              });
+              await Promise.race([playbackPromise, timeoutPromise]);
+
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Audio played successfully' }
+              });
+            } catch (playError) {
+              console.error('[Function] Audio playback error:', playError);
+              setAudioToPlay(null);
+              audioPlaybackResolverRef.current = null;
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Audio playback failed', error: String(playError) }
+              });
+            }
+            break;
+          }
+
           default:
             console.warn('[Function] Unknown function:', fc.name);
             responses.push({
@@ -505,18 +663,23 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     setConnectionError(null);
 
     // Use the raw system prompt from the role (teacher's custom prompt)
-    // Only append function calling instructions if enabled
+    // Only append function calling instructions if enabled AND not a review lesson
+    // (review lessons have their own function instructions built into the prompt)
     let systemPrompt: string | undefined;
     if (roleRef.current?.systemPrompt) {
       systemPrompt = roleRef.current.systemPrompt;
 
-      // Append function calling instructions if enabled
-      if (roleRef.current.functionCallingEnabled !== false) {
+      // Append function calling instructions if enabled, but NOT for review lessons
+      // Review lessons already have custom function instructions in the generated prompt
+      if (roleRef.current.functionCallingEnabled !== false && !roleRef.current.isReviewLesson) {
         const fcInstructions = roleRef.current.functionCallingInstructions || DEFAULT_FUNCTION_CALLING_INSTRUCTIONS;
         systemPrompt += '\n\n# FUNCTION CALLING\n' + fcInstructions;
       }
 
-      console.log('[Gemini] Using system prompt:', systemPrompt.substring(0, 200) + '...');
+      // Full prompt logging for debugging
+      console.log('[Gemini] === FULL SYSTEM PROMPT ===');
+      console.log(systemPrompt);
+      console.log('[Gemini] === END PROMPT ===');
     }
 
     // Store mission ID from role if available
@@ -531,6 +694,11 @@ Base your assessment on our entire conversation. Call the show_session_summary f
       missionIdRef.current || undefined,
       roleRef.current?.teacherId || undefined
     );
+
+    // If this is a review lesson, mark it as in_progress
+    if (roleRef.current?.isReviewLesson && roleRef.current?.reviewId && sessionIdRef.current) {
+      await startReviewLesson(userIdRef.current, roleRef.current.reviewId, sessionIdRef.current);
+    }
 
     // Determine if function calling should be enabled
     const enableFunctionCalling = roleRef.current?.functionCallingEnabled !== false;
@@ -829,6 +997,11 @@ Base your assessment on our entire conversation. Call the show_session_summary f
 
     // Session timed out (Gemini didn't respond)
     sessionTimedOut,
+
+    // Audio playback for review lessons
+    audioToPlay,
+    onAudioPlaybackComplete,
+    onAudioPlaybackError,
 
     // Actions
     toggleMute,

@@ -160,6 +160,39 @@ class TokenService:
                             },
                             'required': ['did_well', 'work_on', 'stars', 'summary_text']
                         }
+                    },
+                    {
+                        'name': 'mark_item_mastered',
+                        'description': 'Mark a review item as mastered when the student demonstrates clear understanding. Call this during review sessions when the student correctly uses a phrase they previously struggled with. Do NOT call if they just repeat after you.',
+                        'parameters': {
+                            'type': 'object',
+                            'properties': {
+                                'review_item_id': {
+                                    'type': 'string',
+                                    'description': 'The exact ID of the review item to mark as mastered (from the ITEMS TO REVIEW list)'
+                                },
+                                'confidence': {
+                                    'type': 'string',
+                                    'enum': ['low', 'medium', 'high'],
+                                    'description': 'How confident you are in their mastery: low (hesitant but correct), medium (correct with minor issues), high (natural and fluent)'
+                                }
+                            },
+                            'required': ['review_item_id', 'confidence']
+                        }
+                    },
+                    {
+                        'name': 'play_student_audio',
+                        'description': 'Play back audio of a mistake the student made earlier. Use this BEFORE explaining the correction so they can hear themselves. Only call for items marked as "HAS AUDIO" in the review list.',
+                        'parameters': {
+                            'type': 'object',
+                            'properties': {
+                                'review_item_id': {
+                                    'type': 'string',
+                                    'description': 'The exact ID of the review item with audio to play (from the ITEMS TO REVIEW list)'
+                                }
+                            },
+                            'required': ['review_item_id']
+                        }
                     }
                 ]
             }]

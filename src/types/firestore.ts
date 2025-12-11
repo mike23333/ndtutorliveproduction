@@ -270,6 +270,8 @@ export interface ReviewItemDocument {
   reviewCount: number;
   lastReviewedAt: Timestamp | null;
   mastered: boolean;
+  masteredAt?: Timestamp;  // When the item was marked as mastered
+  masteredConfidence?: 'low' | 'medium' | 'high';  // AI's confidence in mastery
   includedInReviews: string[];  // Array of review IDs this item was included in
   // Audio capture for error review playback
   audioUrl?: string;          // Firebase Storage download URL
@@ -348,15 +350,16 @@ export interface ReviewLessonDocument {
   id: string;
   userId: string;
   weekStart: string; // ISO date (YYYY-MM-DD) for deduplication
-  status: 'pending' | 'ready' | 'completed' | 'skipped';
+  status: 'pending' | 'ready' | 'in_progress' | 'completed' | 'skipped';
   generatedPrompt: string; // Level-aware system prompt for Gemini Live API
   targetStruggles: string[]; // Array of struggle IDs included
   struggleWords: string[]; // Words/phrases for UI display
   userLevel: ProficiencyLevel; // Student's level when review was generated
   estimatedMinutes: number; // Usually 5
   createdAt: Timestamp;
+  startedAt?: Timestamp; // When user started the review session
   completedAt: Timestamp | null;
-  sessionId: string | null; // Session ID when completed
+  sessionId: string | null; // Session ID when started/completed
   stars: number | null; // Stars earned upon completion (1-5)
 }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppColors, gradientBackground } from '../theme/colors';
 import { UserIcon } from '../theme/icons';
@@ -176,18 +176,23 @@ export default function HomePage() {
   const [showPronunciationModal, setShowPronunciationModal] = useState(false);
   const [editingLesson, setEditingLesson] = useState<CustomLessonDocument | null>(null);
 
-  // Get levels at or below user's level for filtering
-  const getLevelFilter = (userLevel: ProficiencyLevel | undefined): string[] => {
+  // Get levels at or below user's level for filtering (memoized to prevent infinite re-renders)
+  const userLevelFilter = useMemo(() => {
     const allLevels = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+    const userLevel = userDocument?.level;
     if (!userLevel) return [];
 
     const userLevelIndex = allLevels.indexOf(userLevel);
     if (userLevelIndex === -1) return [];
 
     return allLevels.slice(Math.max(0, userLevelIndex - 1), userLevelIndex + 2);
-  };
+  }, [userDocument?.level]);
 
-  const userLevelFilter = getLevelFilter(userDocument?.level);
+  // Stable reference for completed scenarios (prevents infinite re-renders from array comparison)
+  const completedScenariosKey = useMemo(
+    () => JSON.stringify(userDocument?.uniqueScenariosCompleted || []),
+    [userDocument?.uniqueScenariosCompleted]
+  );
 
   // Redirect students without teacherId to join class page
   useEffect(() => {
@@ -270,7 +275,7 @@ export default function HomePage() {
     if (userDocument) {
       fetchLessons();
     }
-  }, [userDocument?.teacherId, userDocument?.level, userDocument?.role, userDocument?.uniqueScenariosCompleted, userLevelFilter]);
+  }, [userDocument?.teacherId, userDocument?.level, userDocument?.role, completedScenariosKey, userLevelFilter]);
 
   // Fetch user stats from Firestore
   useEffect(() => {
@@ -567,8 +572,8 @@ export default function HomePage() {
           />
         )}
 
-        {/* Weekly Review Card - shown prominently when available and not already in primary */}
-        {activeReview && activeReview.status === 'ready' && !userDocument?.currentLesson && (
+        {/* Weekly Review Card - shown based on review status only */}
+        {activeReview && (activeReview.status === 'ready' || activeReview.status === 'in_progress') && (
           <WeeklyReviewCard review={activeReview} onClick={handleReviewClick} />
         )}
 

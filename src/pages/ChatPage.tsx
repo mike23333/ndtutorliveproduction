@@ -37,6 +37,9 @@ import { BadgeEarnedModal } from '../components/badges';
 // First session celebration (onboarding)
 import { FirstSessionCelebration } from '../components/onboarding';
 
+// Audio playback for review lessons
+import { AudioWaveformPlayer } from '../components/AudioWaveformPlayer';
+
 // Role icons mapping
 const ROLE_ICONS: Record<string, React.ReactNode> = {
   barista: <CoffeeIcon />,
@@ -111,6 +114,9 @@ function convertToAIRole(config: RoleConfig, targetVocab: string[]): AIRole {
     functionCallingEnabled: config.functionCallingEnabled ?? true,
     functionCallingInstructions: config.functionCallingInstructions,
     durationMinutes: config.durationMinutes,
+    // Review lesson fields
+    isReviewLesson: config.isReviewLesson,
+    reviewId: config.reviewId,
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -163,6 +169,11 @@ export default function ChatPage() {
     clearSessionSummary,
     clearNewBadges,
     sendTextMessage,
+    toggleMute,
+    // Audio playback for review lessons
+    audioToPlay,
+    onAudioPlaybackComplete,
+    onAudioPlaybackError,
   } = useGeminiChat(aiRole || undefined, userId || undefined);
 
   // Session timer state
@@ -174,6 +185,9 @@ export default function ChatPage() {
 
   // Track if we've already sent the initial "Hi" message
   const hasSentInitialHi = useRef(false);
+
+  // Track if we muted the mic for audio playback (so we can unmute afterward)
+  const mutedForAudioPlayback = useRef(false);
 
   // Convert gemini messages to local Message format
   const messages: Message[] = useMemo(() => {
@@ -322,6 +336,24 @@ export default function ChatPage() {
       navigate('/');
     }
   }, [newBadges, navigate]);
+
+  // Handle audio playback mute (called before playback starts)
+  const handleAudioMuteRequired = useCallback(() => {
+    if (!isMuted) {
+      console.log('[ChatPage] Muting mic for audio playback');
+      toggleMute();
+      mutedForAudioPlayback.current = true;
+    }
+  }, [isMuted, toggleMute]);
+
+  // Handle audio playback unmute (called after playback ends)
+  const handleAudioUnmuteAllowed = useCallback(() => {
+    if (mutedForAudioPlayback.current && isMuted) {
+      console.log('[ChatPage] Unmuting mic after audio playback');
+      toggleMute();
+      mutedForAudioPlayback.current = false;
+    }
+  }, [isMuted, toggleMute]);
 
   // Handle continue after summary - navigate home
   const handleSummaryContinue = useCallback(async () => {
@@ -551,6 +583,17 @@ export default function ChatPage() {
             onGoHome={handleFirstSessionCelebrationClose}
           />
         </div>
+      )}
+
+      {/* Audio Waveform Player - plays student's recorded audio during review lessons */}
+      {audioToPlay && (
+        <AudioWaveformPlayer
+          audioUrl={audioToPlay.url}
+          onPlayComplete={onAudioPlaybackComplete}
+          onError={onAudioPlaybackError}
+          onMuteRequired={handleAudioMuteRequired}
+          onUnmuteAllowed={handleAudioUnmuteAllowed}
+        />
       )}
 
       {/* Toast notifications for session timeout */}

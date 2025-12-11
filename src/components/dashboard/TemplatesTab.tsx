@@ -343,12 +343,13 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
   const sections: TemplateSection[] = [
     {
       id: 'review',
-      title: 'Weekly Review Generation Prompt',
-      description: 'Template sent to Gemini to generate personalized weekly review conversations',
+      title: 'Weekly Review Session Prompt',
+      description: 'Direct system prompt for weekly review sessions. Placeholders are replaced automatically.',
       placeholders: [
+        { code: '{{studentName}}', description: "Student's display name (replaced at runtime)" },
         { code: '{{level}}', description: "Student's CEFR level (A1-C2)" },
-        { code: '{{struggles}}', description: 'List of words the student struggled with' },
-        { code: '{{studentName}}', description: "Student's display name" },
+        { code: '{{struggles}}', description: "Formatted list of review items with IDs, audio status, and corrections" },
+        { code: '{{itemReference}}', description: "Quick reference table of item IDs for play_student_audio and mark_item_mastered" },
       ],
       template: reviewTemplate,
       editedTemplate: editedReviewTemplate,

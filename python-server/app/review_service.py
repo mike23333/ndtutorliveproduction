@@ -29,6 +29,7 @@ class ReviewItem:
     review_count: int
     mastered: bool
     last_reviewed_at: Optional[datetime]
+    audio_url: Optional[str] = None  # Firebase Storage download URL for error audio
 
 
 # Legacy type for backwards compatibility during migration
@@ -68,52 +69,67 @@ class ReviewService:
     REVIEW_COOLDOWN_DAYS = 7
     MAX_REVIEW_COUNT = 3  # After 3 reviews, mark as mastered
 
-    # Default meta-prompt template (used if Firestore template doesn't exist)
-    DEFAULT_META_PROMPT = """Generate a 5-minute conversational English practice system prompt.
+    # Direct template (NOT a meta-prompt) - placeholders get replaced directly
+    # This IS the final system prompt, not instructions to generate one
+    DEFAULT_REVIEW_TEMPLATE = """You are a friendly English tutor conducting a WEEKLY REVIEW session with {{studentName}}.
 
-The student's English level is: {{level}} (CEFR scale)
-Adjust vocabulary, sentence complexity, and pace accordingly:
-- A1-A2: Use simple sentences, common words, speak slowly and clearly
-- B1-B2: Use moderate complexity, introduce idioms gradually, natural pace
-- C1-C2: Use natural speed, complex structures, nuanced vocabulary
+## SESSION PURPOSE
+This is a review session to help {{studentName}} practice and master mistakes they made earlier this week. Your goal is to help them improve through natural conversation, not drilling.
 
-The student struggled with these words/phrases this week:
+## STUDENT LEVEL: {{level}}
+Adjust your speech accordingly:
+- A1-A2: Simple sentences, speak slowly and clearly, lots of encouragement
+- B1-B2: Moderate complexity, natural pace
+- C1-C2: Natural speed, can use more complex structures
+
+## MISTAKES TO REVIEW THIS SESSION:
 {{struggles}}
 
-Create a system prompt for an AI tutor that will:
-1. Have a natural conversation (restaurant, cafe, travel, or everyday scenario)
-2. Organically include opportunities to use these words
-3. NOT quiz or drill - just natural conversation
-4. Gently help if they struggle again (rephrase, give hints)
-5. Celebrate when they use the words correctly (brief acknowledgment)
-6. Keep it warm and encouraging throughout
+## HOW TO CONDUCT THIS REVIEW:
 
-The prompt should define:
-- A specific persona with a name and friendly role
-- A realistic scenario that naturally includes the target vocabulary
-- How to introduce each word naturally in conversation
-- How to provide gentle scaffolding if they struggle
+1. **Start warmly**: "Hi {{studentName}}! Welcome to your weekly review. Let's practice some things from this week together."
 
-IMPORTANT: The prompt MUST include this exact section for autonomous function calling:
+2. **For each item with audio** (marked "HAS AUDIO"):
+   - Say: "Earlier this week, you said something I'd like us to work on. Let me play it back..."
+   - Call `play_student_audio` with that item's ID
+   - **IMPORTANT: Stay COMPLETELY SILENT after calling play_student_audio. Do not speak until you receive the "Audio played successfully" response. The student needs to hear their recording without you talking over it.**
+   - Once you receive confirmation the audio finished, THEN explain: "You said [X], but we usually say [Y] because [reason]"
+   - Practice it together, then move on
 
-## AUTONOMOUS TRACKING (Use these functions automatically)
+3. **For items without audio**:
+   - Say: "Earlier you tried to say [correction] but it came out a bit differently. Let's practice that."
+   - Help them use the correct form naturally
 
-### save_struggle_item - Call when you notice:
-- They can't remember a word (prompt them, then log it)
-- They mispronounce something repeatedly
-- They use incorrect grammar patterns
-- They seem confused about vocabulary
+4. **When they get it right**:
+   - Celebrate briefly: "Perfect!" or "That's exactly right!"
+   - Call `mark_item_mastered` with confidence level ('high', 'medium', or 'low')
 
-### update_user_profile - Call when you learn:
-- Their preferences or personal details they share
-- Likes/dislikes mentioned during conversation
+5. **Keep it conversational**: Don't just drill - weave the practice into natural chat
 
-### show_session_summary - Call when:
-- The conversation reaches a natural end
-- You're prompted that time is up
-- Rate 1-5 stars based on: participation, vocabulary use, improvement shown
+6. **End with summary**: Call `show_session_summary` with their progress
 
-Return only the system prompt, no explanation or preamble."""
+## REVIEW SESSION TOOLS (Use these automatically)
+
+### play_student_audio
+- USE THIS for every item that has audio!
+- Call it BEFORE explaining the correction so they hear themselves first
+- **After calling, WAIT SILENTLY for "Audio played successfully" response before speaking**
+- Parameters: { "review_item_id": "the-item-id" }
+
+### mark_item_mastered
+- Call when they demonstrate understanding (not just repeating after you)
+- Parameters: { "review_item_id": "the-item-id", "confidence": "high|medium|low" }
+
+### mark_for_review
+- Only for NEW mistakes not in this review
+- Parameters: { "error_type": "...", "severity": 1-10, "user_sentence": "...", "correction": "...", "explanation": "..." }
+
+### show_session_summary
+- Call at the end of the session
+- Parameters: { "strengths": [...], "areas_for_improvement": [...], "stars": 1-5, "summary": "..." }
+
+## ITEMS TO REVIEW:
+{{itemReference}}"""
 
     def __init__(self):
         """Initialize with Firestore and Gemini clients."""
@@ -132,25 +148,25 @@ Return only the system prompt, no explanation or preamble."""
         # Configure Gemini client for prompt generation
         self._client = genai.Client(api_key=config.GEMINI_API_KEY)
 
-    def get_meta_prompt_template(self) -> str:
+    def get_review_template(self) -> str:
         """
-        Fetch the meta-prompt template from Firestore.
+        Fetch the review session template from Firestore.
         Falls back to default if not found.
         """
         try:
-            template_ref = self._db.document('systemTemplates/weeklyReviewMetaPrompt')
+            template_ref = self._db.document('systemTemplates/weeklyReviewTemplate')
             template_doc = template_ref.get()
 
             if template_doc.exists:
                 data = template_doc.to_dict()
-                return data.get('template', self.DEFAULT_META_PROMPT)
+                return data.get('template', self.DEFAULT_REVIEW_TEMPLATE)
 
             print('[Review] Template not found in Firestore, using default')
-            return self.DEFAULT_META_PROMPT
+            return self.DEFAULT_REVIEW_TEMPLATE
 
         except Exception as e:
             print(f'[Review] Error fetching template: {e}, using default')
-            return self.DEFAULT_META_PROMPT
+            return self.DEFAULT_REVIEW_TEMPLATE
 
     def get_user_level(self, user_id: str) -> str:
         """
@@ -213,16 +229,27 @@ Return only the system prompt, no explanation or preamble."""
                 if last_reviewed_dt and last_reviewed_dt > cutoff_date:
                     continue
 
+            # Ensure severity is numeric (some legacy items might have string values)
+            raw_severity = data.get('severity', 5)
+            if isinstance(raw_severity, str):
+                try:
+                    severity = int(raw_severity)
+                except ValueError:
+                    severity = 5  # Default if can't parse
+            else:
+                severity = int(raw_severity) if raw_severity else 5
+
             eligible.append(ReviewItem(
                 id=doc.id,
                 error_type=data.get('errorType', 'Vocabulary'),
-                severity=data.get('severity', 5),  # Now 1-10 scale
+                severity=severity,  # Now 1-10 scale (guaranteed int)
                 user_sentence=data.get('userSentence', ''),
                 correction=data.get('correction', ''),
                 explanation=data.get('explanation'),
                 review_count=data.get('reviewCount', 0),
                 mastered=data.get('mastered', False),
                 last_reviewed_at=last_reviewed,
+                audio_url=data.get('audioUrl'),  # Fetch audio URL for playback
             ))
 
         # Sort by severity (higher = more critical, prioritize) then by review count (lower first)
@@ -283,47 +310,65 @@ Return only the system prompt, no explanation or preamble."""
 
     def generate_review_prompt_from_items(self, items: List[ReviewItem], level: str) -> str:
         """
-        Generate a conversational system prompt from review items (new schema).
-        Uses Gemini 2.5 Flash for natural language generation.
+        Generate the review session prompt by filling in template placeholders.
+        No AI generation - just direct placeholder replacement for predictable results.
         """
-        template = self.get_meta_prompt_template()
+        template = self.get_review_template()
 
-        # Format review items with enhanced detail
+        # Format review items for the {{struggles}} section
         item_descriptions = []
         for item in items:
-            desc = f'- {item.error_type} error (severity {item.severity}/10):\n'
-            desc += f'  Student said: "{item.user_sentence}"\n'
-            desc += f'  Correct: "{item.correction}"'
+            audio_status = 'HAS AUDIO' if item.audio_url else 'no audio'
+            desc = f'- **{item.correction}** ({audio_status})\n'
+            desc += f'  - ID: `{item.id}`\n'
+            desc += f'  - Student said: "{item.user_sentence}"\n'
+            desc += f'  - Error type: {item.error_type}'
             if item.explanation:
-                desc += f'\n  Rule: {item.explanation}'
+                desc += f'\n  - Why: {item.explanation}'
             item_descriptions.append(desc)
 
-        items_text = '\n'.join(item_descriptions)
+        struggles_text = '\n'.join(item_descriptions)
 
-        # Substitute placeholders
+        # Build the item reference section for easy ID lookup
+        item_reference = self._build_item_reference_section(items)
+
+        # Replace all placeholders
         prompt = template.replace('{{level}}', level)
-        prompt = template.replace('{{struggles}}', items_text)
+        prompt = prompt.replace('{{struggles}}', struggles_text)
+        prompt = prompt.replace('{{itemReference}}', item_reference)
+        # Note: {{studentName}} is replaced at runtime by the frontend
 
-        # Generate the actual conversation prompt using Gemini 2.5 Flash
-        try:
-            response = self._client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-            )
-            return response.text.strip()
+        return prompt
 
-        except Exception as e:
-            print(f'[Review] Error generating prompt with Gemini: {e}')
-            return self._create_fallback_prompt_from_items(items, level)
+    def _build_item_reference_section(self, items: List[ReviewItem]) -> str:
+        """
+        Build a reference section with explicit item IDs for function calls.
+        This ensures the AI has the specific IDs needed for play_student_audio and mark_item_mastered.
+        """
+        lines = [
+            '## REVIEW ITEM REFERENCE (for function calls)',
+            '',
+            'Use these exact IDs when calling play_student_audio or mark_item_mastered:',
+            ''
+        ]
+
+        for item in items:
+            audio_status = 'HAS AUDIO' if item.audio_url else 'no audio'
+            lines.append(f'- ID: `{item.id}` | "{item.correction}" | {audio_status}')
+
+        return '\n'.join(lines)
 
     def _create_fallback_prompt_from_items(self, items: List[ReviewItem], level: str) -> str:
         """Create a basic fallback prompt from review items if Gemini fails."""
         corrections = ', '.join([f'"{r.correction}"' for r in items[:5]])
+        item_reference = self._build_item_reference_section(items)
         return f"""You are Sam, a friendly cafe owner helping a customer.
 The student is at {level} level.
 During your natural conversation about their coffee order and day,
 find opportunities to practice these phrases: {corrections}.
-Be warm and encouraging. Help gently if they struggle."""
+Be warm and encouraging. Help gently if they struggle.
+
+{item_reference}"""
 
     def generate_review_prompt(self, struggles: List[StruggleItem], level: str) -> str:
         """

@@ -314,6 +314,101 @@ export const markReviewItemReviewed = async (
 };
 
 /**
+ * Get a single review item by ID
+ * Includes fuzzy matching fallback for when Gemini slightly mangles IDs
+ */
+export const getReviewItem = async (
+  userId: string,
+  reviewItemId: string
+): Promise<ReviewItemDocument | null> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  // First try exact match
+  const reviewItemRef = doc(db, `users/${userId}/reviewItems`, reviewItemId);
+  const snapshot = await getDoc(reviewItemRef);
+
+  if (snapshot.exists()) {
+    return snapshot.data() as ReviewItemDocument;
+  }
+
+  // Fuzzy match fallback - Gemini sometimes adds/removes characters from IDs
+  console.log('[SessionData] Exact match failed, trying fuzzy match for:', reviewItemId);
+
+  const reviewItemsRef = collection(db, `users/${userId}/reviewItems`);
+  const allItems = await getDocs(query(reviewItemsRef, orderBy('createdAt', 'desc')));
+
+  // Find best match using Levenshtein-like similarity
+  let bestMatch: ReviewItemDocument | null = null;
+  let bestScore = 0;
+  const minSimilarity = 0.8; // Require 80% similarity
+
+  for (const docSnap of allItems.docs) {
+    const itemId = docSnap.id;
+    const similarity = calculateSimilarity(reviewItemId, itemId);
+
+    if (similarity > bestScore && similarity >= minSimilarity) {
+      bestScore = similarity;
+      bestMatch = docSnap.data() as ReviewItemDocument;
+    }
+  }
+
+  if (bestMatch) {
+    console.log(`[SessionData] Fuzzy matched "${reviewItemId}" to "${bestMatch.id}" (${(bestScore * 100).toFixed(0)}% similar)`);
+  }
+
+  return bestMatch;
+};
+
+/**
+ * Calculate similarity between two strings (0-1)
+ * Simple approach: longest common subsequence ratio
+ */
+function calculateSimilarity(a: string, b: string): number {
+  if (a === b) return 1;
+  if (!a || !b) return 0;
+
+  const longer = a.length > b.length ? a : b;
+  const shorter = a.length > b.length ? b : a;
+
+  // Count matching characters in sequence
+  let matches = 0;
+  let j = 0;
+  for (let i = 0; i < longer.length && j < shorter.length; i++) {
+    if (longer[i] === shorter[j]) {
+      matches++;
+      j++;
+    }
+  }
+
+  return matches / longer.length;
+}
+
+/**
+ * Mark a review item as mastered by the AI during review lesson
+ * Called when student demonstrates clear understanding
+ */
+export const markItemMastered = async (
+  userId: string,
+  reviewItemId: string,
+  confidence: 'low' | 'medium' | 'high'
+): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const { increment: inc } = await import('firebase/firestore');
+  const reviewItemRef = doc(db, `users/${userId}/reviewItems`, reviewItemId);
+
+  await updateDoc(reviewItemRef, {
+    mastered: true,
+    masteredAt: Timestamp.now(),
+    masteredConfidence: confidence,
+    reviewCount: inc(1),
+    lastReviewedAt: Timestamp.now(),
+  });
+
+  console.log(`[SessionData] Marked review item ${reviewItemId} as mastered (confidence: ${confidence})`);
+};
+
+/**
  * Get all struggle items for a user (for review lessons)
  * @deprecated Use getUserReviewItems instead
  */
@@ -727,8 +822,9 @@ export const getUserStarStats = async (
 // ==================== REVIEW LESSONS ====================
 
 /**
- * Get the most recent ready review lesson for a user
+ * Get the active review lesson (ready or in_progress)
  * Used by HomePage to display the WeeklyReviewCard
+ * Single source of truth - shows if not completed/skipped
  */
 export const getActiveReviewLesson = async (
   userId: string
@@ -738,9 +834,10 @@ export const getActiveReviewLesson = async (
   const { where, limit: lim } = await import('firebase/firestore');
   const reviewsRef = collection(db, `users/${userId}/reviewLessons`);
 
+  // Query for ready OR in_progress reviews
   const q = query(
     reviewsRef,
-    where('status', '==', 'ready'),
+    where('status', 'in', ['ready', 'in_progress']),
     orderBy('createdAt', 'desc'),
     lim(1)
   );
@@ -770,6 +867,28 @@ export const getPendingReviewLessons = async (
 
   const snapshot = await getDocs(q);
   return snapshot.docs.map((doc) => doc.data() as ReviewLessonDocument);
+};
+
+/**
+ * Start a review lesson (mark as in_progress)
+ * Called when user begins a review session
+ */
+export const startReviewLesson = async (
+  userId: string,
+  reviewId: string,
+  sessionId: string
+): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+
+  const reviewRef = doc(db, `users/${userId}/reviewLessons`, reviewId);
+
+  await updateDoc(reviewRef, {
+    status: 'in_progress',
+    sessionId,
+    startedAt: Timestamp.now(),
+  });
+
+  console.log('[SessionData] Started review lesson:', reviewId);
 };
 
 /**

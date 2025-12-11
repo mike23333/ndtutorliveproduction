@@ -134,9 +134,9 @@ export const AssignmentGrid = ({
           gap: 'clamp(8px, 2vw, 12px)',
         }}
       >
-        {visibleLessons.map((lesson) => (
+        {visibleLessons.map((lesson, index) => (
           <CompactLessonCard
-            key={lesson.id}
+            key={lesson.id || `lesson-${index}`}
             title={lesson.title}
             level={lesson.level}
             duration={lesson.duration}

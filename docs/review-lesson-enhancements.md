@@ -3,6 +3,18 @@
 ## Overview
 Enhance the weekly review lesson with audio playback of student mistakes and intelligent mastery tracking.
 
+Goal: A targeted session where the user fixes past mistakes.
+The Setup: Python looks at Firestore, finds the top 3 unresolved errors, and generates a System Prompt: look at our current week review logic and system prompt. it's editable from teacher admin.
+"You are a Review Tutor. Help the student fix these errors:
+ID: err_882 | Mistake: 'I am agree' | URL: https://.../err_882.mp3
+Use the tool trigger_flashback(url) to show them."
+The Connection: Python gives React the Ephemeral Token + The list of MP3 URLs (to preload).
+The Lesson:
+Gemini: "Let's listen to what you said..." -> Sends trigger_flashback.
+React: Mutes Mic -> Plays Audio -> Unmutes Mic -> Sends tool_response.
+Gemini: "Did you hear that? Try again."
+
+
 ---
 
 ## Feature 1: Play Student Audio During Review
@@ -45,12 +57,12 @@ AI: "Much better! I can hear the 'th' clearly now."
 ### Frontend Implementation
 - Listen for `play_student_audio` function call in chat
 - Fetch audioUrl from reviewItem document
-- Play audio using existing audio player component
+- Play audio using existing audio player component (need to build)
 - Return confirmation to AI that audio played
 
 ### Design Principles
 - Frame with empathy: "Let me show you..." not "You said this wrong"
-- AI decides when audio is pedagogically useful (not every time)
+- AI decides when audio is pedagogically useful (not every time) so adjust the current default review system prompt. 
 - Keep clips short (2-3 seconds max)
 
 ---
@@ -106,48 +118,7 @@ AI tutor marks a reviewItem as mastered when student demonstrates clear understa
 
 ---
 
-## Feature 3: Resurface Mastered Items
 
-### Concept
-If a student makes the same mistake again in a regular lesson, the mastered item should "un-master" and re-enter the review queue.
-
-### Logic in `mark_for_review` / `saveReviewItem`
-```typescript
-// When saving a new mistake
-const existingMastered = await findSimilarMasteredItem(
-  userId,
-  errorType,
-  userSentence  // fuzzy match on the error pattern
-);
-
-if (existingMastered) {
-  // Resurface instead of duplicate
-  await updateDoc(existingMastered.ref, {
-    mastered: false,
-    resurfacedAt: Timestamp.now(),
-    resurfaceCount: increment(1),
-    // Keep original fields for history
-  });
-} else {
-  // Create new reviewItem as normal
-}
-```
-
-### Matching Logic
-- Same `errorType` (Grammar, Pronunciation, etc.)
-- Similar `userSentence` pattern (fuzzy match or same root error)
-- Example: "I go to store" and "I go to school" are same error pattern
-
-### New Fields on reviewItem
-```typescript
-{
-  resurfacedAt: Timestamp | null,    // When it was un-mastered
-  resurfaceCount: number,            // How many times it came back
-}
-```
-
-### Teacher Dashboard Insight (Future)
-> "Nina has resurfaced 'past tense' errors 3 times - may need focused attention"
 
 ---
 
@@ -155,7 +126,6 @@ if (existingMastered) {
 
 1. **mark_item_mastered** - Simplest, standalone value
 2. **play_student_audio** - Requires audio player integration
-3. **Resurface logic** - Requires fuzzy matching, more complex
 
 ---
 
@@ -173,7 +143,6 @@ if (existingMastered) {
 
 ## Open Questions
 
-1. **Fuzzy matching threshold** - How similar must errors be to count as "same"?
-2. **Resurface limit** - Should items that resurface 5+ times get flagged differently?
-3. **Audio availability** - What if reviewItem has no audioUrl? (Skip audio playback gracefully)
+
+3. **Audio availability** - What if reviewItem has no audioUrl? (Skip audio playback gracefully) you don't play it adjust the prompt to not call that tool function and just review it normally without audio.
 4. **Multiple errors per session** - Rate limit mastery marking? (Don't mark 10 items in 30 seconds)

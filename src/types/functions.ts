@@ -56,6 +56,17 @@ export interface SessionSummary extends ShowSessionSummaryParams {
   createdAt: Date;
 }
 
+// ==================== MARK ITEM MASTERED (Review Lesson) ====================
+export interface MarkItemMasteredParams {
+  review_item_id: string;
+  confidence: 'low' | 'medium' | 'high';
+}
+
+// ==================== PLAY STUDENT AUDIO (Review Lesson) ====================
+export interface PlayStudentAudioParams {
+  review_item_id: string;
+}
+
 // ==================== FUNCTION DECLARATIONS ====================
 export interface FunctionParameter {
   type: string;
@@ -169,6 +180,39 @@ export const TUTOR_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
         },
       },
       required: ['did_well', 'work_on', 'stars', 'summary_text'],
+    },
+  },
+  {
+    name: 'mark_item_mastered',
+    description: 'Mark a review item as mastered when the student demonstrates clear understanding and correct usage. Do NOT call if student just parrots/repeats after you or seems unsure.',
+    parameters: {
+      type: 'object',
+      properties: {
+        review_item_id: {
+          type: 'string',
+          description: 'ID of the reviewItem to mark as mastered',
+        },
+        confidence: {
+          type: 'string',
+          description: "AI's confidence in the student's mastery of this item",
+          enum: ['low', 'medium', 'high'],
+        },
+      },
+      required: ['review_item_id', 'confidence'],
+    },
+  },
+  {
+    name: 'play_student_audio',
+    description: 'Play a short audio clip of a mistake the student made previously. Use sparingly when hearing themselves would help the student understand and correct the error. Only works if the item has audio available.',
+    parameters: {
+      type: 'object',
+      properties: {
+        review_item_id: {
+          type: 'string',
+          description: 'ID of the reviewItem containing the audio to play',
+        },
+      },
+      required: ['review_item_id'],
     },
   },
 ];
