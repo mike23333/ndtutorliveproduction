@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -11,6 +11,16 @@ import LevelSelectPage from './pages/LevelSelectPage';
 import JoinClassPage from './pages/JoinClassPage';
 import ProfilePage from './pages/ProfilePage';
 import BadgesPage from './pages/BadgesPage';
+
+/**
+ * Wrapper that forces ChatPage to remount when lessonId changes.
+ * Without this, React reuses the component and stale state persists.
+ */
+function ChatPageWrapper() {
+  const { lessonId } = useParams();
+  // Key forces complete remount when lesson changes
+  return <ChatPage key={lessonId || 'default'} />;
+}
 
 function App() {
   return (
@@ -43,12 +53,12 @@ function App() {
               } />
               <Route path="/chat" element={
                 <ProtectedRoute>
-                  <ChatPage />
+                  <ChatPageWrapper />
                 </ProtectedRoute>
               } />
               <Route path="/chat/:lessonId" element={
                 <ProtectedRoute>
-                  <ChatPage />
+                  <ChatPageWrapper />
                 </ProtectedRoute>
               } />
               {/* Teacher only route */}

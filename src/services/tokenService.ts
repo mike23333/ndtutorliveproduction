@@ -9,11 +9,12 @@ import type { EphemeralToken, TokenResponse } from '../types/gemini';
 interface TokenCache {
   token: EphemeralToken | null;
   refreshPromise: Promise<EphemeralToken> | null;
+  systemPrompt: string | null; // Track which prompt the token was created for
 }
 
 export class TokenService {
   private apiUrl: string;
-  private cache: TokenCache = { token: null, refreshPromise: null };
+  private cache: TokenCache = { token: null, refreshPromise: null, systemPrompt: null };
   private refreshBuffer = 5 * 60 * 1000; // Refresh 5 minutes before expiry
 
   constructor(apiUrl?: string) {
@@ -24,8 +25,13 @@ export class TokenService {
    * Get a valid ephemeral token, fetching a new one if needed
    */
   async getToken(userId: string, systemPrompt?: string, forceRefresh = false): Promise<EphemeralToken> {
-    // Check cache validity
-    if (!forceRefresh && this.cache.token) {
+    // Check cache validity - must also match the system prompt since it's baked into the token
+    const promptChanged = systemPrompt !== this.cache.systemPrompt;
+    if (promptChanged) {
+      console.log('[TokenService] System prompt changed, invalidating cache');
+    }
+
+    if (!forceRefresh && !promptChanged && this.cache.token) {
       const expiresIn = this.cache.token.expiresAt.getTime() - Date.now();
       if (expiresIn > this.refreshBuffer) {
         console.log('[TokenService] Using cached token');
@@ -45,6 +51,7 @@ export class TokenService {
 
     try {
       this.cache.token = await this.cache.refreshPromise;
+      this.cache.systemPrompt = systemPrompt || null; // Store which prompt this token is for
       return this.cache.token;
     } finally {
       this.cache.refreshPromise = null;
@@ -85,7 +92,7 @@ export class TokenService {
    * Clear the token cache (e.g., on logout or error)
    */
   clearCache(): void {
-    this.cache = { token: null, refreshPromise: null };
+    this.cache = { token: null, refreshPromise: null, systemPrompt: null };
   }
 
   /**
