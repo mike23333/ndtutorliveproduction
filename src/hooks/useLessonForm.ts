@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { LessonFormData, LessonData } from '../types/dashboard';
+import type { LessonFormData, LessonData, LessonTask } from '../types/dashboard';
 import type { ProficiencyLevel } from '../types/firestore';
 
 interface UseLessonFormResult {
@@ -14,6 +14,7 @@ interface UseLessonFormResult {
   setImage: (url: string, path: string) => void;
   clearImage: () => void;
   setAssignedStudentIds: (studentIds: string[]) => void;
+  setTasks: (tasks: LessonTask[]) => void;
   reset: () => void;
   loadFromLesson: (lesson: LessonData) => void;
   loadFromFormData: (data: LessonFormData) => void;
@@ -33,6 +34,7 @@ const initialFormData: LessonFormData = {
   targetLevel: null,
   isFirstLesson: false,
   assignedStudentIds: [],
+  tasks: [],
 };
 
 export function useLessonForm(): UseLessonFormResult {
@@ -81,6 +83,10 @@ export function useLessonForm(): UseLessonFormResult {
     setFormData(prev => ({ ...prev, assignedStudentIds }));
   }, []);
 
+  const setTasks = useCallback((tasks: LessonTask[]) => {
+    setFormData(prev => ({ ...prev, tasks }));
+  }, []);
+
   const reset = useCallback(() => {
     setFormData(initialFormData);
     setSaving(false);
@@ -97,6 +103,7 @@ export function useLessonForm(): UseLessonFormResult {
       targetLevel: lesson.targetLevel || null,
       isFirstLesson: lesson.isFirstLesson || false,
       assignedStudentIds: lesson.assignedStudentIds || [],
+      tasks: lesson.tasks || [],
     });
   }, []);
 
@@ -118,6 +125,7 @@ export function useLessonForm(): UseLessonFormResult {
     setImage,
     clearImage,
     setAssignedStudentIds,
+    setTasks,
     reset,
     loadFromLesson,
     loadFromFormData,

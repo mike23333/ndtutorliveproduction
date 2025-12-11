@@ -11,6 +11,8 @@ import LevelSelectPage from './pages/LevelSelectPage';
 import JoinClassPage from './pages/JoinClassPage';
 import ProfilePage from './pages/ProfilePage';
 import BadgesPage from './pages/BadgesPage';
+import RolePlayPage from './pages/RolePlayPage';
+import ScenarioDetailPage from './pages/ScenarioDetailPage';
 
 /**
  * Wrapper that forces ChatPage to remount when lessonId changes.
@@ -77,6 +79,16 @@ function App() {
               <Route path="/badges" element={
                 <ProtectedRoute>
                   <BadgesPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/roleplay" element={
+                <ProtectedRoute>
+                  <RolePlayPage />
+                </ProtectedRoute>
+              } />
+              <Route path="/roleplay/:scenarioId" element={
+                <ProtectedRoute>
+                  <ScenarioDetailPage />
                 </ProtectedRoute>
               } />
             </Routes>

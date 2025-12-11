@@ -34,6 +34,7 @@ import type {
   ShowSessionSummaryParams,
   MarkItemMasteredParams,
   PlayStudentAudioParams,
+  MarkTaskCompleteParams,
 } from '../types/functions';
 import type { BadgeDefinition } from '../types/badges';
 
@@ -108,7 +109,8 @@ export interface UseGeminiChatResult {
 
 export function useGeminiChat(
   initialRole?: AIRole,
-  userId?: string
+  userId?: string,
+  onTaskComplete?: (taskId: string) => void
 ): UseGeminiChatResult {
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
@@ -578,6 +580,34 @@ export function useGeminiChat(
             break;
           }
 
+          case 'mark_task_complete': {
+            const params = fc.args as unknown as MarkTaskCompleteParams;
+
+            // Validate required fields
+            if (!params.task_id) {
+              console.warn('[Function] Invalid mark_task_complete params:', fc.args);
+              responses.push({
+                id: fc.id,
+                name: fc.name,
+                response: { result: 'Invalid parameters - skipped' }
+              });
+              break;
+            }
+
+            // Call the callback to update UI state
+            if (onTaskComplete) {
+              console.log('[Function] Marking task complete:', params.task_id);
+              onTaskComplete(params.task_id);
+            }
+
+            responses.push({
+              id: fc.id,
+              name: fc.name,
+              response: { result: 'Task marked complete' }
+            });
+            break;
+          }
+
           default:
             console.warn('[Function] Unknown function:', fc.name);
             responses.push({
@@ -597,7 +627,7 @@ export function useGeminiChat(
     }
 
     return responses;
-  }, [sessionStartTime, stopAudioStreaming]);
+  }, [sessionStartTime, stopAudioStreaming, onTaskComplete]);
 
   /**
    * Trigger end of session - sends prompt to Gemini to summarize

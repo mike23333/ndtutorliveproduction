@@ -54,6 +54,7 @@ const missionToLesson = (
     image: mission.imageUrl || `https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=300&fit=crop`,
     teacherId: mission.teacherId,
     isFirstLesson: mission.isFirstLesson || false,
+    tasks: mission.tasks,
   };
 };
 
@@ -410,6 +411,7 @@ export default function HomePage() {
       functionCallingInstructions: lesson.functionCallingInstructions,
       imageUrl: lesson.image,
       teacherId: lesson.teacherId,
+      tasks: lesson.tasks,
     };
     sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
     navigate(`/chat/${lesson.id}`);

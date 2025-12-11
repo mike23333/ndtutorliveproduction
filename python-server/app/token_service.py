@@ -193,6 +193,20 @@ class TokenService:
                             },
                             'required': ['review_item_id']
                         }
+                    },
+                    {
+                        'name': 'mark_task_complete',
+                        'description': 'Call when student successfully accomplishes a lesson task/objective. Only call when the task is clearly completed, not when partially done or just discussed.',
+                        'parameters': {
+                            'type': 'object',
+                            'properties': {
+                                'task_id': {
+                                    'type': 'string',
+                                    'description': 'The ID of the completed task (e.g., "task-1", "task-2")'
+                                }
+                            },
+                            'required': ['task_id']
+                        }
                     }
                 ]
             }]

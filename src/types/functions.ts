@@ -67,6 +67,11 @@ export interface PlayStudentAudioParams {
   review_item_id: string;
 }
 
+// ==================== MARK TASK COMPLETE (Lesson Tasks) ====================
+export interface MarkTaskCompleteParams {
+  task_id: string;
+}
+
 // ==================== FUNCTION DECLARATIONS ====================
 export interface FunctionParameter {
   type: string;
@@ -215,6 +220,20 @@ export const TUTOR_FUNCTION_DECLARATIONS: FunctionDeclaration[] = [
       required: ['review_item_id'],
     },
   },
+  {
+    name: 'mark_task_complete',
+    description: 'Call when student successfully accomplishes a lesson task/objective. Only call when the task is clearly completed, not when partially done or just discussed.',
+    parameters: {
+      type: 'object',
+      properties: {
+        task_id: {
+          type: 'string',
+          description: 'The ID of the completed task (e.g., "task-1", "task-2")',
+        },
+      },
+      required: ['task_id'],
+    },
+  },
 ];
 
 // ==================== FUNCTION CALL/RESPONSE TYPES ====================
@@ -256,5 +275,10 @@ export const DEFAULT_FUNCTION_CALLING_INSTRUCTIONS = `You have access to the fol
    - 2-3 areas they should work on
    - A 1-5 star rating based on their performance
    - An encouraging summary paragraph
+
+4. **mark_task_complete** - Call when student accomplishes a lesson task:
+   - Only call when the student clearly completes the objective
+   - Use the exact task_id provided in the system prompt
+   - Don't mark tasks complete for partial completion or just discussing
 
 Use these functions naturally during conversation without announcing them to the student.`;

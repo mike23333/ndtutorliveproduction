@@ -36,6 +36,7 @@ function mapMissionToLesson(
     targetLevel: mission.targetLevel || null,
     isFirstLesson: mission.isFirstLesson || false,
     assignedStudentIds: mission.assignedStudentIds || [],
+    tasks: mission.tasks || [],
     notCompletedStudents: completionStats?.notCompletedStudents || [],
   };
 }
@@ -99,6 +100,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       isActive: true,
       isFirstLesson: data.isFirstLesson || false,
       assignedStudentIds: data.assignedStudentIds?.length ? data.assignedStudentIds : undefined,
+      tasks: data.tasks?.length ? data.tasks : undefined,
     });
 
     const newLesson = mapMissionToLesson(newMission);
@@ -123,6 +125,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     if (data.imageStoragePath !== undefined) updateData.imageStoragePath = data.imageStoragePath;
     if (data.isFirstLesson !== undefined) updateData.isFirstLesson = data.isFirstLesson;
     if (data.assignedStudentIds !== undefined) updateData.assignedStudentIds = data.assignedStudentIds;
+    if (data.tasks !== undefined) updateData.tasks = data.tasks;
 
     updateData.functionCallingEnabled = true;
 
@@ -141,6 +144,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
           targetLevel: data.targetLevel !== undefined ? data.targetLevel : l.targetLevel,
           imageUrl: data.imageUrl ?? l.imageUrl,
           isFirstLesson: data.isFirstLesson ?? l.isFirstLesson,
+          tasks: data.tasks ?? l.tasks,
         };
       }
       // If setting a new first lesson, clear flag from other lessons
@@ -164,6 +168,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       targetLevel: lesson.targetLevel || null,
       imageUrl: lesson.imageUrl,
       imageStoragePath: null,
+      tasks: lesson.tasks || [],
     };
   }, []);
 

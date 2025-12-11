@@ -93,6 +93,14 @@ export interface VocabularyItem {
 }
 
 /**
+ * Lesson task/objective for task panel display
+ */
+export interface LessonTask {
+  id: string;
+  text: string;
+}
+
+/**
  * Mission Document
  * Collection: missions
  */
@@ -117,6 +125,8 @@ export interface MissionDocument {
   isFirstLesson?: boolean; // Teacher-designated first lesson for new students
   // Private tutoring assignment
   assignedStudentIds?: string[]; // UIDs of private students assigned to this lesson
+  // Lesson tasks/objectives
+  tasks?: LessonTask[]; // Optional lesson objectives for task panel
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

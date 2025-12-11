@@ -1,6 +1,8 @@
 // Dashboard-specific types
 
-import type { ProficiencyLevel } from './firestore';
+import type { ProficiencyLevel, LessonTask } from './firestore';
+
+export type { LessonTask } from './firestore';
 
 export type TabType = 'lessons' | 'students' | 'insights' | 'billing' | 'templates';
 
@@ -20,6 +22,7 @@ export interface LessonData {
   targetLevel?: ProficiencyLevel | null;
   isFirstLesson?: boolean;
   assignedStudentIds?: string[]; // For private student assignment
+  tasks?: LessonTask[]; // Optional lesson objectives for task panel
   notCompletedStudents?: { uid: string; name: string; level?: ProficiencyLevel }[];
 }
 
@@ -32,6 +35,7 @@ export interface LessonFormData {
   targetLevel: ProficiencyLevel | null;
   isFirstLesson?: boolean;
   assignedStudentIds?: string[]; // For private student assignment
+  tasks?: LessonTask[]; // Optional lesson objectives
 }
 
 export interface ClassPulseInsight {

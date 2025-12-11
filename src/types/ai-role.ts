@@ -148,6 +148,11 @@ export interface AIRole {
   reviewId?: string;
 
   /**
+   * Lesson tasks/objectives for task panel display
+   */
+  tasks?: Array<{ id: string; text: string }>;
+
+  /**
    * Creation timestamp
    */
   createdAt: Date;

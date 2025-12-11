@@ -493,6 +493,7 @@ const TeacherDashboard: React.FC = () => {
         onSaveAsTemplate={() => setShowSaveTemplateModal(true)}
         privateStudents={privateStudents}
         onAssignedStudentsChange={lessonForm.setAssignedStudentIds}
+        onTasksChange={lessonForm.setTasks}
       />
 
       {/* Save Template Modal */}

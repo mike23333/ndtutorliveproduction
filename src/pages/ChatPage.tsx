@@ -27,6 +27,9 @@ import {
   type VocabWord
 } from '../components/chat';
 
+// Tasks panel component
+import { TasksPanel, type TaskItem } from '../components/chat/TasksPanel';
+
 // Session timer and summary components
 import { SessionTimerCompact } from '../components/chat/SessionTimer';
 import { StarAnimation } from '../components/chat/StarAnimation';
@@ -75,6 +78,8 @@ interface RoleConfig {
   isQuickPractice?: boolean;
   // Cost tracking
   teacherId?: string;
+  // Lesson tasks
+  tasks?: Array<{ id: string; text: string }>;
 }
 
 // Message type for chat display
@@ -117,6 +122,8 @@ function convertToAIRole(config: RoleConfig, targetVocab: string[]): AIRole {
     // Review lesson fields
     isReviewLesson: config.isReviewLesson,
     reviewId: config.reviewId,
+    // Lesson tasks
+    tasks: config.tasks,
     createdAt: new Date(),
     updatedAt: new Date()
   };
@@ -151,6 +158,18 @@ export default function ChatPage() {
   const [progress, setProgress] = useState(15);
   const [vocabWords, setVocabWords] = useState<VocabWord[]>([]);
 
+  // Tasks state
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [tasksCollapsed, setTasksCollapsed] = useState(false);
+
+  // Handle task completion from Gemini tool call
+  const handleTaskComplete = useCallback((taskId: string) => {
+    console.log('[ChatPage] Task completed:', taskId);
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, completed: true } : t
+    ));
+  }, []);
+
   // Initialize Gemini chat hook (direct connection with ephemeral tokens)
   const {
     isConnected,
@@ -174,7 +193,7 @@ export default function ChatPage() {
     audioToPlay,
     onAudioPlaybackComplete,
     onAudioPlaybackError,
-  } = useGeminiChat(aiRole || undefined, userId || undefined);
+  } = useGeminiChat(aiRole || undefined, userId || undefined, handleTaskComplete);
 
   // Session timer state
   const [showSummary, setShowSummary] = useState(false);
@@ -214,6 +233,13 @@ export default function ChatPage() {
       // Convert to AIRole for Gemini
       const role = convertToAIRole(config, defaultVocab.map(v => v.word));
       setAiRole(role);
+
+      // Initialize tasks if present
+      console.log('[ChatPage] Config tasks:', config.tasks);
+      if (config.tasks?.length) {
+        console.log('[ChatPage] Initializing tasks:', config.tasks);
+        setTasks(config.tasks.map(t => ({ ...t, completed: false })));
+      }
 
       // Check if this is the user's first session (from sessionStorage flag)
       const firstSessionFlag = sessionStorage.getItem('isFirstSession');
@@ -492,6 +518,17 @@ export default function ChatPage() {
           ) : undefined
         }
       />
+
+      {/* Tasks panel - only show if tasks exist */}
+      {tasks.length > 0 && (
+        <div style={{ padding: '0 16px', marginTop: '8px' }}>
+          <TasksPanel
+            tasks={tasks}
+            isCollapsed={tasksCollapsed}
+            onToggleCollapse={() => setTasksCollapsed(prev => !prev)}
+          />
+        </div>
+      )}
 
       {/* Vocab tracker */}
       <VocabTracker words={vocabWords} />

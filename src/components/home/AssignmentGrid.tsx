@@ -16,6 +16,7 @@ export interface LessonWithCompletion {
   image?: string;
   teacherId?: string;
   isFirstLesson?: boolean;
+  tasks?: Array<{ id: string; text: string }>;
 }
 
 interface AssignmentGridProps {

@@ -3,7 +3,7 @@ import { AppColors } from '../../theme/colors';
 import { XIcon } from '../../theme/icons';
 import { InputField, SelectField, ImageUpload } from '../forms';
 import type { LessonFormData } from '../../types/dashboard';
-import type { PromptTemplateDocument, ProficiencyLevel, UserDocument } from '../../types/firestore';
+import type { PromptTemplateDocument, ProficiencyLevel, UserDocument, LessonTask } from '../../types/firestore';
 
 interface LessonFormModalProps {
   isOpen: boolean;
@@ -29,6 +29,8 @@ interface LessonFormModalProps {
   // Private student assignment
   privateStudents?: UserDocument[];
   onAssignedStudentsChange?: (studentIds: string[]) => void;
+  // Lesson tasks
+  onTasksChange?: (tasks: LessonTask[]) => void;
 }
 
 const LEVEL_OPTIONS = [
@@ -64,6 +66,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   onSaveAsTemplate,
   privateStudents = [],
   onAssignedStudentsChange,
+  onTasksChange,
 }) => {
   const hasAssignedStudents = (formData.assignedStudentIds?.length || 0) > 0;
 
@@ -86,6 +89,35 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   const handleDurationChange = (value: string) => {
     const num = parseInt(value) || 15;
     onDurationChange(Math.min(60, Math.max(1, num)));
+  };
+
+  // Task management handlers
+  const handleTaskChange = (index: number, text: string) => {
+    if (!onTasksChange) return;
+    const currentTasks = formData.tasks || [];
+    const updatedTasks = currentTasks.map((task, i) =>
+      i === index ? { ...task, text } : task
+    );
+    onTasksChange(updatedTasks);
+  };
+
+  const handleAddTask = () => {
+    if (!onTasksChange) return;
+    const currentTasks = formData.tasks || [];
+    const newTask: LessonTask = {
+      id: `task-${currentTasks.length + 1}`,
+      text: '',
+    };
+    onTasksChange([...currentTasks, newTask]);
+  };
+
+  const handleRemoveTask = (index: number) => {
+    if (!onTasksChange) return;
+    const currentTasks = formData.tasks || [];
+    const updatedTasks = currentTasks
+      .filter((_, i) => i !== index)
+      .map((task, i) => ({ ...task, id: `task-${i + 1}` })); // Re-index IDs
+    onTasksChange(updatedTasks);
   };
 
   return (
@@ -267,6 +299,129 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
             }}
           />
         </div>
+
+        {/* Lesson Tasks (Optional) */}
+        {onTasksChange && (
+          <div style={{ marginBottom: 'clamp(12px, 3vw, 16px)' }}>
+            <label
+              style={{
+                display: 'block',
+                fontSize: 'clamp(12px, 2.5vw, 14px)',
+                fontWeight: 500,
+                color: AppColors.textSecondary,
+                marginBottom: 'clamp(4px, 1vw, 6px)',
+              }}
+            >
+              Lesson Tasks (Optional)
+            </label>
+
+            {/* Task list */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {(formData.tasks || []).map((task, index) => (
+                <div
+                  key={task.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '50%',
+                      border: `2px solid ${AppColors.borderColor}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '12px',
+                      color: AppColors.textSecondary,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {index + 1}
+                  </span>
+                  <input
+                    type="text"
+                    placeholder={`Task ${index + 1}: e.g., "Order a drink"`}
+                    value={task.text}
+                    onChange={(e) => handleTaskChange(index, e.target.value)}
+                    style={{
+                      flex: 1,
+                      height: 'clamp(40px, 8vw, 44px)',
+                      background: AppColors.surfaceLight,
+                      border: `1px solid ${AppColors.borderColor}`,
+                      borderRadius: 'clamp(8px, 2vw, 10px)',
+                      padding: '0 clamp(10px, 2.5vw, 12px)',
+                      color: AppColors.textPrimary,
+                      fontSize: 'clamp(14px, 3vw, 15px)',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTask(index)}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '18px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+
+              {/* Add Task button */}
+              <button
+                type="button"
+                onClick={handleAddTask}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  height: 'clamp(40px, 8vw, 44px)',
+                  background: 'transparent',
+                  border: `1px dashed ${AppColors.borderColor}`,
+                  borderRadius: 'clamp(8px, 2vw, 10px)',
+                  color: AppColors.textSecondary,
+                  fontSize: 'clamp(13px, 2.8vw, 14px)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = AppColors.accentPurple;
+                  e.currentTarget.style.color = AppColors.accentPurple;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = AppColors.borderColor;
+                  e.currentTarget.style.color = AppColors.textSecondary;
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>+</span>
+                Add Task
+              </button>
+            </div>
+
+            <p style={{
+              fontSize: 'clamp(11px, 2.2vw, 12px)',
+              color: AppColors.textSecondary,
+              margin: 'clamp(8px, 2vw, 10px) 0 0 0',
+            }}>
+              Students will see checkmarks as they complete each task. The AI marks tasks complete automatically.
+            </p>
+          </div>
+        )}
 
         {/* First Lesson Toggle */}
         <div
