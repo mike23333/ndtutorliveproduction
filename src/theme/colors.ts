@@ -1,59 +1,67 @@
 /**
  * App Color System
- * Vibrant purple/indigo gradient palette
+ *
+ * A restrained purple/indigo palette.
+ * Each value has one purpose. Aliases exist only for semantic clarity.
  */
 
 export const AppColors = {
-  // === Gradient Colors ===
-  gradientStart: '#1e3a8a', // blue-900
-  gradientMid: '#5b21b6',   // violet-900
-  gradientEnd: '#1e1b4b',   // indigo-950
+  // === Gradient ===
+  gradientStart: '#1e3a8a',
+  gradientMid: '#5b21b6',
+  gradientEnd: '#1e1b4b',
 
-  // === Background Hierarchy ===
-  bgPrimary: '#1e1b4b',     // indigo-950 (darkest)
-  bgSecondary: '#252047',   // slightly lighter
-  bgTertiary: '#2d2854',    // card backgrounds
-  bgElevated: '#363161',    // elevated elements
+  // === Backgrounds (solid, darkest to lightest) ===
+  bgPrimary: '#1e1b4b',
+  bgSecondary: '#252047',
+  bgTertiary: '#2d2854',
+  bgElevated: '#363161',
 
-  // === Surface Colors (with transparency) ===
-  surfaceLight: 'rgba(255, 255, 255, 0.1)',
-  surfaceMedium: 'rgba(99, 102, 241, 0.2)', // indigo-500/20
+  // === Surfaces (transparent overlays, consistent 0.05 steps) ===
+  surface05: 'rgba(255, 255, 255, 0.05)',
+  surface10: 'rgba(255, 255, 255, 0.10)',
+  surface15: 'rgba(255, 255, 255, 0.15)',
+  surface20: 'rgba(255, 255, 255, 0.20)',
   surfaceDark: 'rgba(30, 27, 75, 0.95)',
+  // Semantic aliases
+  surfaceLight: 'rgba(255, 255, 255, 0.10)',
   surfaceHover: 'rgba(255, 255, 255, 0.15)',
 
-  // === Text Colors ===
+  // === Text ===
   textPrimary: '#ffffff',
-  textSecondary: '#d8b4fe',  // purple-300
-  textMuted: 'rgba(216, 180, 254, 0.6)', // purple-300/60
-  textDark: '#1e1b4b',       // indigo-950
+  textSecondary: '#d8b4fe',
+  textMuted: 'rgba(216, 180, 254, 0.6)',
+  textDark: '#1e1b4b',
 
-  // === Accent Colors ===
-  accent: '#d8b4fe',         // purple-300 (primary accent)
-  accentHover: '#e9d5ff',    // purple-200
+  // === Accent (purple-300 is the signature) ===
+  accent: '#d8b4fe',
+  accentHover: '#e9d5ff',
   accentMuted: 'rgba(216, 180, 254, 0.15)',
   accentSubtle: 'rgba(216, 180, 254, 0.08)',
-  accentPurple: '#d8b4fe',   // purple-300
-  accentBlue: '#60a5fa',     // blue-400
 
-  // === Semantic Colors ===
-  success: '#4ade80',        // green-400
-  successGreen: '#4ade80',   // green-400 (alias)
+  // === Semantic ===
+  success: '#4ade80',
   successMuted: 'rgba(74, 222, 128, 0.15)',
-  warning: '#fbbf24',        // amber-400
-  whisperAmber: '#fbbf24',   // amber-400 (alias)
-  error: '#f87171',          // red-400
-  errorRose: '#f87171',      // red-400 (alias)
-  errorRed: '#f87171',       // alias
+  warning: '#fbbf24',
+  warningMuted: 'rgba(251, 191, 36, 0.15)',
+  error: '#f87171',
   errorMuted: 'rgba(248, 113, 113, 0.15)',
 
-  // === Border ===
-  borderColor: 'rgba(129, 140, 248, 0.3)', // indigo-400/30
-  borderHover: 'rgba(129, 140, 248, 0.5)',
-  borderAccent: 'rgba(216, 180, 254, 0.4)',
+  // === Borders (lighter than before for breathing room) ===
+  borderColor: 'rgba(129, 140, 248, 0.2)',
+  borderHover: 'rgba(129, 140, 248, 0.35)',
+  borderAccent: 'rgba(216, 180, 254, 0.3)',
 
-  // === Legacy Aliases ===
+  // === Legacy aliases (for backward compatibility, prefer canonical names) ===
   primary: '#d8b4fe',
+  accentPurple: '#d8b4fe',
+  accentBlue: '#60a5fa',
   secondary: '#60a5fa',
+  successGreen: '#4ade80',
+  whisperAmber: '#fbbf24',
+  errorRose: '#f87171',
+  errorRed: '#f87171',
+  surfaceMedium: 'rgba(255, 255, 255, 0.15)',
 } as const;
 
 // Type for the colors object

@@ -21,10 +21,8 @@ import { LEVEL_CONFIGS } from '../types/ai-role';
 import {
   ChatBubble,
   ScenarioHeader,
-  VocabTracker,
   ModeIndicator,
   ChatControlBar,
-  type VocabWord
 } from '../components/chat';
 
 // Tasks panel component
@@ -129,23 +127,6 @@ function convertToAIRole(config: RoleConfig, targetVocab: string[]): AIRole {
   };
 }
 
-/**
- * Get default vocabulary for a scenario
- */
-function getDefaultVocab(roleId: string): VocabWord[] {
-  const vocabMap: Record<string, string[]> = {
-    barista: ['medium', 'latte', 'receipt'],
-    hotel: ['reservation', 'check-in', 'room'],
-    shop: ['price', 'discount', 'cash'],
-    tourist: ['station', 'directions', 'left'],
-    tutor: ['grammar', 'pronunciation', 'practice'],
-    grammar: ['tense', 'verb', 'correct'],
-  };
-
-  const words = vocabMap[roleId] || ['hello', 'please', 'thank you'];
-  return words.map(word => ({ word, used: false }));
-}
-
 export default function ChatPage() {
   const navigate = useNavigate();
   useParams(); // roleId available from URL if needed
@@ -155,8 +136,6 @@ export default function ChatPage() {
   // State
   const [roleConfig, setRoleConfig] = useState<RoleConfig | null>(null);
   const [aiRole, setAiRole] = useState<AIRole | null>(null);
-  const [progress, setProgress] = useState(15);
-  const [vocabWords, setVocabWords] = useState<VocabWord[]>([]);
 
   // Tasks state
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -226,12 +205,8 @@ export default function ChatPage() {
       const config: RoleConfig = JSON.parse(stored);
       setRoleConfig(config);
 
-      // Set default vocab based on scenario
-      const defaultVocab = getDefaultVocab(config.id);
-      setVocabWords(defaultVocab);
-
       // Convert to AIRole for Gemini
-      const role = convertToAIRole(config, defaultVocab.map(v => v.word));
+      const role = convertToAIRole(config, []);
       setAiRole(role);
 
       // Initialize tasks if present
@@ -256,21 +231,6 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Track vocab usage in messages
-  useEffect(() => {
-    const allText = messages.map(m => m.text.toLowerCase()).join(' ');
-    setVocabWords(prev => prev.map(v => ({
-      ...v,
-      used: allText.includes(v.word.toLowerCase())
-    })));
-  }, [messages]);
-
-  // Update progress based on vocab usage
-  useEffect(() => {
-    const usedCount = vocabWords.filter(v => v.used).length;
-    setProgress(Math.min(15 + usedCount * 25, 100));
-  }, [vocabWords]);
 
   // Show summary modal when session summary is received
   useEffect(() => {
@@ -499,7 +459,6 @@ export default function ChatPage() {
         scenario={roleConfig.name}
         tone={roleConfig.tone || 'friendly'}
         level={roleConfig.level}
-        progress={progress}
         icon={ROLE_ICONS[roleConfig.id] || <CoffeeIcon />}
         isConnected={isConnected}
         isConnecting={isConnecting}
@@ -530,8 +489,6 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Vocab tracker */}
-      <VocabTracker words={vocabWords} />
 
       {/* Mode indicator */}
       <ModeIndicator

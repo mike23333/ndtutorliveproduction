@@ -17,16 +17,39 @@ interface AnimatedCheckProps {
   completed: boolean;
 }
 
+/**
+ * Minimal list icon - replaces emoji for visual consistency
+ */
+function ListIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={AppColors.textSecondary}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <circle cx="4" cy="6" r="1" fill={AppColors.textSecondary} stroke="none" />
+      <circle cx="4" cy="12" r="1" fill={AppColors.textSecondary} stroke="none" />
+      <circle cx="4" cy="18" r="1" fill={AppColors.textSecondary} stroke="none" />
+    </svg>
+  );
+}
+
 function AnimatedCheck({ completed }: AnimatedCheckProps) {
   const [showCheck, setShowCheck] = useState(completed);
   const [isAnimating, setIsAnimating] = useState(false);
 
   useEffect(() => {
     if (completed && !showCheck) {
-      // Trigger animation when newly completed
       setIsAnimating(true);
       setShowCheck(true);
-      // Reset animation state after animation completes
       const timer = setTimeout(() => setIsAnimating(false), 400);
       return () => clearTimeout(timer);
     } else if (!completed) {
@@ -39,22 +62,22 @@ function AnimatedCheck({ completed }: AnimatedCheckProps) {
     <div
       style={{
         flexShrink: 0,
-        width: '24px',
-        height: '24px',
+        width: '20px',
+        height: '20px',
         borderRadius: '50%',
-        border: showCheck ? 'none' : `2px solid ${AppColors.borderColor}`,
-        backgroundColor: showCheck ? AppColors.accentBlue : 'transparent',
+        border: showCheck ? 'none' : `1.5px solid ${AppColors.borderHover}`,
+        backgroundColor: showCheck ? AppColors.success : 'transparent',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         transition: 'all 0.2s ease',
-        transform: isAnimating ? 'scale(1.15)' : 'scale(1)',
+        transform: isAnimating ? 'scale(1.2)' : 'scale(1)',
       }}
     >
       {showCheck && (
         <svg
-          width="14"
-          height="14"
+          width="11"
+          height="11"
           viewBox="0 0 24 24"
           fill="none"
           stroke="white"
@@ -62,7 +85,8 @@ function AnimatedCheck({ completed }: AnimatedCheckProps) {
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
-            transform: isAnimating ? 'scale(1.2)' : 'scale(1)',
+            opacity: isAnimating ? 1 : 0.95,
+            transform: isAnimating ? 'scale(1.1)' : 'scale(1)',
             transition: 'transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)',
           }}
         >
@@ -73,18 +97,19 @@ function AnimatedCheck({ completed }: AnimatedCheckProps) {
   );
 }
 
-function TaskRow({ task, isLast }: { task: TaskItem; isLast: boolean }) {
+function TaskRow({ task }: { task: TaskItem }) {
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'flex-start',
         gap: '12px',
-        padding: '12px 16px',
-        borderBottom: isLast ? 'none' : `1px solid ${AppColors.borderColor}`,
+        padding: '10px 16px',
       }}
     >
-      <AnimatedCheck completed={task.completed} />
+      <div style={{ paddingTop: '2px' }}>
+        <AnimatedCheck completed={task.completed} />
+      </div>
       <p
         style={{
           margin: 0,
@@ -92,7 +117,7 @@ function TaskRow({ task, isLast }: { task: TaskItem; isLast: boolean }) {
           lineHeight: 1.5,
           color: task.completed ? AppColors.textMuted : AppColors.textPrimary,
           textDecoration: task.completed ? 'line-through' : 'none',
-          transition: 'all 0.2s ease',
+          transition: 'color 0.2s ease, text-decoration 0.2s ease',
         }}
       >
         {task.text}
@@ -104,19 +129,18 @@ function TaskRow({ task, isLast }: { task: TaskItem; isLast: boolean }) {
 export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelProps) {
   const completedCount = tasks.filter(t => t.completed).length;
   const totalCount = tasks.length;
-  const allCompleted = completedCount === totalCount;
+  const allCompleted = completedCount === totalCount && totalCount > 0;
 
   return (
     <div
       style={{
-        backgroundColor: AppColors.surfaceDark,
-        borderRadius: radius.lg,
-        border: `1px solid ${AppColors.borderColor}`,
+        backgroundColor: AppColors.bgTertiary,
+        borderRadius: radius.md,
         overflow: 'hidden',
         marginBottom: '12px',
       }}
     >
-      {/* Header - always visible */}
+      {/* Header */}
       <button
         onClick={onToggleCollapse}
         style={{
@@ -128,16 +152,16 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
-          borderBottom: isCollapsed ? 'none' : `1px solid ${AppColors.borderColor}`,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span style={{ fontSize: '16px' }}>📋</span>
+          <ListIcon />
           <span
             style={{
               fontSize: '14px',
               fontWeight: 600,
               color: AppColors.textPrimary,
+              letterSpacing: '-0.01em',
             }}
           >
             Tasks
@@ -145,13 +169,14 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
           <span
             style={{
               fontSize: '12px',
-              fontWeight: 500,
-              color: allCompleted ? AppColors.success : AppColors.textSecondary,
+              fontWeight: 600,
+              color: allCompleted ? AppColors.success : AppColors.textMuted,
               backgroundColor: allCompleted
-                ? 'rgba(16, 185, 129, 0.15)'
-                : AppColors.surfaceLight,
-              padding: '2px 8px',
-              borderRadius: '10px',
+                ? AppColors.successMuted
+                : AppColors.surface10,
+              padding: '3px 10px',
+              borderRadius: radius.full,
+              transition: 'all 0.2s ease',
             }}
           >
             {completedCount}/{totalCount}
@@ -162,7 +187,7 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
           height="16"
           viewBox="0 0 24 24"
           fill="none"
-          stroke={AppColors.textSecondary}
+          stroke={AppColors.textMuted}
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -175,20 +200,17 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
         </svg>
       </button>
 
-      {/* Task list - expandable */}
+      {/* Task list */}
       <div
         style={{
-          maxHeight: isCollapsed ? '0px' : `${tasks.length * 60 + 20}px`,
+          maxHeight: isCollapsed ? '0px' : `${tasks.length * 44 + 8}px`,
           overflow: 'hidden',
           transition: 'max-height 0.25s ease-in-out',
+          paddingBottom: isCollapsed ? 0 : '4px',
         }}
       >
-        {tasks.map((task, index) => (
-          <TaskRow
-            key={task.id}
-            task={task}
-            isLast={index === tasks.length - 1}
-          />
+        {tasks.map((task) => (
+          <TaskRow key={task.id} task={task} />
         ))}
       </div>
     </div>

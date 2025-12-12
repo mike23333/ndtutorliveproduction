@@ -11,7 +11,6 @@ interface ScenarioHeaderProps {
   scenario: string;
   tone: string;
   level: string;
-  progress: number;
   icon: React.ReactNode;
   isConnected: boolean;
   isConnecting: boolean;
@@ -26,7 +25,6 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
   scenario,
   tone,
   level,
-  progress: _progress, // Reserved for future progress bar feature
   icon,
   isConnected,
   isConnecting,

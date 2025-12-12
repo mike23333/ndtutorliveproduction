@@ -125,10 +125,10 @@ export class GeminiDirectClient {
       realtimeInputConfig: {
         automaticActivityDetection: {
           disabled: false,
-          startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
-          endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
-          prefixPaddingMs: 200,
-          silenceDurationMs: 500
+          startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',   // Avoid triggering on hesitation sounds
+          endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',       // Don't cut off during thinking pauses
+          prefixPaddingMs: 300,                                 // Capture slightly more lead-in
+          silenceDurationMs: 1500                               // 1.5 seconds - gives time to think
         }
       },
       // Session resumption - pass handle if we have one
