@@ -115,6 +115,9 @@ export class GeminiDirectClient {
   private buildLiveConfig(): any {
     const config: any = {
       responseModalities: [Modality.AUDIO],
+      // Enable audio transcription for chat bubbles
+      outputAudioTranscription: {},  // Transcribe AI's spoken responses
+      inputAudioTranscription: {},   // Transcribe user's spoken input
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
@@ -196,6 +199,18 @@ export class GeminiDirectClient {
       // Turn complete
       if (content.turnComplete) {
         this.callbacks.onTurnComplete?.();
+      }
+
+      // Output transcription (AI's spoken response transcribed to text)
+      if (content.outputTranscription?.text) {
+        console.log('[GeminiClient] Output transcription:', content.outputTranscription.text);
+        this.callbacks.onOutputTranscription?.(content.outputTranscription.text);
+      }
+
+      // Input transcription (user's spoken input transcribed to text)
+      if (content.inputTranscription?.text) {
+        console.log('[GeminiClient] Input transcription:', content.inputTranscription.text);
+        this.callbacks.onInputTranscription?.(content.inputTranscription.text);
       }
     }
 

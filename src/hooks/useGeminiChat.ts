@@ -165,6 +165,8 @@ export function useGeminiChat(
   const recentReviewItems = useRef<Map<string, number>>(new Map()); // Deduplication map: key -> timestamp
   const recentMasteryMarks = useRef<Map<string, number>>(new Map()); // Rate limiting for mark_item_mastered
   const audioPlaybackResolverRef = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
+  const outputTranscriptionBuffer = useRef<string>(''); // Accumulate AI transcription chunks
+  const inputTranscriptionBuffer = useRef<string>(''); // Accumulate user transcription chunks
 
   /**
    * Generate next message ID
@@ -755,14 +757,46 @@ Base your assessment on our entire conversation. Call the show_session_summary f
           stopAudioStreaming();
         },
         onAudio: (audioData: ArrayBuffer) => {
+          // AI is responding - flush user's transcription buffer first
+          if (inputTranscriptionBuffer.current.trim()) {
+            console.log('[Gemini] Flushing user message (AI responding):', inputTranscriptionBuffer.current);
+            addMessage(inputTranscriptionBuffer.current.trim(), true, false);
+            inputTranscriptionBuffer.current = '';
+          }
           playAudioResponse(audioData);
         },
         onText: (text: string) => {
-          console.log('[Gemini] Received text:', text);
-          addMessage(text, false, false);
+          // Text responses are typically the model's "thinking" output
+          // We use transcription for actual spoken content, so just log this
+          console.log('[Gemini] Received text (not displayed - using transcription):', text.substring(0, 80));
+        },
+        // Transcription callbacks - show transcribed speech in chat bubbles
+        onOutputTranscription: (text: string) => {
+          // AI is responding - flush user's transcription buffer first
+          if (inputTranscriptionBuffer.current.trim()) {
+            console.log('[Gemini] Flushing user message (AI transcription starting):', inputTranscriptionBuffer.current);
+            addMessage(inputTranscriptionBuffer.current.trim(), true, false);
+            inputTranscriptionBuffer.current = '';
+          }
+          // Accumulate AI transcription chunks (they come in small pieces)
+          outputTranscriptionBuffer.current += text;
+          console.log('[Gemini] Output transcription chunk:', text);
+        },
+        onInputTranscription: (text: string) => {
+          // Accumulate user transcription chunks
+          inputTranscriptionBuffer.current += text;
+          console.log('[Gemini] Input transcription chunk:', text);
         },
         onTurnComplete: () => {
           console.log('[Gemini] Turn complete');
+
+          // Flush accumulated AI transcription as a single message
+          if (outputTranscriptionBuffer.current.trim()) {
+            console.log('[Gemini] Adding AI message:', outputTranscriptionBuffer.current);
+            addMessage(outputTranscriptionBuffer.current.trim(), false, false);
+            outputTranscriptionBuffer.current = ''; // Clear buffer
+          }
+
           // Clear the audio buffer to start fresh for user's next turn
           try {
             getWebAudioManager().clearTurnBuffer();

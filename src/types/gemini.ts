@@ -58,6 +58,9 @@ export interface GeminiClientCallbacks {
   onUsageMetadata: (metadata: UsageMetadata) => void;
   onConnected: () => void;
   onDisconnected: () => void;
+  // Transcription callbacks (Gemini Live API audio transcription)
+  onOutputTranscription: (text: string) => void;
+  onInputTranscription: (text: string) => void;
   // Function calling callbacks
   onToolCall: (functionCalls: GeminiFunctionCall[]) => Promise<GeminiFunctionResponse[]>;
 }

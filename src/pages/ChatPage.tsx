@@ -188,14 +188,25 @@ export default function ChatPage() {
   const mutedForAudioPlayback = useRef(false);
 
   // Convert gemini messages to local Message format
+  // Filter out the initial "Hi" message (auto-sent to start conversation)
   const messages: Message[] = useMemo(() => {
-    return geminiMessages.map(msg => ({
-      id: msg.id,
-      text: msg.text,
-      isUser: msg.isUser,
-      isWhisper: msg.isWhisper,
-      translation: msg.translation
-    }));
+    // Find and skip the first user message if it's the auto-sent "Hi"
+    let skipFirstHi = true;
+    return geminiMessages
+      .filter(msg => {
+        if (skipFirstHi && msg.isUser && msg.text.toLowerCase() === 'hi') {
+          skipFirstHi = false; // Only skip the first one
+          return false;
+        }
+        return true;
+      })
+      .map(msg => ({
+        id: msg.id,
+        text: msg.text,
+        isUser: msg.isUser,
+        isWhisper: msg.isWhisper,
+        translation: msg.translation
+      }));
   }, [geminiMessages]);
 
   // Load role config from session storage

@@ -71,6 +71,9 @@ class TokenService:
         if lock_config:
             live_config = {
                 'response_modalities': ['AUDIO'],
+                # Enable audio transcription for chat bubbles
+                'output_audio_transcription': {},  # Transcribe AI's spoken responses
+                'input_audio_transcription': {},   # Transcribe user's spoken input
                 'session_resumption': {},
                 'context_window_compression': {
                     'sliding_window': {}
