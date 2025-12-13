@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route, useParams } from 'react-router-
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import MainLayout from './components/layout/MainLayout';
 import HomePage from './pages/HomePage';
 import ChatPage from './pages/ChatPage';
 import TeacherDashboard from './pages/TeacherDashboard';
@@ -38,7 +39,9 @@ function App() {
               {/* Protected routes - require auth */}
               <Route path="/join-class" element={
                 <ProtectedRoute>
-                  <JoinClassPage />
+                  <MainLayout>
+                    <JoinClassPage />
+                  </MainLayout>
                 </ProtectedRoute>
               } />
 
@@ -50,7 +53,9 @@ function App() {
 
               <Route path="/" element={
                 <ProtectedRoute>
-                  <HomePage />
+                  <MainLayout>
+                    <HomePage />
+                  </MainLayout>
                 </ProtectedRoute>
               } />
               <Route path="/chat" element={
@@ -66,24 +71,32 @@ function App() {
               {/* Teacher only route */}
               <Route path="/teacher" element={
                 <ProtectedRoute allowedRoles={['teacher', 'admin']}>
-                  <TeacherDashboard />
+                  <MainLayout>
+                    <TeacherDashboard />
+                  </MainLayout>
                 </ProtectedRoute>
               } />
 
               {/* Profile and Badges routes */}
               <Route path="/profile" element={
                 <ProtectedRoute>
-                  <ProfilePage />
+                  <MainLayout>
+                    <ProfilePage />
+                  </MainLayout>
                 </ProtectedRoute>
               } />
               <Route path="/badges" element={
                 <ProtectedRoute>
-                  <BadgesPage />
+                  <MainLayout>
+                    <BadgesPage />
+                  </MainLayout>
                 </ProtectedRoute>
               } />
               <Route path="/roleplay" element={
                 <ProtectedRoute>
-                  <RolePlayPage />
+                  <MainLayout>
+                    <RolePlayPage />
+                  </MainLayout>
                 </ProtectedRoute>
               } />
               <Route path="/roleplay/:scenarioId" element={
