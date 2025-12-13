@@ -5,6 +5,12 @@ import { InputField, SelectField, ImageUpload } from '../forms';
 import type { LessonFormData } from '../../types/dashboard';
 import type { PromptTemplateDocument, ProficiencyLevel, UserDocument, LessonTask } from '../../types/firestore';
 
+// Collection type for dropdown
+interface CollectionOption {
+  id: string;
+  title: string;
+}
+
 interface LessonFormModalProps {
   isOpen: boolean;
   isEditing: boolean;
@@ -31,6 +37,10 @@ interface LessonFormModalProps {
   onAssignedStudentsChange?: (studentIds: string[]) => void;
   // Lesson tasks
   onTasksChange?: (tasks: LessonTask[]) => void;
+  // RolePlay Collections
+  collections?: CollectionOption[];
+  onCollectionChange?: (collectionId: string | null) => void;
+  onShowOnHomepageChange?: (show: boolean) => void;
 }
 
 const LEVEL_OPTIONS = [
@@ -67,6 +77,10 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   privateStudents = [],
   onAssignedStudentsChange,
   onTasksChange,
+  // RolePlay Collections
+  collections = [],
+  onCollectionChange,
+  onShowOnHomepageChange,
 }) => {
   const hasAssignedStudents = (formData.assignedStudentIds?.length || 0) > 0;
 
@@ -200,6 +214,98 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           value={formData.targetLevel || ''}
           onChange={(value) => onTargetLevelChange(value ? value as ProficiencyLevel : null)}
         />
+
+        {/* RolePlay Collection Selector */}
+        {collections.length > 0 && onCollectionChange && (
+          <SelectField
+            label="RolePlay Collection"
+            options={[
+              { value: '', label: 'No collection (standalone lesson)' },
+              ...collections.map(c => ({ value: c.id, label: c.title })),
+            ]}
+            value={formData.collectionId || ''}
+            onChange={(value) => onCollectionChange(value || null)}
+          />
+        )}
+
+        {/* Show on Homepage Toggle */}
+        {onShowOnHomepageChange && (
+          <div
+            style={{
+              marginBottom: 'clamp(12px, 3vw, 16px)',
+              padding: 'clamp(12px, 3vw, 16px)',
+              background: formData.showOnHomepage !== false
+                ? 'rgba(16, 185, 129, 0.1)'
+                : AppColors.surfaceLight,
+              border: `1px solid ${formData.showOnHomepage !== false
+                ? 'rgba(16, 185, 129, 0.3)'
+                : AppColors.borderColor}`,
+              borderRadius: 'clamp(8px, 2vw, 12px)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: 'clamp(13px, 2.8vw, 15px)',
+                    fontWeight: 600,
+                    color: AppColors.textPrimary,
+                    marginBottom: '4px',
+                  }}
+                >
+                  🏠 Show on Homepage
+                </label>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: 'clamp(11px, 2.2vw, 12px)',
+                    color: AppColors.textSecondary,
+                  }}
+                >
+                  Display this lesson on students&apos; homepage for quick access
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => onShowOnHomepageChange(formData.showOnHomepage === false)}
+                style={{
+                  width: '52px',
+                  height: '28px',
+                  borderRadius: '14px',
+                  border: 'none',
+                  background: formData.showOnHomepage !== false
+                    ? 'linear-gradient(135deg, #10B981 0%, #059669 100%)'
+                    : AppColors.surfaceMedium,
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'background 0.2s ease',
+                  flexShrink: 0,
+                }}
+              >
+                <div
+                  style={{
+                    width: '22px',
+                    height: '22px',
+                    borderRadius: '50%',
+                    background: 'white',
+                    position: 'absolute',
+                    top: '3px',
+                    left: formData.showOnHomepage !== false ? '27px' : '3px',
+                    transition: 'left 0.2s ease',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }}
+                />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Prompt Template Selector */}
         {promptTemplates.length > 0 && (

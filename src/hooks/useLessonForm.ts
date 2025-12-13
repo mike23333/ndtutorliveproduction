@@ -15,6 +15,9 @@ interface UseLessonFormResult {
   clearImage: () => void;
   setAssignedStudentIds: (studentIds: string[]) => void;
   setTasks: (tasks: LessonTask[]) => void;
+  // RolePlay Collections
+  setCollectionId: (collectionId: string | null) => void;
+  setShowOnHomepage: (show: boolean) => void;
   reset: () => void;
   loadFromLesson: (lesson: LessonData) => void;
   loadFromFormData: (data: LessonFormData) => void;
@@ -35,6 +38,9 @@ const initialFormData: LessonFormData = {
   isFirstLesson: false,
   assignedStudentIds: [],
   tasks: [],
+  // RolePlay Collections - default to showing on homepage
+  collectionId: null,
+  showOnHomepage: true,
 };
 
 export function useLessonForm(): UseLessonFormResult {
@@ -87,6 +93,14 @@ export function useLessonForm(): UseLessonFormResult {
     setFormData(prev => ({ ...prev, tasks }));
   }, []);
 
+  const setCollectionId = useCallback((collectionId: string | null) => {
+    setFormData(prev => ({ ...prev, collectionId }));
+  }, []);
+
+  const setShowOnHomepage = useCallback((showOnHomepage: boolean) => {
+    setFormData(prev => ({ ...prev, showOnHomepage }));
+  }, []);
+
   const reset = useCallback(() => {
     setFormData(initialFormData);
     setSaving(false);
@@ -104,6 +118,9 @@ export function useLessonForm(): UseLessonFormResult {
       isFirstLesson: lesson.isFirstLesson || false,
       assignedStudentIds: lesson.assignedStudentIds || [],
       tasks: lesson.tasks || [],
+      // RolePlay Collections
+      collectionId: lesson.collectionId || null,
+      showOnHomepage: lesson.showOnHomepage !== false, // Default true
     });
   }, []);
 
@@ -126,6 +143,8 @@ export function useLessonForm(): UseLessonFormResult {
     clearImage,
     setAssignedStudentIds,
     setTasks,
+    setCollectionId,
+    setShowOnHomepage,
     reset,
     loadFromLesson,
     loadFromFormData,

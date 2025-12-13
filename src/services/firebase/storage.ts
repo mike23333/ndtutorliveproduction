@@ -111,6 +111,44 @@ export const revokeImagePreview = (previewUrl: string): void => {
 };
 
 /**
+ * Upload collection cover image to Firebase Storage
+ * @param file - File object from input
+ * @param teacherId - Teacher's UID
+ * @returns Download URL and storage path
+ */
+export const uploadCollectionImage = async (
+  file: File,
+  teacherId: string
+): Promise<{ url: string; path: string }> => {
+  if (!storage) {
+    throw new Error('Firebase Storage is not configured.');
+  }
+
+  // Validate the file
+  validateImageFile(file);
+
+  // Create a unique path: collections/{teacherId}/{timestamp}.{ext}
+  const timestamp = Date.now();
+  const extension = file.name.split('.').pop() || 'jpg';
+  const storagePath = `collections/${teacherId}/${timestamp}.${extension}`;
+
+  const storageRef = ref(storage, storagePath);
+
+  // Upload the file with metadata
+  await uploadBytes(storageRef, file, {
+    contentType: file.type,
+    customMetadata: {
+      uploadedBy: teacherId,
+    },
+  });
+
+  // Get the permanent download URL
+  const downloadUrl = await getDownloadURL(storageRef);
+
+  return { url: downloadUrl, path: storagePath };
+};
+
+/**
  * Upload profile photo to Firebase Storage
  * @param file - File object from input
  * @param userId - User's UID

@@ -101,6 +101,50 @@ export interface LessonTask {
 }
 
 /**
+ * Collection visibility states
+ */
+export type CollectionVisibility = 'visible' | 'hidden';
+
+/**
+ * Category presets for collections
+ */
+export const CATEGORY_PRESETS = [
+  'Travel & Dining',
+  'Work & Career',
+  'Daily Life',
+  'Shopping',
+  'Social',
+  'Health & Wellness',
+  'Education',
+  'Entertainment',
+] as const;
+
+export type CategoryPreset = typeof CATEGORY_PRESETS[number];
+
+/**
+ * Collection Document
+ * Collection: collections
+ * Groups of related lessons/scenarios for RolePlay
+ */
+export interface CollectionDocument {
+  id: string;
+  teacherId: string;           // 'system' for standard library, or teacher UID
+  title: string;               // "Restaurant Conversations"
+  description?: string;        // "Essential dining scenarios for travelers"
+  category: string;            // Category name (preset or custom)
+  // Visual
+  imageUrl: string;            // Cover image (required)
+  imageStoragePath?: string;   // Firebase Storage path for cleanup
+  color?: string;              // Theme color (hex) for UI accents
+  // Organization
+  order: number;               // Display order in teacher's dashboard
+  visibility: CollectionVisibility;
+  // Metadata
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+/**
  * Mission Document
  * Collection: missions
  */
@@ -114,7 +158,7 @@ export interface MissionDocument {
   vocabList: VocabularyItem[];
   imageUrl?: string;
   imageStoragePath?: string; // Firebase Storage path for cleanup
-  groupId?: string;
+  groupId?: string; // @deprecated - use collectionId instead
   targetLevel?: ProficiencyLevel;
   isActive: boolean;
   // New fields for enhanced lesson creation
@@ -127,6 +171,11 @@ export interface MissionDocument {
   assignedStudentIds?: string[]; // UIDs of private students assigned to this lesson
   // Lesson tasks/objectives
   tasks?: LessonTask[]; // Optional lesson objectives for task panel
+  // Collection membership
+  collectionId?: string;       // Which collection this belongs to
+  collectionOrder?: number;    // Order within the collection (0-indexed)
+  // Placement control
+  showOnHomepage: boolean;     // Appears in student's assignment grid (default: true)
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -232,6 +281,10 @@ export type CreateMissionInput = Omit<MissionDocument, 'id' | 'createdAt' | 'upd
   id?: string;
 };
 
+export type CreateCollectionInput = Omit<CollectionDocument, 'id' | 'createdAt' | 'updatedAt'> & {
+  id?: string;
+};
+
 export type CreateSessionInput = Omit<SessionDocument, 'id' | 'createdAt' | 'updatedAt'> & {
   id?: string;
 };
@@ -246,6 +299,10 @@ export type UpdateUserInput = Partial<Omit<UserDocument, 'uid' | 'createdAt'>> &
 };
 
 export type UpdateMissionInput = Partial<Omit<MissionDocument, 'id' | 'createdAt'>> & {
+  id: string;
+};
+
+export type UpdateCollectionInput = Partial<Omit<CollectionDocument, 'id' | 'createdAt'>> & {
   id: string;
 };
 

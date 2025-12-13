@@ -9,6 +9,7 @@ import {
   ArrowLeftIcon,
   SettingsIcon,
   UserIcon,
+  BookOpenIcon,
 } from '../theme/icons';
 
 // Hooks
@@ -17,6 +18,7 @@ import { useLessonForm } from '../hooks/useLessonForm';
 import { useClassPulse } from '../hooks/useClassPulse';
 import { useTeacherAnalytics } from '../hooks/useTeacherAnalytics';
 import { usePromptTemplates } from '../hooks/usePromptTemplates';
+import { useCollections } from '../hooks/useCollections';
 
 // Components
 import {
@@ -28,6 +30,7 @@ import {
   TemplatesTab,
   InsightsTab,
   BillingTab,
+  RolePlayTab,
 } from '../components/dashboard';
 import { getStudentsForTeacher } from '../services/firebase/students';
 import type { UserDocument } from '../types/firestore';
@@ -68,6 +71,9 @@ const TeacherDashboard: React.FC = () => {
   } = useTeacherLessons();
 
   const lessonForm = useLessonForm();
+
+  // Collections for RolePlay tab and lesson form dropdown
+  const { collections } = useCollections();
 
   const {
     insights: classPulseInsights,
@@ -380,6 +386,12 @@ const TeacherDashboard: React.FC = () => {
             onClick={() => setActiveTab('templates')}
             icon={<SettingsIcon size={16} />}
           />
+          <TabButton
+            label="Collections"
+            isActive={activeTab === 'roleplay'}
+            onClick={() => setActiveTab('roleplay')}
+            icon={<BookOpenIcon size={16} />}
+          />
         </div>
 
         {/* Tab Content */}
@@ -421,6 +433,10 @@ const TeacherDashboard: React.FC = () => {
             period={analyticsPeriod}
             onPeriodChange={setAnalyticsPeriod}
           />
+        )}
+
+        {activeTab === 'roleplay' && (
+          <RolePlayTab />
         )}
 
         {activeTab === 'templates' && (
@@ -494,6 +510,10 @@ const TeacherDashboard: React.FC = () => {
         privateStudents={privateStudents}
         onAssignedStudentsChange={lessonForm.setAssignedStudentIds}
         onTasksChange={lessonForm.setTasks}
+        // RolePlay Collections
+        collections={collections.map(c => ({ id: c.id, title: c.title }))}
+        onCollectionChange={lessonForm.setCollectionId}
+        onShowOnHomepageChange={lessonForm.setShowOnHomepage}
       />
 
       {/* Save Template Modal */}

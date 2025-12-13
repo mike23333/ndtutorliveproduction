@@ -64,6 +64,22 @@ service cloud.firestore {
       }
     }
 
+    // Collections - groups of lessons for RolePlay
+    // Teachers can manage their own collections
+    // Students can read collections from their assigned teacher
+    match /collections/{collectionId} {
+      allow read: if request.auth != null && (
+        // Teachers can read their own collections
+        resource.data.teacherId == request.auth.uid ||
+        // Students can read collections from their assigned teacher
+        resource.data.teacherId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.teacherId
+      );
+      allow create: if request.auth != null
+        && request.resource.data.teacherId == request.auth.uid;
+      allow update, delete: if request.auth != null
+        && resource.data.teacherId == request.auth.uid;
+    }
+
     // Missions collection - tenant isolation
     // Teachers can manage their own missions
     // Students can only read missions from their assigned teacher

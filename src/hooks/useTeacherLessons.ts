@@ -38,6 +38,10 @@ function mapMissionToLesson(
     assignedStudentIds: mission.assignedStudentIds || [],
     tasks: mission.tasks || [],
     notCompletedStudents: completionStats?.notCompletedStudents || [],
+    // RolePlay Collections
+    collectionId: mission.collectionId || null,
+    collectionOrder: mission.collectionOrder,
+    showOnHomepage: mission.showOnHomepage ?? true,
   };
 }
 
@@ -101,6 +105,9 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       isFirstLesson: data.isFirstLesson || false,
       assignedStudentIds: data.assignedStudentIds?.length ? data.assignedStudentIds : undefined,
       tasks: data.tasks?.length ? data.tasks : undefined,
+      // RolePlay Collections
+      collectionId: data.collectionId || undefined,
+      showOnHomepage: data.showOnHomepage !== false, // Default true
     });
 
     const newLesson = mapMissionToLesson(newMission);

@@ -6,6 +6,7 @@ export interface ScenarioData {
   type: ScenarioType;
   level: LevelKey;
   illustration: string;
+  imageUrl?: string; // Firebase Storage URL for real image
   completed?: boolean;
 }
 
@@ -72,6 +73,7 @@ export function CategorySection({ name, items, onItemClick, onSeeAll }: Category
             type={item.type}
             level={item.level}
             illustration={item.illustration}
+            imageUrl={item.imageUrl}
             completed={item.completed}
             onClick={() => onItemClick?.(item)}
           />

@@ -164,6 +164,11 @@ export function useGeminiChat(
   const sessionEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recentReviewItems = useRef<Map<string, number>>(new Map()); // Deduplication map: key -> timestamp
   const recentMasteryMarks = useRef<Map<string, number>>(new Map()); // Rate limiting for mark_item_mastered
+  const sessionMistakesRef = useRef<Array<{
+    userSentence: string;
+    correction: string;
+    errorType: string;
+  }>>([]); // Track mistakes for end-of-session prompt
   const audioPlaybackResolverRef = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
   const outputTranscriptionBuffer = useRef<string>(''); // Accumulate AI transcription chunks
   const inputTranscriptionBuffer = useRef<string>(''); // Accumulate user transcription chunks
@@ -393,6 +398,13 @@ export function useGeminiChat(
                 missionIdRef.current || undefined,
                 audioBlob // Pass extracted audio for background upload
               );
+
+              // Track mistake for end-of-session prompt
+              sessionMistakesRef.current.push({
+                userSentence: params.user_sentence,
+                correction: params.correction,
+                errorType: params.error_type,
+              });
             }
             responses.push({
               id: fc.id,
@@ -643,13 +655,24 @@ export function useGeminiChat(
 
     console.log('[Gemini] Triggering session end...');
 
-    const endPrompt = `The tutoring session is now ending. Please provide a session summary by calling the show_session_summary function.
+    // Format up to 3 mistakes for the prompt
+    const formatMistakesList = (): string => {
+      const mistakes = sessionMistakesRef.current.slice(0, 3);
+      if (mistakes.length === 0) return '';
+      return mistakes.map(m =>
+        `   - "${m.userSentence}" → "${m.correction}" (${m.errorType})`
+      ).join('\n');
+    };
+
+    const mistakesList = formatMistakesList();
+
+    const endPrompt = `Our time is up! Please wrap up the conversation with a brief, warm goodbye message to the student, then call the show_session_summary function.
 
 Include in your summary:
-1. 2-4 specific things the student did well during our conversation
-2. 2-3 areas they should focus on practicing
-3. A star rating from 1-5 based on their overall performance
-4. A brief encouraging summary paragraph
+1. 2 specific things the student did well
+2. 2-3 areas to focus on practicing. Here are specific mistakes from this session for context:
+${mistakesList}
+3. A star rating from 1-5 based on overall performance
 
 Base your assessment on our entire conversation. Call the show_session_summary function now.`;
 
@@ -748,6 +771,7 @@ Base your assessment on our entire conversation. Call the show_session_summary f
           setConnectionError(null);
           setIsPaused(false);
           setSessionStartTime(new Date());
+          sessionMistakesRef.current = []; // Clear tracked mistakes for new session
           startAudioStreaming();
         },
         onDisconnected: () => {
@@ -964,6 +988,7 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     clearMessages();
     setTokenUsage({ inputTokens: 0, outputTokens: 0, totalTokens: 0 });
     setCanResume(false);
+    sessionMistakesRef.current = []; // Clear tracked mistakes
 
     // Reconnect fresh
     await reconnect();

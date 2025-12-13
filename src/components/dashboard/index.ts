@@ -14,3 +14,5 @@ export { ClassActivitySection } from './ClassActivitySection';
 export { CommonMistakesSection } from './CommonMistakesSection';
 export { MistakeDrillDown } from './MistakeDrillDown';
 export { MistakeCard } from './MistakeCard';
+// RolePlay Collections
+export { RolePlayTab } from './RolePlayTab';

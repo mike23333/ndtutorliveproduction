@@ -4,11 +4,13 @@ import { IllustrationPlaceholder } from './IllustrationPlaceholder';
 interface CollectionCardProps {
   title: string;
   scenes: number;
-  illustration: string;
+  illustration?: string;
+  imageUrl?: string; // Firebase Storage URL
+  color?: string; // Theme color for fallback
   onClick?: () => void;
 }
 
-export function CollectionCard({ title, scenes, illustration, onClick }: CollectionCardProps) {
+export function CollectionCard({ title, scenes, illustration, imageUrl, color: _color, onClick }: CollectionCardProps) {
   return (
     <div
       onClick={onClick}
@@ -31,7 +33,41 @@ export function CollectionCard({ title, scenes, illustration, onClick }: Collect
         e.currentTarget.style.borderColor = AppColors.borderColor;
       }}
     >
-      <IllustrationPlaceholder type={illustration} size="large" />
+      {/* Use real image if provided, otherwise fall back to illustration placeholder */}
+      {imageUrl ? (
+        <div
+          style={{
+            width: '100%',
+            height: '140px',
+            position: 'relative',
+            overflow: 'hidden',
+            borderRadius: '16px 16px 0 0',
+          }}
+        >
+          <img
+            src={imageUrl}
+            alt={title}
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+          {/* Gradient overlay for better text readability */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              height: '50%',
+              background: 'linear-gradient(transparent, rgba(0,0,0,0.3))',
+            }}
+          />
+        </div>
+      ) : (
+        <IllustrationPlaceholder type={illustration || 'default'} size="large" />
+      )}
       <div style={{ padding: '16px' }}>
         <div
           style={{
@@ -44,7 +80,7 @@ export function CollectionCard({ title, scenes, illustration, onClick }: Collect
           {title}
         </div>
         <div style={{ fontSize: '13px', color: AppColors.textSecondary }}>
-          {scenes} Scenes
+          {scenes} {scenes === 1 ? 'Lesson' : 'Lessons'}
         </div>
       </div>
     </div>

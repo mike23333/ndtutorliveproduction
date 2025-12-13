@@ -9,6 +9,7 @@ interface ScenarioItemProps {
   type: ScenarioType;
   level: LevelKey;
   illustration: string;
+  imageUrl?: string; // Firebase Storage URL for real image
   completed?: boolean;
   onClick?: () => void;
 }
@@ -73,6 +74,7 @@ export function ScenarioItem({
   type,
   level,
   illustration,
+  imageUrl,
   completed = false,
   onClick,
 }: ScenarioItemProps) {
@@ -104,7 +106,29 @@ export function ScenarioItem({
       }}
     >
       <div style={{ position: 'relative' }}>
-        <IllustrationPlaceholder type={illustration} size="small" />
+        {imageUrl ? (
+          <div
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              flexShrink: 0,
+            }}
+          >
+            <img
+              src={imageUrl}
+              alt={title}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+            />
+          </div>
+        ) : (
+          <IllustrationPlaceholder type={illustration} size="small" />
+        )}
         {completed && (
           <div
             style={{

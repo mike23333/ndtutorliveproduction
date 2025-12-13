@@ -118,22 +118,6 @@ export const getMissionsForStudent = async (
 };
 
 /**
- * Check if a student's level is compatible with a mission's target level
- * A student can do missions at or below their level
- * e.g., B2 student can do A1, A2, B1, B2 missions
- */
-const LEVEL_ORDER: ProficiencyLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
-
-const isLevelCompatible = (
-  studentLevel: ProficiencyLevel,
-  missionLevel: ProficiencyLevel
-): boolean => {
-  const studentIndex = LEVEL_ORDER.indexOf(studentLevel);
-  const missionIndex = LEVEL_ORDER.indexOf(missionLevel);
-  return missionIndex <= studentIndex;
-};
-
-/**
  * Get count of students for a teacher
  */
 export const getStudentCountForTeacher = async (
@@ -187,11 +171,11 @@ export const getMissionCompletionStats = async (
     // Get all students for this teacher
     const students = await getStudentsForTeacher(teacherId);
 
-    // Filter to students who are eligible for this mission (matching level or compatible)
+    // Filter to students who are eligible for this mission (exact level match)
     const eligibleStudents = students.filter(student => {
       if (!missionLevel) return true; // Mission available to all levels
       if (!student.level) return true; // Student without level can access all
-      return isLevelCompatible(student.level, missionLevel);
+      return student.level === missionLevel;
     });
 
     // Check which students have completed this mission
@@ -257,11 +241,11 @@ export const getAllMissionCompletionStats = async (
     const statsMap: Record<string, MissionCompletionStats> = {};
 
     for (const mission of missions) {
-      // Filter to students who are eligible for this mission
+      // Filter to students who are eligible for this mission (exact level match)
       const eligibleStudents = students.filter(student => {
         if (!mission.targetLevel) return true;
         if (!student.level) return true;
-        return isLevelCompatible(student.level, mission.targetLevel);
+        return student.level === mission.targetLevel;
       });
 
       const completedStudents: UserDocument[] = [];

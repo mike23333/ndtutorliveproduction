@@ -4,7 +4,7 @@ import type { ProficiencyLevel, LessonTask } from './firestore';
 
 export type { LessonTask } from './firestore';
 
-export type TabType = 'lessons' | 'students' | 'insights' | 'billing' | 'templates';
+export type TabType = 'lessons' | 'students' | 'insights' | 'billing' | 'templates' | 'roleplay';
 
 export interface LessonData {
   id: string;
@@ -24,6 +24,10 @@ export interface LessonData {
   assignedStudentIds?: string[]; // For private student assignment
   tasks?: LessonTask[]; // Optional lesson objectives for task panel
   notCompletedStudents?: { uid: string; name: string; level?: ProficiencyLevel }[];
+  // RolePlay Collections
+  collectionId?: string | null;
+  collectionOrder?: number;
+  showOnHomepage?: boolean;
 }
 
 export interface LessonFormData {
@@ -36,6 +40,9 @@ export interface LessonFormData {
   isFirstLesson?: boolean;
   assignedStudentIds?: string[]; // For private student assignment
   tasks?: LessonTask[]; // Optional lesson objectives
+  // RolePlay Collections
+  collectionId?: string | null;
+  showOnHomepage?: boolean;
 }
 
 export interface ClassPulseInsight {

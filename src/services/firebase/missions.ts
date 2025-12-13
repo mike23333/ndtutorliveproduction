@@ -77,6 +77,7 @@ export const createMission = async (
       tone: missionData.tone,
       vocabList: missionData.vocabList || [],
       isActive: missionData.isActive ?? true,
+      showOnHomepage: missionData.showOnHomepage ?? true, // Default to showing on homepage
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };
@@ -93,6 +94,9 @@ export const createMission = async (
     if (missionData.isFirstLesson !== undefined) mission.isFirstLesson = missionData.isFirstLesson;
     if (missionData.assignedStudentIds?.length) mission.assignedStudentIds = missionData.assignedStudentIds;
     if (missionData.tasks?.length) mission.tasks = missionData.tasks;
+    // Collection membership
+    if (missionData.collectionId) mission.collectionId = missionData.collectionId;
+    if (missionData.collectionOrder !== undefined) mission.collectionOrder = missionData.collectionOrder;
 
     // If this is marked as first lesson, clear the flag from other lessons
     if (missionData.isFirstLesson) {
@@ -277,3 +281,163 @@ export const getAllMissions = async (): Promise<MissionDocument[]> => {
 };
 
 // getAvailableMissionsForStudent removed - students now use getMissionsForStudent from students.ts
+
+// ==================== COLLECTION-RELATED FUNCTIONS ====================
+
+/**
+ * Get all lessons for a specific collection
+ * @param collectionId - The collection ID
+ * @param teacherId - The teacher's ID (required for security rules)
+ */
+export const getLessonsForCollection = async (
+  collectionId: string,
+  teacherId: string
+): Promise<MissionDocument[]> => {
+  if (!db) {
+    throw new Error('Firebase is not configured. Please check your environment variables.');
+  }
+
+  try {
+    const missionsRef = collection(db, MISSIONS_COLLECTION);
+    // Must include teacherId in query to satisfy Firestore security rules
+    const q = query(
+      missionsRef,
+      where('teacherId', '==', teacherId),
+      where('collectionId', '==', collectionId),
+      orderBy('collectionOrder', 'asc')
+    );
+    const querySnapshot = await getDocs(q);
+
+    return querySnapshot.docs.map(doc => doc.data() as MissionDocument);
+  } catch (error) {
+    console.error('[missions] Error fetching lessons for collection:', error);
+    throw error;
+  }
+};
+
+/**
+ * Reorder lessons within a collection
+ * Takes an array of lesson IDs in the new order
+ */
+export const reorderCollectionLessons = async (
+  collectionId: string,
+  lessonIds: string[]
+): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase is not configured. Please check your environment variables.');
+  }
+
+  // TypeScript narrowing - capture db after null check
+  const firestore = db;
+
+  try {
+    const { writeBatch } = await import('firebase/firestore');
+    const batch = writeBatch(firestore);
+    const now = Timestamp.now();
+
+    lessonIds.forEach((lessonId, index) => {
+      const missionRef = doc(firestore, MISSIONS_COLLECTION, lessonId);
+      batch.update(missionRef, {
+        collectionOrder: index,
+        updatedAt: now,
+      });
+    });
+
+    await batch.commit();
+    console.log('[missions] Reordered', lessonIds.length, 'lessons in collection:', collectionId);
+  } catch (error) {
+    console.error('[missions] Error reordering lessons:', error);
+    throw error;
+  }
+};
+
+/**
+ * Toggle lesson homepage visibility
+ */
+export const toggleLessonHomepage = async (
+  lessonId: string,
+  showOnHomepage: boolean
+): Promise<void> => {
+  await updateMission({
+    id: lessonId,
+    showOnHomepage,
+  });
+  console.log('[missions] Toggled homepage visibility for lesson:', lessonId, 'to:', showOnHomepage);
+};
+
+/**
+ * Add a lesson to a collection
+ * @param lessonId - The lesson to add
+ * @param collectionId - The collection to add it to
+ * @param teacherId - The teacher's ID (required for security rules)
+ * @param order - Optional order position
+ */
+export const addLessonToCollection = async (
+  lessonId: string,
+  collectionId: string,
+  teacherId: string,
+  order?: number
+): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase is not configured. Please check your environment variables.');
+  }
+
+  try {
+    // If no order specified, get the next order value
+    let lessonOrder = order;
+    if (lessonOrder === undefined) {
+      const existingLessons = await getLessonsForCollection(collectionId, teacherId);
+      lessonOrder = existingLessons.length;
+    }
+
+    await updateMission({
+      id: lessonId,
+      collectionId,
+      collectionOrder: lessonOrder,
+    });
+    console.log('[missions] Added lesson:', lessonId, 'to collection:', collectionId, 'at order:', lessonOrder);
+  } catch (error) {
+    console.error('[missions] Error adding lesson to collection:', error);
+    throw error;
+  }
+};
+
+/**
+ * Remove a lesson from its collection
+ */
+export const removeLessonFromCollection = async (lessonId: string): Promise<void> => {
+  if (!db) {
+    throw new Error('Firebase is not configured. Please check your environment variables.');
+  }
+
+  try {
+    const missionRef = doc(db, MISSIONS_COLLECTION, lessonId);
+    await updateDoc(missionRef, {
+      collectionId: null,
+      collectionOrder: null,
+      updatedAt: Timestamp.now(),
+    });
+    console.log('[missions] Removed lesson from collection:', lessonId);
+  } catch (error) {
+    console.error('[missions] Error removing lesson from collection:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get the next order value for a new lesson in a collection
+ * @param collectionId - The collection ID
+ * @param teacherId - The teacher's ID (required for security rules)
+ */
+export const getNextLessonOrder = async (collectionId: string, teacherId: string): Promise<number> => {
+  try {
+    const lessons = await getLessonsForCollection(collectionId, teacherId);
+    if (lessons.length === 0) return 0;
+
+    const maxOrder = Math.max(...lessons.map(l => l.collectionOrder ?? 0));
+    return maxOrder + 1;
+  } catch (error) {
+    console.error('[missions] Error getting next lesson order:', error);
+    return 0;
+  }
+};
