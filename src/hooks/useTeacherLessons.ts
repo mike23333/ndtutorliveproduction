@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getMissionsForTeacher, createMission, updateMission, deleteMission } from '../services/firebase/missions';
+import { getMissionsForTeacher, createMission, updateMission, deleteMission, getNextLessonOrder } from '../services/firebase/missions';
 import { getAllMissionCompletionStats, MissionCompletionStats } from '../services/firebase/students';
 import { useAuth } from './useAuth';
 import type { MissionDocument } from '../types/firestore';
@@ -89,6 +89,12 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     teacherId: string,
     teacherName: string
   ): Promise<LessonData> => {
+    // If assigning to a collection, get the next order
+    let collectionOrder: number | undefined;
+    if (data.collectionId) {
+      collectionOrder = await getNextLessonOrder(data.collectionId, teacherId);
+    }
+
     const newMission = await createMission({
       teacherId,
       teacherName,
@@ -109,6 +115,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       tasks: data.tasks?.length ? data.tasks : undefined,
       // RolePlay Collections
       collectionId: data.collectionId || undefined,
+      collectionOrder,
       showOnHomepage: data.showOnHomepage !== false, // Default true
     });
 
@@ -121,6 +128,8 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     lessonId: string,
     data: Partial<LessonFormData>
   ): Promise<void> => {
+    if (!user?.uid) return;
+
     const updateData: Record<string, unknown> = { id: lessonId };
 
     if (data.title !== undefined) updateData.title = data.title.trim();
@@ -136,6 +145,24 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     if (data.isFirstLesson !== undefined) updateData.isFirstLesson = data.isFirstLesson;
     if (data.assignedStudentIds !== undefined) updateData.assignedStudentIds = data.assignedStudentIds;
     if (data.tasks !== undefined) updateData.tasks = data.tasks;
+    // RolePlay Collections
+    if (data.collectionId !== undefined) {
+      updateData.collectionId = data.collectionId;
+      // If assigning to a new collection, get the next order
+      if (data.collectionId) {
+        // Check if this is a new collection assignment
+        const currentLesson = lessons.find(l => l.id === lessonId);
+        const isNewCollectionAssignment = !currentLesson?.collectionId || currentLesson.collectionId !== data.collectionId;
+        if (isNewCollectionAssignment) {
+          const collectionOrder = await getNextLessonOrder(data.collectionId, user.uid);
+          updateData.collectionOrder = collectionOrder;
+        }
+      } else {
+        // Removing from collection - clear the order
+        updateData.collectionOrder = null;
+      }
+    }
+    if (data.showOnHomepage !== undefined) updateData.showOnHomepage = data.showOnHomepage;
 
     updateData.functionCallingEnabled = true;
 
@@ -143,6 +170,9 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
 
     // If this lesson was set as first lesson, clear flag from others in local state
     const updatedIsFirstLesson = data.isFirstLesson;
+
+    // Get the collectionOrder that was set (if any)
+    const newCollectionOrder = updateData.collectionOrder as number | null | undefined;
 
     setLessons(prev => prev.map(l => {
       if (l.id === lessonId) {
@@ -156,6 +186,10 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
           imageUrl: data.imageUrl ?? l.imageUrl,
           isFirstLesson: data.isFirstLesson ?? l.isFirstLesson,
           tasks: data.tasks ?? l.tasks,
+          // RolePlay Collections
+          collectionId: data.collectionId !== undefined ? data.collectionId : l.collectionId,
+          collectionOrder: newCollectionOrder !== undefined ? (newCollectionOrder ?? undefined) : l.collectionOrder,
+          showOnHomepage: data.showOnHomepage !== undefined ? data.showOnHomepage : l.showOnHomepage,
         };
       }
       // If setting a new first lesson, clear flag from other lessons
@@ -164,7 +198,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       }
       return l;
     }));
-  }, []);
+  }, [user?.uid, lessons]);
 
   const deleteLessonHandler = useCallback(async (lessonId: string): Promise<void> => {
     await deleteMission(lessonId);

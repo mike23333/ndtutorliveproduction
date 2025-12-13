@@ -19,6 +19,12 @@ interface CategorySectionProps {
 }
 
 export function CategorySection({ name, items, onItemClick, onSeeAll }: CategorySectionProps) {
+  // Group items into pairs for the horizontal scroll
+  const itemPairs: ScenarioData[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    itemPairs.push(items.slice(i, i + 2));
+  }
+
   return (
     <div style={{ marginBottom: '28px' }}>
       <div
@@ -66,20 +72,72 @@ export function CategorySection({ name, items, onItemClick, onSeeAll }: Category
         </button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {items.map((item, idx) => (
-          <ScenarioItem
-            key={idx}
-            title={item.title}
-            type={item.type}
-            level={item.level}
-            illustration={item.illustration}
-            imageUrl={item.imageUrl}
-            completed={item.completed}
-            onClick={() => onItemClick?.(item)}
-          />
+      {/* Horizontal scrollable container */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '12px',
+          overflowX: 'auto',
+          paddingBottom: '8px',
+          scrollSnapType: 'x mandatory',
+          msOverflowStyle: 'none',
+          scrollbarWidth: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {itemPairs.map((pair, pairIdx) => (
+          <div
+            key={pairIdx}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              flexShrink: 0,
+              width: 'calc(100% - 24px)',
+              minWidth: '280px',
+              scrollSnapAlign: 'start',
+            }}
+          >
+            {pair.map((item, idx) => (
+              <ScenarioItem
+                key={idx}
+                title={item.title}
+                type={item.type}
+                level={item.level}
+                illustration={item.illustration}
+                imageUrl={item.imageUrl}
+                completed={item.completed}
+                onClick={() => onItemClick?.(item)}
+              />
+            ))}
+          </div>
         ))}
       </div>
+
+      {/* Scroll indicator dots */}
+      {itemPairs.length > 1 && (
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '6px',
+            marginTop: '12px',
+          }}
+        >
+          {itemPairs.map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: idx === 0 ? AppColors.accent : AppColors.borderColor,
+                transition: 'background-color 0.2s ease',
+              }}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

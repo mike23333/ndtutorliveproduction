@@ -91,7 +91,7 @@ const getLevelColor = (level: string | null): { bg: string; text: string; border
 };
 
 // === Header Component ===
-function Header({ onBackClick, title }: { onBackClick: () => void; title: string }) {
+function Header({ onBackClick }: { onBackClick: () => void }) {
   return (
     <header
       style={{
@@ -122,17 +122,6 @@ function Header({ onBackClick, title }: { onBackClick: () => void; title: string
           <path d="M15 18l-6-6 6-6" />
         </svg>
       </button>
-      <h1
-        style={{
-          margin: 0,
-          fontSize: '24px',
-          fontWeight: '700',
-          color: AppColors.textPrimary,
-          letterSpacing: '-0.5px',
-        }}
-      >
-        {title}
-      </h1>
     </header>
   );
 }
@@ -425,13 +414,15 @@ function FirebaseCategorySection({
   collections,
   selectedLevel,
   onScenarioClick,
+  onCollectionClick,
 }: {
   collections: StudentCollection[];
   selectedLevel: LevelKey | null;
   onScenarioClick: (lessonId: string) => void;
+  onCollectionClick: (collection: StudentCollection) => void;
 }) {
-  // Group lessons by collection category
-  const categorizedLessons: { name: string; items: ScenarioData[] }[] = [];
+  // Group lessons by collection category, keeping reference to original collection
+  const categorizedLessons: { collection: StudentCollection; items: ScenarioData[] }[] = [];
 
   collections.forEach((collection) => {
     const items: ScenarioData[] = collection.lessons
@@ -451,7 +442,7 @@ function FirebaseCategorySection({
 
     if (items.length > 0) {
       categorizedLessons.push({
-        name: collection.title,
+        collection,
         items,
       });
     }
@@ -466,16 +457,14 @@ function FirebaseCategorySection({
       {categorizedLessons.map((category, idx) => (
         <CategorySection
           key={idx}
-          name={category.name}
+          name={category.collection.title}
           items={category.items}
           onItemClick={(scenario) => {
             if (scenario.lessonId) {
               onScenarioClick(scenario.lessonId);
             }
           }}
-          onSeeAll={() => {
-            // Could navigate to collection detail
-          }}
+          onSeeAll={() => onCollectionClick(category.collection)}
         />
       ))}
     </>
@@ -536,10 +525,11 @@ export default function RolePlayPage() {
   const navigate = useNavigate();
   const { user, userDocument } = useAuth();
   const { collections, loading } = useStudentCollections();
-  const [selectedLevel, setSelectedLevel] = useState<LevelKey | null>(null);
   const [showCreateOwnModal, setShowCreateOwnModal] = useState(false);
   const [selectedCollection, setSelectedCollection] = useState<StudentCollection | null>(null);
   const [collectionLevelFilter, setCollectionLevelFilter] = useState<LevelFilter>('all');
+  const [selectedLevelView, setSelectedLevelView] = useState<LevelKey | null>(null);
+  const [levelViewFilter, setLevelViewFilter] = useState<LevelFilter>('all');
   const [selectedLesson, setSelectedLesson] = useState<LessonDetailData | null>(null);
   const [showLessonModal, setShowLessonModal] = useState(false);
 
@@ -571,8 +561,41 @@ export default function RolePlayPage() {
   }));
 
   const handleLevelClick = useCallback((level: LevelData) => {
-    setSelectedLevel((prev) => (prev === level.key ? null : level.key));
+    // Open the level detail view with the clicked level as initial filter
+    setSelectedLevelView(level.key);
+    setLevelViewFilter(level.key);
   }, []);
+
+  // Get all lessons from all collections
+  const getAllLessons = useCallback((): StudentLesson[] => {
+    const allLessons: StudentLesson[] = [];
+    collections.forEach((col) => {
+      col.lessons.forEach((lesson) => {
+        allLessons.push(lesson);
+      });
+    });
+    return allLessons;
+  }, [collections]);
+
+  // Get lessons filtered by level (or all if 'all' is passed)
+  const getFilteredLevelLessons = useCallback(
+    (filter: LevelFilter): StudentLesson[] => {
+      if (filter === 'all') {
+        return getAllLessons();
+      }
+      const allLessons: StudentLesson[] = [];
+      collections.forEach((col) => {
+        col.lessons.forEach((lesson) => {
+          const lessonLevelKey = mapCEFRToLevelKey(lesson.targetLevel);
+          if (lessonLevelKey === filter) {
+            allLessons.push(lesson);
+          }
+        });
+      });
+      return allLessons;
+    },
+    [collections, getAllLessons]
+  );
 
   const handleCollectionClick = useCallback((collection: StudentCollection) => {
     setSelectedCollection(collection);
@@ -625,8 +648,9 @@ export default function RolePlayPage() {
       imageStoragePath?: string;
     }) => {
       const userLevel = (userDocument?.level as ProficiencyLevel) || 'B1';
-      const result = await createLesson(data, userLevel);
-      navigate(`/chat/custom-${result.lesson.id}`);
+      await createLesson(data, userLevel);
+      setShowCreateOwnModal(false);
+      navigate('/');
     },
     [createLesson, navigate, userDocument?.level]
   );
@@ -648,7 +672,7 @@ export default function RolePlayPage() {
           flexDirection: 'column',
         }}
       >
-        <Header onBackClick={() => navigate(-1)} title="Role Play" />
+        <Header onBackClick={() => navigate(-1)} />
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '64px', marginBottom: '16px' }}>🔗</div>
@@ -697,8 +721,15 @@ export default function RolePlayPage() {
       `}</style>
 
       <Header
-        onBackClick={() => selectedCollection ? setSelectedCollection(null) : navigate(-1)}
-        title={selectedCollection ? selectedCollection.title : 'Role Play'}
+        onBackClick={() => {
+          if (selectedCollection) {
+            setSelectedCollection(null);
+          } else if (selectedLevelView) {
+            setSelectedLevelView(null);
+          } else {
+            navigate(-1);
+          }
+        }}
       />
 
       <div
@@ -714,16 +745,31 @@ export default function RolePlayPage() {
         {/* Collection Detail View */}
         {selectedCollection ? (
           <div>
-            {/* Level Filter Chips */}
+            {/* Collection Title - Centered */}
+            <h2
+              style={{
+                margin: '0 0 20px 0',
+                fontSize: '24px',
+                fontWeight: '700',
+                color: AppColors.textPrimary,
+                letterSpacing: '-0.5px',
+                textAlign: 'center',
+              }}
+            >
+              {selectedCollection.title}
+            </h2>
+
+            {/* Level Filter Chips - Horizontal Scroll */}
             <div
               style={{
                 display: 'flex',
                 gap: '8px',
                 marginBottom: '20px',
                 overflowX: 'auto',
-                paddingBottom: '4px',
+                paddingBottom: '8px',
                 msOverflowStyle: 'none',
                 scrollbarWidth: 'none',
+                WebkitOverflowScrolling: 'touch',
               }}
             >
               {LEVEL_FILTERS.map((filter) => (
@@ -777,45 +823,83 @@ export default function RolePlayPage() {
               </div>
             )}
           </div>
-        ) : (
-          <>
-            {/* Level filter indicator */}
-            {selectedLevel && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '16px',
-              padding: '8px 12px',
-              backgroundColor: AppColors.accentMuted,
-              borderRadius: radius.md,
-            }}
-          >
-            <span style={{ color: AppColors.textSecondary, fontSize: '14px' }}>Filtering by:</span>
-            <span style={{ color: AppColors.accent, fontWeight: '600', fontSize: '14px' }}>
-              {LEVELS.find((l) => l.key === selectedLevel)?.title}
-            </span>
-            <button
-              onClick={() => setSelectedLevel(null)}
+        ) : selectedLevelView ? (
+          /* Level Detail View - Shows all lessons with level filtering */
+          <div>
+            {/* Level Title - Centered */}
+            <h2
               style={{
-                marginLeft: 'auto',
-                background: 'none',
-                border: 'none',
-                color: AppColors.textSecondary,
-                cursor: 'pointer',
-                padding: '4px',
-                display: 'flex',
-                alignItems: 'center',
+                margin: '0 0 20px 0',
+                fontSize: '24px',
+                fontWeight: '700',
+                color: AppColors.textPrimary,
+                letterSpacing: '-0.5px',
+                textAlign: 'center',
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        )}
+              {levelViewFilter === 'all'
+                ? 'All Lessons'
+                : LEVELS.find((l) => l.key === levelViewFilter)?.title || 'Lessons'}
+            </h2>
 
+            {/* Level Filter Chips - Horizontal Scroll */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: '20px',
+                overflowX: 'auto',
+                paddingBottom: '8px',
+                msOverflowStyle: 'none',
+                scrollbarWidth: 'none',
+                WebkitOverflowScrolling: 'touch',
+              }}
+            >
+              {LEVEL_FILTERS.map((filter) => (
+                <LevelFilterChip
+                  key={filter.key}
+                  label={filter.label}
+                  isActive={levelViewFilter === filter.key}
+                  onClick={() => setLevelViewFilter(filter.key)}
+                />
+              ))}
+            </div>
+
+            {/* Lessons List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {getFilteredLevelLessons(levelViewFilter).map((lesson) => (
+                <CollectionLessonCard
+                  key={lesson.id}
+                  lesson={lesson}
+                  onClick={() => handleScenarioClick(lesson.id)}
+                />
+              ))}
+            </div>
+
+            {/* Empty state for level with no lessons */}
+            {getFilteredLevelLessons(levelViewFilter).length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: AppColors.textSecondary }}>
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>📭</div>
+                <p style={{ margin: '0 0 16px 0' }}>No lessons found for this level.</p>
+                <button
+                  onClick={() => setLevelViewFilter('all')}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: radius.md,
+                    border: 'none',
+                    backgroundColor: AppColors.accent,
+                    color: AppColors.textDark,
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Show All Levels
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
         {/* Language Level Section - Horizontal scrollable */}
         <HorizontalLevelScroller levels={levelsWithCounts} onLevelClick={handleLevelClick} />
 
@@ -833,42 +917,10 @@ export default function RolePlayPage() {
         {/* Category Sections - From Firebase collections */}
         <FirebaseCategorySection
           collections={collections}
-          selectedLevel={selectedLevel}
+          selectedLevel={null}
           onScenarioClick={handleScenarioClick}
+          onCollectionClick={handleCollectionClick}
         />
-
-        {/* Empty state when filtering and no results */}
-        {selectedLevel && collections.length > 0 && (
-          (() => {
-            const hasMatchingLessons = collections.some((col) =>
-              col.lessons.some((lesson) => mapCEFRToLevelKey(lesson.targetLevel) === selectedLevel)
-            );
-            if (!hasMatchingLessons) {
-              return (
-                <div style={{ textAlign: 'center', padding: '40px 20px', color: AppColors.textSecondary }}>
-                  <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
-                  <p style={{ margin: 0, fontSize: '16px' }}>No scenarios found for this level.</p>
-                  <button
-                    onClick={() => setSelectedLevel(null)}
-                    style={{
-                      marginTop: '16px',
-                      padding: '10px 20px',
-                      borderRadius: radius.md,
-                      border: 'none',
-                      backgroundColor: AppColors.accent,
-                      color: AppColors.textDark,
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Clear Filter
-                  </button>
-                </div>
-              );
-            }
-            return null;
-          })()
-        )}
 
         {/* Empty state when no collections at all */}
         {!loading && collections.length === 0 && (
