@@ -9,3 +9,5 @@ export { CreateScenarioBanner } from './CreateScenarioBanner';
 export { HorizontalLevelScroller } from './HorizontalLevelScroller';
 export { ScenarioIllustration } from './ScenarioIllustration';
 export { TaskCheckbox, TaskList } from './TaskCheckbox';
+export { LessonDetailModal } from './LessonDetailModal';
+export type { LessonDetailData } from './LessonDetailModal';

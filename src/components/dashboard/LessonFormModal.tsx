@@ -18,6 +18,7 @@ interface LessonFormModalProps {
   onClose: () => void;
   onSave: () => Promise<void>;
   onTitleChange: (title: string) => void;
+  onDescriptionChange: (description: string) => void;
   onSystemPromptChange: (prompt: string) => void;
   onDurationChange: (duration: number) => void;
   onTargetLevelChange: (level: ProficiencyLevel | null) => void;
@@ -60,6 +61,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   onClose,
   onSave,
   onTitleChange,
+  onDescriptionChange,
   onSystemPromptChange,
   onDurationChange,
   onTargetLevelChange,
@@ -206,6 +208,39 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           value={formData.title}
           onChange={onTitleChange}
         />
+
+        {/* Description - Required */}
+        <div style={{ marginBottom: 'clamp(12px, 3vw, 16px)' }}>
+          <label
+            style={{
+              display: 'block',
+              fontSize: 'clamp(12px, 2.5vw, 14px)',
+              fontWeight: 500,
+              color: AppColors.textSecondary,
+              marginBottom: 'clamp(4px, 1vw, 6px)',
+            }}
+          >
+            Description <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <textarea
+            placeholder="Describe what students will practice in this lesson..."
+            value={formData.description}
+            onChange={(e) => onDescriptionChange(e.target.value)}
+            style={{
+              width: '100%',
+              minHeight: '80px',
+              background: AppColors.surfaceLight,
+              border: `1px solid ${AppColors.borderColor}`,
+              borderRadius: 'clamp(8px, 2vw, 12px)',
+              padding: 'clamp(10px, 2.5vw, 14px)',
+              color: AppColors.textPrimary,
+              fontSize: 'clamp(14px, 3vw, 16px)',
+              resize: 'vertical',
+              boxSizing: 'border-box',
+              fontFamily: 'inherit',
+            }}
+          />
+        </div>
 
         {/* Target Level Selector */}
         <SelectField

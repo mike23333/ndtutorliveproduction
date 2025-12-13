@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppColors } from '../theme/colors';
 import { UserIcon } from '../theme/icons';
 import { getMissionsForStudent } from '../services/firebase/students';
-import { getMissionsForTeacher } from '../services/firebase/missions';
+import { getMissionsForTeacher, getMission } from '../services/firebase/missions';
 import { getUserStarStats, getActiveReviewLesson } from '../services/firebase/sessionData';
 import { getPronunciationCoachTemplate, getDefaultIntroLessonTemplate } from '../services/firebase/systemTemplates';
 import { MissionDocument, ReviewLessonDocument, CustomLessonDocument } from '../types/firestore';
@@ -22,6 +22,7 @@ import {
   PrimaryActionCard,
   LessonWithCompletion,
 } from '../components/home';
+import { LessonDetailModal, LessonDetailData } from '../components/roleplay';
 
 // User stats from Firestore
 interface UserStats {
@@ -180,6 +181,10 @@ export default function HomePage() {
   const [showCreateOwnModal, setShowCreateOwnModal] = useState(false);
   const [showPronunciationModal, setShowPronunciationModal] = useState(false);
   const [editingLesson, setEditingLesson] = useState<CustomLessonDocument | null>(null);
+
+  // Lesson detail modal state
+  const [selectedLesson, setSelectedLesson] = useState<LessonDetailData | null>(null);
+  const [showLessonModal, setShowLessonModal] = useState(false);
 
   // Get user's exact level for filtering (memoized to prevent infinite re-renders)
   const userLevelFilter = useMemo((): string[] => {
@@ -394,8 +399,68 @@ export default function HomePage() {
     return sortedLessons.sort((a, b) => (a.durationMinutes || 5) - (b.durationMinutes || 5))[0];
   };
 
-  // Handle lesson click - navigate to chat
-  const handleLessonClick = (lesson: LessonWithCompletion) => {
+  // Helper to map CEFR level to modal display label
+  const getModalLevelLabel = (level: string | null): string => {
+    if (!level) return 'Beginner';
+    switch (level) {
+      case 'A1':
+      case 'A2':
+        return 'Beginner';
+      case 'B1':
+        return 'Pre-Intermediate';
+      case 'B2':
+        return 'Intermediate';
+      case 'C1':
+      case 'C2':
+        return 'Upper-Intermediate';
+      default:
+        return 'Beginner';
+    }
+  };
+
+  // Fetch lesson detail from Firestore for modal display
+  const fetchLessonDetail = async (lessonId: string): Promise<LessonDetailData | null> => {
+    try {
+      const mission = await getMission(lessonId);
+      if (!mission) return null;
+
+      return {
+        id: mission.id,
+        title: mission.title,
+        level: getModalLevelLabel(mission.targetLevel || null),
+        imageUrl: mission.imageUrl || undefined,
+        description: mission.description || `Practice this ${mission.durationMinutes || 5}-minute lesson to improve your English skills.`,
+        tasks: mission.tasks?.map((t, i) => ({
+          id: i + 1,
+          text: t.text,
+          completed: false,
+        })),
+        systemPrompt: mission.systemPrompt || mission.scenario,
+        durationMinutes: mission.durationMinutes,
+        tone: mission.tone,
+        functionCallingEnabled: mission.functionCallingEnabled,
+        functionCallingInstructions: mission.functionCallingInstructions,
+        teacherId: mission.teacherId,
+      };
+    } catch (error) {
+      console.error('Error fetching lesson detail:', error);
+      return null;
+    }
+  };
+
+  // Handle lesson click - show modal for teacher-assigned lessons
+  const handleLessonClick = async (lesson: LessonWithCompletion) => {
+    // For teacher-assigned lessons (not custom), show the modal
+    if (lesson.teacherId && !lesson.id.startsWith('custom-')) {
+      const lessonDetail = await fetchLessonDetail(lesson.id);
+      if (lessonDetail) {
+        setSelectedLesson(lessonDetail);
+        setShowLessonModal(true);
+        return;
+      }
+    }
+
+    // Fallback or for custom lessons: navigate directly
     const roleConfig = {
       id: lesson.id,
       name: lesson.title,
@@ -772,6 +837,20 @@ export default function HomePage() {
         isOpen={showPronunciationModal}
         onClose={() => setShowPronunciationModal(false)}
         onSubmit={handlePronunciationSubmit}
+      />
+
+      {/* Lesson Detail Modal for teacher-assigned lessons */}
+      <LessonDetailModal
+        isOpen={showLessonModal}
+        onClose={() => {
+          setShowLessonModal(false);
+          setSelectedLesson(null);
+        }}
+        onStartChat={(lessonId) => {
+          setShowLessonModal(false);
+          navigate(`/chat/${lessonId}`);
+        }}
+        lesson={selectedLesson}
       />
     </div>
   );

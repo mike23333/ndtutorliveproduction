@@ -153,6 +153,7 @@ export interface MissionDocument {
   teacherId: string;
   teacherName: string;
   title: string;
+  description: string; // Required lesson description for modal display
   scenario: string;
   tone: ConversationTone;
   vocabList: VocabularyItem[];

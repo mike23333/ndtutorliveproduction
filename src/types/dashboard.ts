@@ -9,6 +9,7 @@ export type TabType = 'lessons' | 'students' | 'insights' | 'billing' | 'templat
 export interface LessonData {
   id: string;
   title: string;
+  description: string; // Required lesson description
   systemPrompt: string;
   durationMinutes: number;
   imageUrl: string | null;
@@ -32,6 +33,7 @@ export interface LessonData {
 
 export interface LessonFormData {
   title: string;
+  description: string; // Required lesson description
   systemPrompt: string;
   durationMinutes: number;
   imageUrl: string | null;

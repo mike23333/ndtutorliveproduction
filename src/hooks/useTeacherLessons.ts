@@ -23,6 +23,7 @@ function mapMissionToLesson(
   return {
     id: mission.id,
     title: mission.title,
+    description: mission.description || '',
     systemPrompt: mission.systemPrompt || mission.scenario || '',
     durationMinutes: mission.durationMinutes || 15,
     imageUrl: mission.imageUrl || null,
@@ -92,6 +93,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       teacherId,
       teacherName,
       title: data.title.trim(),
+      description: data.description.trim(),
       scenario: data.systemPrompt.trim(),
       systemPrompt: data.systemPrompt.trim(),
       durationMinutes: data.durationMinutes,
@@ -122,6 +124,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     const updateData: Record<string, unknown> = { id: lessonId };
 
     if (data.title !== undefined) updateData.title = data.title.trim();
+    if (data.description !== undefined) updateData.description = data.description.trim();
     if (data.systemPrompt !== undefined) {
       updateData.scenario = data.systemPrompt.trim();
       updateData.systemPrompt = data.systemPrompt.trim();
@@ -146,6 +149,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
         return {
           ...l,
           title: data.title?.trim() ?? l.title,
+          description: data.description?.trim() ?? l.description,
           systemPrompt: data.systemPrompt?.trim() ?? l.systemPrompt,
           durationMinutes: data.durationMinutes ?? l.durationMinutes,
           targetLevel: data.targetLevel !== undefined ? data.targetLevel : l.targetLevel,
@@ -170,6 +174,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
   const duplicateLesson = useCallback((lesson: LessonData): LessonFormData => {
     return {
       title: `${lesson.title} (Copy)`,
+      description: lesson.description || '',
       systemPrompt: lesson.systemPrompt,
       durationMinutes: lesson.durationMinutes,
       targetLevel: lesson.targetLevel || null,

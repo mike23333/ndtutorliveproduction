@@ -8,6 +8,7 @@ export interface ScenarioData {
   illustration: string;
   imageUrl?: string; // Firebase Storage URL for real image
   completed?: boolean;
+  lessonId?: string; // Lesson ID for navigation and modal
 }
 
 interface CategorySectionProps {

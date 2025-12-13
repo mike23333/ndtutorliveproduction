@@ -493,6 +493,7 @@ const TeacherDashboard: React.FC = () => {
         onClose={handleCloseModal}
         onSave={handleSaveLesson}
         onTitleChange={lessonForm.setTitle}
+        onDescriptionChange={lessonForm.setDescription}
         onSystemPromptChange={lessonForm.setSystemPrompt}
         onDurationChange={lessonForm.setDurationMinutes}
         onTargetLevelChange={lessonForm.setTargetLevel}

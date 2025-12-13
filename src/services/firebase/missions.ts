@@ -73,6 +73,7 @@ export const createMission = async (
       teacherId: missionData.teacherId,
       teacherName: missionData.teacherName,
       title: missionData.title,
+      description: missionData.description || '', // Required lesson description
       scenario: missionData.scenario,
       tone: missionData.tone,
       vocabList: missionData.vocabList || [],

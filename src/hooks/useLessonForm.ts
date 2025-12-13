@@ -5,6 +5,7 @@ import type { ProficiencyLevel } from '../types/firestore';
 interface UseLessonFormResult {
   formData: LessonFormData;
   setTitle: (title: string) => void;
+  setDescription: (description: string) => void;
   setSystemPrompt: (prompt: string) => void;
   setDurationMinutes: (duration: number) => void;
   setTargetLevel: (level: ProficiencyLevel | null) => void;
@@ -30,6 +31,7 @@ interface UseLessonFormResult {
 
 const initialFormData: LessonFormData = {
   title: '',
+  description: '',
   systemPrompt: '',
   durationMinutes: 15,
   imageUrl: null,
@@ -50,6 +52,10 @@ export function useLessonForm(): UseLessonFormResult {
 
   const setTitle = useCallback((title: string) => {
     setFormData(prev => ({ ...prev, title }));
+  }, []);
+
+  const setDescription = useCallback((description: string) => {
+    setFormData(prev => ({ ...prev, description }));
   }, []);
 
   const setSystemPrompt = useCallback((systemPrompt: string) => {
@@ -110,6 +116,7 @@ export function useLessonForm(): UseLessonFormResult {
   const loadFromLesson = useCallback((lesson: LessonData) => {
     setFormData({
       title: lesson.title,
+      description: lesson.description || '',
       systemPrompt: lesson.systemPrompt,
       durationMinutes: lesson.durationMinutes,
       imageUrl: lesson.imageUrl,
@@ -128,11 +135,12 @@ export function useLessonForm(): UseLessonFormResult {
     setFormData(data);
   }, []);
 
-  const isValid = formData.title.trim().length > 0 && formData.systemPrompt.trim().length > 0;
+  const isValid = formData.title.trim().length > 0 && formData.description.trim().length > 0 && formData.systemPrompt.trim().length > 0;
 
   return {
     formData,
     setTitle,
+    setDescription,
     setSystemPrompt,
     setDurationMinutes,
     setTargetLevel,
