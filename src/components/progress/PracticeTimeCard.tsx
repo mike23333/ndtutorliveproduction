@@ -212,19 +212,31 @@ export default function PracticeTimeCard({
       </div>
 
       {/* Week bar chart */}
+      <div style={{ marginBottom: '8px' }}>
+        <span style={{
+          fontSize: '13px',
+          fontWeight: '600',
+          color: AppColors.textSecondary,
+        }}>
+          This Week
+        </span>
+      </div>
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'flex-end',
-        height: '80px',
+        minHeight: '100px',
         gap: '8px',
+        padding: '8px 0',
       }}>
-        {weekData.map((day, index) => {
+        {weekData.map((day) => {
           const barHeight = maxMinutes > 0
-            ? Math.max(8, (day.minutes / maxMinutes) * 60)
-            : 8;
+            ? Math.max(12, (day.minutes / maxMinutes) * 60)
+            : 12;
+          const now = new Date();
+          const todayDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          const isToday = day.date === todayDate;
           const meetsGoal = day.percentOfGoal >= 100;
-          const isToday = index === weekData.length - 1; // Assuming last day is today
 
           return (
             <div

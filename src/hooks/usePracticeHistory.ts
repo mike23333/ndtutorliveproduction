@@ -23,22 +23,32 @@ interface WeekDayData {
 }
 
 /**
- * Get the Monday of the current week
+ * Get the Monday of the current week (Monday-Sunday week)
  */
 function getMonday(date: Date): Date {
   const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
   d.setHours(0, 0, 0, 0);
+  const dayOfWeek = d.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+
+  // Calculate days to subtract to get to Monday
+  // Sunday (0) -> go back 6 days
+  // Monday (1) -> go back 0 days
+  // Tuesday (2) -> go back 1 day
+  // etc.
+  const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  d.setDate(d.getDate() - daysToSubtract);
+
   return d;
 }
 
 /**
- * Format date as YYYY-MM-DD
+ * Format date as YYYY-MM-DD in LOCAL timezone (not UTC)
  */
 function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];

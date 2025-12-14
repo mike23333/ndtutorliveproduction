@@ -1,15 +1,15 @@
 /**
  * Mistake Card - Redesigned
  * Premium card for displaying review items
- * Features: Glass-morphism, severity indicator, smooth animations
+ * Features: Glass-morphism, severity indicator, smooth animations, audio playback
  */
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 import { AppColors } from '../../theme/colors';
 import { ReviewItemDocument } from '../../types/firestore';
-import { CheckIcon, PlayIcon } from '../../theme/icons';
+import { CheckIcon, PlayIcon, PauseIcon } from '../../theme/icons';
 
 interface MistakeCardProps {
   item: ReviewItemDocument;
@@ -51,8 +51,44 @@ export default function MistakeCard({
   const [mastered, setMastered] = useState(item.mastered);
   const [updating, setUpdating] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const severityConfig = getSeverityConfig(item.severity);
+
+  // Check if audio exists for this item
+  const hasAudio = Boolean(item.audioUrl);
+
+  // Handle audio playback
+  const handlePlayAudio = (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!item.audioUrl) return;
+
+    if (isPlaying && audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      setIsPlaying(false);
+      return;
+    }
+
+    // Create new audio element if needed
+    if (!audioRef.current) {
+      audioRef.current = new Audio(item.audioUrl);
+      audioRef.current.onended = () => setIsPlaying(false);
+      audioRef.current.onerror = () => {
+        console.error('Error playing audio');
+        setIsPlaying(false);
+      };
+    }
+
+    audioRef.current.play()
+      .then(() => setIsPlaying(true))
+      .catch(err => {
+        console.error('Error playing audio:', err);
+        setIsPlaying(false);
+      });
+  };
 
   const handleMasteredToggle = async () => {
     if (updating || !db) return;
@@ -227,8 +263,8 @@ export default function MistakeCard({
         )}
       </div>
 
-      {/* Audio buttons (pronunciation only) */}
-      {showAudioButtons && (
+      {/* Audio buttons - only show if audio exists */}
+      {showAudioButtons && hasAudio && (
         <div style={{
           display: 'flex',
           gap: '10px',
@@ -243,47 +279,52 @@ export default function MistakeCard({
               gap: '8px',
               padding: '12px 16px',
               borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              color: AppColors.textSecondary,
+              border: isPlaying
+                ? '1px solid rgba(139, 92, 246, 0.4)'
+                : '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: isPlaying
+                ? 'rgba(139, 92, 246, 0.15)'
+                : 'rgba(255, 255, 255, 0.04)',
+              color: isPlaying ? '#a78bfa' : AppColors.textSecondary,
               fontSize: '13px',
               fontWeight: '500',
               cursor: 'pointer',
               transition: 'all 0.2s ease',
             }}
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Play user's audio
-            }}
+            onClick={handlePlayAudio}
           >
-            <PlayIcon size={14} />
-            Your recording
+            {isPlaying ? <PauseIcon size={14} /> : <PlayIcon size={14} />}
+            {isPlaying ? 'Playing...' : 'Your recording'}
           </button>
-          <button
-            style={{
-              flex: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              padding: '12px 16px',
-              borderRadius: '12px',
-              border: '1px solid rgba(74, 222, 128, 0.2)',
-              backgroundColor: 'rgba(74, 222, 128, 0.08)',
-              color: AppColors.successGreen,
-              fontSize: '13px',
-              fontWeight: '500',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Play TTS correction
-            }}
-          >
-            <PlayIcon size={14} />
-            Correct way
-          </button>
+
+          {/* Correct way button - for Pronunciation and Vocabulary errors */}
+          {(item.errorType === 'Pronunciation' || item.errorType === 'Vocabulary') && (
+            <button
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 16px',
+                borderRadius: '12px',
+                border: '1px solid rgba(74, 222, 128, 0.2)',
+                backgroundColor: 'rgba(74, 222, 128, 0.08)',
+                color: AppColors.successGreen,
+                fontSize: '13px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                // TODO: Play TTS of correct pronunciation
+              }}
+            >
+              <PlayIcon size={14} />
+              Correct way
+            </button>
+          )}
         </div>
       )}
 

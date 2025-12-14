@@ -28,7 +28,7 @@ export default function GrammarReviewPage() {
           key={item.id}
           item={item}
           userId={user?.uid || ''}
-          showAudioButtons={false}
+          showAudioButtons={true}
           index={index}
         />
       ))}
