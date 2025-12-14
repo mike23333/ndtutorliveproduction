@@ -14,6 +14,11 @@ import ProfilePage from './pages/ProfilePage';
 import BadgesPage from './pages/BadgesPage';
 import RolePlayPage from './pages/RolePlayPage';
 import ScenarioDetailPage from './pages/ScenarioDetailPage';
+import ProgressPage from './pages/ProgressPage';
+import PronunciationReviewPage from './pages/PronunciationReviewPage';
+import GrammarReviewPage from './pages/GrammarReviewPage';
+import VocabularyReviewPage from './pages/VocabularyReviewPage';
+import CulturalReviewPage from './pages/CulturalReviewPage';
 
 /**
  * Wrapper that forces ChatPage to remount when lessonId changes.
@@ -92,6 +97,44 @@ function App() {
                   </MainLayout>
                 </ProtectedRoute>
               } />
+
+              {/* Progress routes */}
+              <Route path="/progress" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <ProgressPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/progress/pronunciation" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <PronunciationReviewPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/progress/grammar" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <GrammarReviewPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/progress/vocabulary" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <VocabularyReviewPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/progress/cultural" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <CulturalReviewPage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+
               <Route path="/roleplay" element={
                 <ProtectedRoute>
                   <MainLayout>

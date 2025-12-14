@@ -641,6 +641,8 @@ export const saveSessionSummary = async (
         consecutiveFiveStarSessions: newConsecutiveFiveStars,
         // Clear current lesson since session completed
         currentLesson: deleteField(),
+        // Practice history for Progress page
+        [`practiceHistory.${todayStr}`]: increment(durationSeconds),
         updatedAt: Timestamp.now(),
       };
 
@@ -666,6 +668,8 @@ export const saveSessionSummary = async (
         // Badge tracking
         consecutiveFiveStarSessions: params.stars === 5 ? 1 : 0,
         uniqueScenariosCompleted: missionId ? [missionId] : [],
+        // Practice history for Progress page
+        practiceHistory: { [todayStr]: durationSeconds },
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };

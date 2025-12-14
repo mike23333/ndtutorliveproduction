@@ -72,6 +72,12 @@ export interface UserDocument {
   uniqueScenariosCompleted?: string[];    // Array of unique missionIds completed
   consecutiveFiveStarSessions?: number;   // Current consecutive 5-star streak (resets on non-5-star)
   customLessonsCreated?: number;          // Count of custom lessons created
+  // Learning settings
+  targetLanguage?: string;                // BCP-47 code (default: 'uk-UA')
+  dailyPracticeGoal?: number;             // Minutes per day goal (default: 15)
+  practiceHistory?: {
+    [date: string]: number;               // YYYY-MM-DD -> seconds practiced that day
+  };
   // Continue Learning - tracks incomplete sessions
   currentLesson?: {
     missionId: string;
