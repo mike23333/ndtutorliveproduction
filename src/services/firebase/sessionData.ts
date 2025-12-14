@@ -81,6 +81,35 @@ export const clearCurrentLesson = async (userId: string): Promise<void> => {
   console.log('[SessionData] Cleared current lesson');
 };
 
+// ==================== PRACTICE TIME TRACKING ====================
+
+/**
+ * Save only the practice time for incomplete sessions
+ * Called when user exits early (before timer ends) via X button or mic stop
+ * Does NOT affect stars, session count, streaks, or other summary stats
+ *
+ * @param userId - User ID
+ * @param durationSeconds - Elapsed time in seconds
+ */
+export const savePracticeTimeOnly = async (
+  userId: string,
+  durationSeconds: number
+): Promise<void> => {
+  if (!db) throw new Error('Firebase not configured');
+  if (durationSeconds <= 0) return; // Don't save if no time spent
+
+  const userRef = doc(db, 'users', userId);
+  const todayStr = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  await updateDoc(userRef, {
+    totalPracticeTime: increment(durationSeconds),
+    [`practiceHistory.${todayStr}`]: increment(durationSeconds),
+    updatedAt: Timestamp.now(),
+  });
+
+  console.log('[SessionData] Saved partial practice time:', durationSeconds, 'seconds');
+};
+
 // ==================== STREAK CALCULATION ====================
 
 /**

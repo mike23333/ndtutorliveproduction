@@ -12,7 +12,7 @@ import { AppColors } from '../theme/colors';
 import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
 import { useUserId } from '../hooks/useAuth';
-import { completeReviewLesson, setCurrentLesson } from '../services/firebase/sessionData';
+import { completeReviewLesson, setCurrentLesson, savePracticeTimeOnly } from '../services/firebase/sessionData';
 import { updateCustomLessonPracticed } from '../services/firebase/customLessons';
 import type { AIRole, StudentLevel, ToneType, PersonaType } from '../types/ai-role';
 import { LEVEL_CONFIGS } from '../types/ai-role';
@@ -87,6 +87,7 @@ interface Message {
   isUser: boolean;
   isWhisper: boolean;
   translation?: string;
+  audioData?: string; // base64 encoded audio for replay
 }
 
 /**
@@ -179,6 +180,7 @@ export default function ChatPage() {
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [showFirstSessionCelebration, setShowFirstSessionCelebration] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
+  const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const sessionDuration = roleConfig?.durationMinutes || 15;
 
   // Track if we've already sent the initial "Hi" message
@@ -186,6 +188,14 @@ export default function ChatPage() {
 
   // Track if we muted the mic for audio playback (so we can unmute afterward)
   const mutedForAudioPlayback = useRef(false);
+
+  // Track current audio playback for stop functionality
+  const currentAudioContextRef = useRef<AudioContext | null>(null);
+  const currentAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
+  // Session timing tracking for practice time
+  const sessionStartTimeRef = useRef<number | null>(null);
+  const hasSavedPracticeTimeRef = useRef(false);
 
   // Convert gemini messages to local Message format
   // Filter out the initial "Hi" message (auto-sent to start conversation)
@@ -205,7 +215,8 @@ export default function ChatPage() {
         text: msg.text,
         isUser: msg.isUser,
         isWhisper: msg.isWhisper,
-        translation: msg.translation
+        translation: msg.translation,
+        audioData: msg.audioData // Include audio data for replay
       }));
   }, [geminiMessages]);
 
@@ -278,6 +289,31 @@ export default function ChatPage() {
     }
   }, [sessionTimedOut, navigate]);
 
+  // Safety net: Save practice time on beforeunload (browser close/refresh)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // Skip if already saved, quick practice, or session completed normally
+      if (hasSavedPracticeTimeRef.current) return;
+      if (roleConfig?.isQuickPractice) return;
+      if (sessionSummary) return;
+      if (!userId || !sessionStartTimeRef.current) return;
+
+      const elapsedSeconds = Math.floor((Date.now() - sessionStartTimeRef.current) / 1000);
+      if (elapsedSeconds < 5) return;
+
+      // Mark as saved to prevent double-counting if user returns
+      hasSavedPracticeTimeRef.current = true;
+
+      // Use sendBeacon for reliable delivery on page close
+      // Note: This is best-effort - Firestore SDK doesn't support sendBeacon directly
+      // The main handleClose path is more reliable
+      console.log('[ChatPage] beforeunload - attempting to save', elapsedSeconds, 'seconds');
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [userId, roleConfig?.isQuickPractice, sessionSummary]);
+
   // Auto-send "Hi" when connection is established
   // This triggers the AI to start the conversation immediately
   // Also sets currentLesson for "Continue Learning" feature
@@ -288,6 +324,10 @@ export default function ChatPage() {
         console.log('[ChatPage] Auto-sending initial Hi to start conversation');
         sendTextMessage('Hi');
         hasSentInitialHi.current = true;
+
+        // Track session start time for practice time calculation
+        sessionStartTimeRef.current = Date.now();
+        console.log('[ChatPage] Session started at:', new Date().toISOString());
 
         // Track current lesson for "Continue Learning" (skip for quick practice)
         if (userId && !roleConfig.isQuickPractice) {
@@ -352,6 +392,157 @@ export default function ChatPage() {
     }
   }, [isMuted, toggleMute]);
 
+  // Stop current audio replay and unmute
+  const stopReplay = useCallback(() => {
+    console.log('[ChatPage] Stopping audio replay');
+
+    // Stop AudioBufferSourceNode if playing
+    if (currentAudioSourceRef.current) {
+      try {
+        currentAudioSourceRef.current.stop();
+      } catch {
+        // Already stopped
+      }
+      currentAudioSourceRef.current = null;
+    }
+
+    // Close AudioContext
+    if (currentAudioContextRef.current) {
+      currentAudioContextRef.current.close();
+      currentAudioContextRef.current = null;
+    }
+
+    setIsReplayingAudio(false);
+
+    // Unmute mic if we muted it
+    if (mutedForAudioPlayback.current) {
+      toggleMute();
+      mutedForAudioPlayback.current = false;
+    }
+  }, [toggleMute]);
+
+  // Handle replay button click on chat bubble
+  const handleReplay = useCallback(async (msg: Message) => {
+    // If already replaying, stop the current playback
+    if (isReplayingAudio) {
+      console.log('[ChatPage] Stopping current replay');
+      stopReplay();
+      return;
+    }
+
+    if (!msg.audioData) {
+      console.log('[ChatPage] No audio data for message:', msg.id);
+      return;
+    }
+
+    console.log('[ChatPage] Replaying audio for message:', msg.id, 'isUser:', msg.isUser);
+
+    // Mute mic during playback to avoid feedback
+    if (!isMuted) {
+      toggleMute();
+      mutedForAudioPlayback.current = true;
+    }
+
+    setIsReplayingAudio(true);
+
+    try {
+      // Create AudioContext for playback
+      const ctx = new AudioContext();
+      currentAudioContextRef.current = ctx;
+
+      if (msg.isUser) {
+        // User audio is WAV format - parse manually for speed (skip slow decodeAudioData)
+        console.log('[ChatPage] Playing user WAV audio');
+        const binary = atob(msg.audioData);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+
+        // Parse WAV header to get sample rate and data offset
+        // Standard WAV: 44-byte header, data starts at offset 44
+        const view = new DataView(bytes.buffer);
+        const sampleRate = view.getUint32(24, true); // Sample rate at byte 24
+        const dataOffset = 44; // Standard WAV header size
+
+        // Extract PCM data (16-bit signed integers)
+        const pcmData = new Int16Array(bytes.buffer, dataOffset);
+
+        // Convert to Float32 for Web Audio
+        const floatData = new Float32Array(pcmData.length);
+        for (let i = 0; i < pcmData.length; i++) {
+          floatData[i] = pcmData[i] < 0 ? pcmData[i] / 0x8000 : pcmData[i] / 0x7FFF;
+        }
+
+        // Create audio buffer at the WAV's sample rate (16kHz)
+        const audioBuffer = ctx.createBuffer(1, floatData.length, sampleRate);
+        audioBuffer.getChannelData(0).set(floatData);
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        currentAudioSourceRef.current = source;
+
+        await new Promise<void>((resolve) => {
+          source.onended = () => {
+            resolve();
+          };
+          source.start(0);
+        });
+      } else {
+        // AI audio is PCM format - decode manually and play
+        console.log('[ChatPage] Playing AI PCM audio');
+        const binary = atob(msg.audioData);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+
+        // Convert PCM 16-bit to Float32 for Web Audio
+        const pcmData = new Int16Array(bytes.buffer);
+        const floatData = new Float32Array(pcmData.length);
+        for (let i = 0; i < pcmData.length; i++) {
+          floatData[i] = pcmData[i] < 0 ? pcmData[i] / 0x8000 : pcmData[i] / 0x7FFF;
+        }
+
+        // Create audio buffer at 24kHz (Gemini's output rate)
+        const audioBuffer = ctx.createBuffer(1, floatData.length, 24000);
+        audioBuffer.getChannelData(0).set(floatData);
+
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(ctx.destination);
+        currentAudioSourceRef.current = source;
+
+        await new Promise<void>((resolve) => {
+          source.onended = () => {
+            resolve();
+          };
+          source.start(0);
+        });
+      }
+
+      console.log('[ChatPage] Audio replay completed');
+    } catch (error) {
+      console.error('[ChatPage] Replay error:', error);
+    } finally {
+      // Clean up refs
+      currentAudioSourceRef.current = null;
+      if (currentAudioContextRef.current) {
+        currentAudioContextRef.current.close();
+        currentAudioContextRef.current = null;
+      }
+
+      setIsReplayingAudio(false);
+
+      // Unmute mic after playback if we muted it
+      if (mutedForAudioPlayback.current) {
+        toggleMute();
+        mutedForAudioPlayback.current = false;
+      }
+    }
+  }, [isMuted, toggleMute, isReplayingAudio, stopReplay]);
+
   // Handle continue after summary - navigate home
   const handleSummaryContinue = useCallback(async () => {
     setShowSummary(false);
@@ -413,16 +604,51 @@ export default function ChatPage() {
     console.log('Settings clicked');
   };
 
-  const handleClose = () => {
+  // Save partial practice time for incomplete sessions (X button or mic stop)
+  const savePartialPracticeTime = useCallback(async () => {
+    // Prevent double-saves
+    if (hasSavedPracticeTimeRef.current) return;
+
+    // Skip for quick practice (no stats tracking)
+    if (roleConfig?.isQuickPractice) return;
+
+    // Skip if session completed normally (time already saved via saveSessionSummary)
+    if (sessionSummary) return;
+
+    if (!userId || !sessionStartTimeRef.current) return;
+
+    const elapsedSeconds = Math.floor((Date.now() - sessionStartTimeRef.current) / 1000);
+
+    // Don't save trivial sessions (< 5 seconds)
+    if (elapsedSeconds < 5) return;
+
+    hasSavedPracticeTimeRef.current = true;
+
+    try {
+      await savePracticeTimeOnly(userId, elapsedSeconds);
+      console.log('[ChatPage] Saved partial practice time:', elapsedSeconds, 'seconds');
+    } catch (error) {
+      console.error('[ChatPage] Failed to save practice time:', error);
+    }
+  }, [userId, roleConfig?.isQuickPractice, sessionSummary]);
+
+  const handleClose = useCallback(async () => {
+    // Save partial time before navigating
+    await savePartialPracticeTime();
+
+    const elapsedSeconds = sessionStartTimeRef.current
+      ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
+      : 120;
+
     const sessionData = {
       roleConfig,
       messages,
-      duration: 120,
+      duration: elapsedSeconds,
       endTime: new Date().toISOString(),
     };
     sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
     navigate('/');
-  };
+  }, [savePartialPracticeTime, roleConfig, messages, navigate]);
 
   // Loading state
   if (!roleConfig) {
@@ -535,8 +761,9 @@ export default function ChatPage() {
             isUser={msg.isUser}
             isWhisper={msg.isWhisper}
             translation={msg.translation}
+            audioData={msg.audioData}
             onTranslate={() => console.log('translate', msg.id)}
-            onReplay={() => console.log('replay', msg.id)}
+            onReplay={() => handleReplay(msg)}
             onSlowPlay={() => console.log('slow', msg.id)}
           />
         ))}

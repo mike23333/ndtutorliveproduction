@@ -12,6 +12,7 @@ interface ChatBubbleProps {
   isUser: boolean;
   isWhisper: boolean;
   translation?: string;
+  audioData?: string; // base64 encoded audio for replay
   onTranslate: () => void;
   onReplay: () => void;
   onSlowPlay: () => void;
@@ -46,10 +47,12 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   isUser,
   isWhisper,
   translation,
+  audioData,
   onTranslate,
   onReplay,
   onSlowPlay
 }) => {
+  const hasAudio = Boolean(audioData);
   if (isUser) {
     return (
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
@@ -72,7 +75,16 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           )}
           <p style={{ margin: 0 }}>{message}</p>
           <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-            <button onClick={onReplay} style={iconButtonStyle}>
+            <button
+              onClick={hasAudio ? onReplay : undefined}
+              style={{
+                ...iconButtonStyle,
+                opacity: hasAudio ? 1 : 0.3,
+                cursor: hasAudio ? 'pointer' : 'not-allowed',
+              }}
+              disabled={!hasAudio}
+              title={hasAudio ? 'Replay' : 'No audio available'}
+            >
               <RotateCcwIcon size={16} />
             </button>
           </div>
@@ -121,10 +133,28 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           <button onClick={onTranslate} style={iconButtonStyleLight} title="Translate">
             <LanguagesIcon size={16} />
           </button>
-          <button onClick={onReplay} style={iconButtonStyleLight} title="Replay">
+          <button
+            onClick={hasAudio ? onReplay : undefined}
+            style={{
+              ...iconButtonStyleLight,
+              opacity: hasAudio ? 1 : 0.3,
+              cursor: hasAudio ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!hasAudio}
+            title={hasAudio ? 'Replay' : 'No audio available'}
+          >
             <RotateCcwIcon size={16} />
           </button>
-          <button onClick={onSlowPlay} style={iconButtonStyleLight} title="Slow playback">
+          <button
+            onClick={hasAudio ? onSlowPlay : undefined}
+            style={{
+              ...iconButtonStyleLight,
+              opacity: hasAudio ? 1 : 0.3,
+              cursor: hasAudio ? 'pointer' : 'not-allowed',
+            }}
+            disabled={!hasAudio}
+            title={hasAudio ? 'Slow playback' : 'No audio available'}
+          >
             <SnailIcon size={16} />
           </button>
         </div>

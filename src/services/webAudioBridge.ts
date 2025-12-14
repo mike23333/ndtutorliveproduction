@@ -18,6 +18,7 @@ interface AudioHandlerInstance {
   destroy(): void;
   // Audio capture for error review
   extractAudioAsWav(): Blob | null;
+  extractRecentAudioAsWav(maxSeconds?: number): Blob | null;
   clearTurnBuffer(): void;
 }
 
@@ -148,6 +149,26 @@ export class WebAudioManager {
       return this.audioHandler.extractAudioAsWav();
     } catch (error) {
       console.error('WebAudioManager: Failed to extract error audio:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Extract only the last N seconds of audio as WAV blob
+   * Used for user message replay (faster than full turn)
+   * @param maxSeconds Maximum seconds to extract (default 10)
+   * @returns WAV Blob or null if no data available
+   */
+  extractRecentAudio(maxSeconds: number = 10): Blob | null {
+    if (!this.audioHandler) {
+      console.warn('WebAudioManager: AudioHandler not initialized for audio extraction');
+      return null;
+    }
+
+    try {
+      return this.audioHandler.extractRecentAudioAsWav(maxSeconds);
+    } catch (error) {
+      console.error('WebAudioManager: Failed to extract recent audio:', error);
       return null;
     }
   }

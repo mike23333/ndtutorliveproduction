@@ -363,6 +363,63 @@ class AudioHandler {
   }
 
   /**
+   * Extract only the last N seconds of audio from turn buffer
+   * Used for user message replay (faster than full turn)
+   * @param {number} maxSeconds - Maximum seconds to extract (default 10)
+   * @returns {Blob|null} WAV blob or null if no data
+   */
+  extractRecentAudioAsWav(maxSeconds = 10) {
+    if (!this.turnBuffer || this.turnBuffer.length === 0 || this.turnBufferSampleCount === 0) {
+      console.warn('AudioHandler: No audio data in turn buffer');
+      return null;
+    }
+
+    const maxSamples = this.TARGET_SAMPLE_RATE * maxSeconds;
+
+    // If we have less than maxSamples, just return all
+    if (this.turnBufferSampleCount <= maxSamples) {
+      return this.extractAudioAsWav();
+    }
+
+    // Calculate how many samples to skip from the start
+    const samplesToSkip = this.turnBufferSampleCount - maxSamples;
+
+    // Concatenate only the last maxSamples
+    const recentSamples = new Int16Array(maxSamples);
+    let skipped = 0;
+    let written = 0;
+
+    for (const chunk of this.turnBuffer) {
+      if (skipped + chunk.length <= samplesToSkip) {
+        // Skip this entire chunk
+        skipped += chunk.length;
+        continue;
+      }
+
+      // Partial or full chunk to include
+      const skipInChunk = Math.max(0, samplesToSkip - skipped);
+      const startIdx = skipInChunk;
+      const endIdx = chunk.length;
+      const toCopy = endIdx - startIdx;
+
+      if (written + toCopy > maxSamples) {
+        // Don't overflow
+        break;
+      }
+
+      recentSamples.set(chunk.subarray(startIdx, endIdx), written);
+      written += toCopy;
+      skipped += chunk.length;
+    }
+
+    const actualSeconds = (written / this.TARGET_SAMPLE_RATE).toFixed(1);
+    console.log('AudioHandler: Extracted last', actualSeconds, 'seconds of turn audio (', written, 'samples)');
+
+    // Create WAV blob
+    return this.createWavBlob(recentSamples.subarray(0, written), this.TARGET_SAMPLE_RATE);
+  }
+
+  /**
    * Create WAV blob from Int16 PCM samples
    * Generates proper RIFF/WAV header for mono 16-bit audio
    * @param {Int16Array} samples - PCM audio samples

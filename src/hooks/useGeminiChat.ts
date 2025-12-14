@@ -173,6 +173,24 @@ export function useGeminiChat(
   const outputTranscriptionBuffer = useRef<string>(''); // Accumulate AI transcription chunks
   const inputTranscriptionBuffer = useRef<string>(''); // Accumulate user transcription chunks
 
+  // Audio replay support - accumulate AI audio for each turn (store as Uint8Array for proper concatenation)
+  const aiAudioChunksRef = useRef<Uint8Array[]>([]); // Accumulate AI audio chunks as binary during response
+
+  // Helper to convert blob to base64
+  const blobToBase64 = useCallback((blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix (e.g., "data:audio/wav;base64,")
+        const base64 = result.split(',')[1] || result;
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }, []);
+
   /**
    * Generate next message ID
    */
@@ -781,12 +799,44 @@ Base your assessment on our entire conversation. Call the show_session_summary f
           stopAudioStreaming();
         },
         onAudio: (audioData: ArrayBuffer) => {
-          // AI is responding - flush user's transcription buffer first
+          // AI is responding - flush user's transcription buffer first WITH audio
           if (inputTranscriptionBuffer.current.trim()) {
-            console.log('[Gemini] Flushing user message (AI responding):', inputTranscriptionBuffer.current);
-            addMessage(inputTranscriptionBuffer.current.trim(), true, false);
+            const userText = inputTranscriptionBuffer.current.trim();
             inputTranscriptionBuffer.current = '';
+            console.log('[Gemini] Flushing user message (AI responding):', userText);
+
+            // Extract last 10 seconds of user audio (fast operation)
+            const audioBlob = getWebAudioManager().extractRecentAudio(10);
+            const msgId = getNextMessageId();
+
+            // Add message immediately (UI responsiveness)
+            const message: ChatMessage = {
+              id: msgId,
+              text: userText,
+              isUser: true,
+              isWhisper: false,
+            };
+            setMessages(prev => [...prev, message]);
+
+            // Convert audio to base64 asynchronously and update message
+            if (audioBlob) {
+              console.log('[Gemini] Extracting user audio:', (audioBlob.size / 1024).toFixed(1), 'KB');
+              blobToBase64(audioBlob).then(base64 => {
+                console.log('[Gemini] User audio converted to base64:', (base64.length / 1024).toFixed(1), 'KB');
+                setMessages(prev => prev.map(m =>
+                  m.id === msgId ? { ...m, audioData: base64 } : m
+                ));
+              }).catch(err => {
+                console.warn('[Gemini] Failed to convert user audio:', err);
+              });
+            }
           }
+
+          // Accumulate AI audio chunk for replay support (store as binary for proper concatenation)
+          const bytes = new Uint8Array(audioData);
+          aiAudioChunksRef.current.push(bytes);
+
+          // Play the audio
           playAudioResponse(audioData);
         },
         onText: (text: string) => {
@@ -796,11 +846,33 @@ Base your assessment on our entire conversation. Call the show_session_summary f
         },
         // Transcription callbacks - show transcribed speech in chat bubbles
         onOutputTranscription: (text: string) => {
-          // AI is responding - flush user's transcription buffer first
+          // AI is responding - flush user's transcription buffer first WITH audio
           if (inputTranscriptionBuffer.current.trim()) {
-            console.log('[Gemini] Flushing user message (AI transcription starting):', inputTranscriptionBuffer.current);
-            addMessage(inputTranscriptionBuffer.current.trim(), true, false);
+            const userText = inputTranscriptionBuffer.current.trim();
             inputTranscriptionBuffer.current = '';
+            console.log('[Gemini] Flushing user message (AI transcription starting):', userText);
+
+            // Extract last 10 seconds of user audio
+            const audioBlob = getWebAudioManager().extractRecentAudio(10);
+            const msgId = getNextMessageId();
+
+            // Add message immediately
+            const message: ChatMessage = {
+              id: msgId,
+              text: userText,
+              isUser: true,
+              isWhisper: false,
+            };
+            setMessages(prev => [...prev, message]);
+
+            // Convert audio to base64 asynchronously
+            if (audioBlob) {
+              blobToBase64(audioBlob).then(base64 => {
+                setMessages(prev => prev.map(m =>
+                  m.id === msgId ? { ...m, audioData: base64 } : m
+                ));
+              }).catch(() => {});
+            }
           }
           // Accumulate AI transcription chunks (they come in small pieces)
           outputTranscriptionBuffer.current += text;
@@ -814,11 +886,37 @@ Base your assessment on our entire conversation. Call the show_session_summary f
         onTurnComplete: () => {
           console.log('[Gemini] Turn complete');
 
-          // Flush accumulated AI transcription as a single message
+          // Flush accumulated AI transcription as a single message WITH audio data
           if (outputTranscriptionBuffer.current.trim()) {
             console.log('[Gemini] Adding AI message:', outputTranscriptionBuffer.current);
-            addMessage(outputTranscriptionBuffer.current.trim(), false, false);
+
+            // Combine accumulated AI audio chunks for replay (proper binary concatenation)
+            let combinedAudio: string | undefined;
+            if (aiAudioChunksRef.current.length > 0) {
+              // Calculate total length
+              const totalLength = aiAudioChunksRef.current.reduce((sum, chunk) => sum + chunk.length, 0);
+              // Concatenate all binary chunks
+              const combined = new Uint8Array(totalLength);
+              let offset = 0;
+              for (const chunk of aiAudioChunksRef.current) {
+                combined.set(chunk, offset);
+                offset += chunk.length;
+              }
+              // Convert to base64
+              let binary = '';
+              for (let i = 0; i < combined.length; i++) {
+                binary += String.fromCharCode(combined[i]);
+              }
+              combinedAudio = btoa(binary);
+              console.log('[Gemini] AI audio for replay:', (combinedAudio.length / 1024).toFixed(1), 'KB');
+            }
+
+            addMessage(outputTranscriptionBuffer.current.trim(), false, false, undefined, combinedAudio);
             outputTranscriptionBuffer.current = ''; // Clear buffer
+            aiAudioChunksRef.current = []; // Clear audio chunks for next turn
+          } else {
+            // No transcription but might have audio - clear it anyway
+            aiAudioChunksRef.current = [];
           }
 
           // Clear the audio buffer to start fresh for user's next turn
