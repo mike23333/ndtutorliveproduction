@@ -1,11 +1,11 @@
 /**
- * Profile Page
- * Displays user profile, stats, and recent badges
+ * Profile Page - Redesigned
+ * Premium profile with stunning visuals and engaging interactions
  */
 
 import { useNavigate } from 'react-router-dom';
 import { AppColors } from '../theme/colors';
-import { StarIcon, ClockIcon, FireIcon, ChevronLeftIcon, ChevronRightIcon } from '../theme/icons';
+import { ChevronLeftIcon, ChevronRightIcon } from '../theme/icons';
 import { useAuth } from '../hooks/useAuth';
 import { useRecentBadges, useBadgeProgress } from '../hooks/useBadges';
 import { BadgeIcon } from '../components/badges';
@@ -15,7 +15,6 @@ import { getUserStarStats } from '../services/firebase/sessionData';
 import { signOut, updateUserProfile } from '../services/firebase/auth';
 import { uploadProfilePhoto } from '../services/firebase/storage';
 
-// User stats interface
 interface UserStats {
   totalSessions: number;
   totalStars: number;
@@ -25,14 +24,49 @@ interface UserStats {
   longestStreak: number;
 }
 
-// Level colors
-const levelColors: Record<string, { bg: string; text: string }> = {
-  'A1': { bg: 'rgba(74, 222, 128, 0.2)', text: '#4ade80' },
-  'A2': { bg: 'rgba(74, 222, 128, 0.2)', text: '#4ade80' },
-  'B1': { bg: 'rgba(251, 191, 36, 0.2)', text: '#fbbf24' },
-  'B2': { bg: 'rgba(251, 191, 36, 0.2)', text: '#fbbf24' },
-  'C1': { bg: 'rgba(248, 113, 113, 0.2)', text: '#f87171' },
-  'C2': { bg: 'rgba(248, 113, 113, 0.2)', text: '#f87171' },
+// Level configuration with gradient colors
+const LEVEL_CONFIG: Record<string, {
+  gradient: string;
+  glow: string;
+  label: string;
+  description: string;
+}> = {
+  'A1': {
+    gradient: 'linear-gradient(135deg, #86EFAC 0%, #22C55E 100%)',
+    glow: 'rgba(134, 239, 172, 0.3)',
+    label: 'Beginner',
+    description: 'Starting your journey',
+  },
+  'A2': {
+    gradient: 'linear-gradient(135deg, #86EFAC 0%, #16A34A 100%)',
+    glow: 'rgba(134, 239, 172, 0.3)',
+    label: 'Elementary',
+    description: 'Building foundations',
+  },
+  'B1': {
+    gradient: 'linear-gradient(135deg, #FDE047 0%, #EAB308 100%)',
+    glow: 'rgba(253, 224, 71, 0.3)',
+    label: 'Intermediate',
+    description: 'Growing confidence',
+  },
+  'B2': {
+    gradient: 'linear-gradient(135deg, #FDBA74 0%, #EA580C 100%)',
+    glow: 'rgba(253, 186, 116, 0.3)',
+    label: 'Upper Intermediate',
+    description: 'Expanding horizons',
+  },
+  'C1': {
+    gradient: 'linear-gradient(135deg, #C4B5FD 0%, #8B5CF6 100%)',
+    glow: 'rgba(196, 181, 253, 0.3)',
+    label: 'Advanced',
+    description: 'Near-native fluency',
+  },
+  'C2': {
+    gradient: 'linear-gradient(135deg, #F9A8D4 0%, #EC4899 100%)',
+    glow: 'rgba(249, 168, 212, 0.3)',
+    label: 'Mastery',
+    description: 'Language expert',
+  },
 };
 
 export default function ProfilePage() {
@@ -53,7 +87,6 @@ export default function ProfilePage() {
   const [photoError, setPhotoError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch user stats
   useEffect(() => {
     const fetchStats = async () => {
       if (!user?.uid) return;
@@ -93,14 +126,12 @@ export default function ProfilePage() {
     try {
       const photoURL = await uploadProfilePhoto(file, user.uid);
       await updateUserProfile(user.uid, { photoURL });
-      // Force a small delay to let the context refresh
       window.location.reload();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error uploading photo:', error);
-      setPhotoError(error.message || 'Failed to upload photo');
+      setPhotoError((error as Error).message || 'Failed to upload photo');
     } finally {
       setUploadingPhoto(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -108,9 +139,8 @@ export default function ProfilePage() {
   };
 
   const userLevel = userDocument?.level || 'B1';
-  const levelColor = levelColors[userLevel] || levelColors['B1'];
+  const levelConfig = LEVEL_CONFIG[userLevel] || LEVEL_CONFIG['B1'];
 
-  // Format practice time
   const formatPracticeTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -129,454 +159,737 @@ export default function ProfilePage() {
       bottom: 0,
       background: AppColors.bgPrimary,
       color: AppColors.textPrimary,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
     }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: 'clamp(12px, 3vw, 20px) clamp(16px, 4vw, 24px)',
-        borderBottom: `1px solid ${AppColors.borderColor}`,
-      }}>
-        <button
-          onClick={() => navigate(-1)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '40px',
-            height: '40px',
-            borderRadius: '50%',
-            border: 'none',
-            backgroundColor: 'rgba(255,255,255,0.1)',
-            color: AppColors.textSecondary,
-            cursor: 'pointer',
-          }}
-        >
-          <ChevronLeftIcon size={24} />
-        </button>
-        <h1 style={{
-          flex: 1,
-          margin: 0,
-          fontSize: 'clamp(18px, 4.5vw, 22px)',
-          fontWeight: '700',
-          textAlign: 'center',
-        }}>
-          Profile
-        </h1>
-        <div style={{ width: '40px' }} /> {/* Spacer for centering */}
-      </div>
+      <style>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-6px); }
+        }
+        @keyframes pulse-ring {
+          0% { transform: scale(1); opacity: 0.5; }
+          100% { transform: scale(1.3); opacity: 0; }
+        }
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .stat-card:hover {
+          transform: translateY(-2px);
+          background: rgba(255, 255, 255, 0.08) !important;
+        }
+        .menu-button:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+        }
+        .profile-content::-webkit-scrollbar { width: 0; display: none; }
+        .profile-content { -ms-overflow-style: none; scrollbar-width: none; }
+        @media (min-width: 640px) {
+          .profile-content { max-width: 540px; margin: 0 auto; }
+        }
+      `}</style>
 
       {/* Scrollable content */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        padding: 'clamp(16px, 4vw, 24px)',
-        paddingBottom: 'calc(80px + env(safe-area-inset-bottom) + 24px)',
-      }}>
-        {/* Profile Card */}
+      <div
+        className="profile-content"
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          width: '100%',
+          paddingBottom: 'calc(100px + env(safe-area-inset-bottom))',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {/* Hero Section */}
         <div style={{
-          backgroundColor: AppColors.surfaceMedium,
-          borderRadius: '20px',
-          padding: 'clamp(20px, 5vw, 32px)',
-          marginBottom: 'clamp(16px, 4vw, 24px)',
-          textAlign: 'center',
+          position: 'relative',
+          padding: '20px 20px 32px',
+          background: `linear-gradient(180deg,
+            rgba(139, 92, 246, 0.12) 0%,
+            rgba(139, 92, 246, 0.04) 60%,
+            transparent 100%)`,
+          overflow: 'hidden',
         }}>
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            onChange={handlePhotoChange}
-            style={{ display: 'none' }}
-          />
-
-          {/* Avatar with edit overlay */}
-          <div
-            onClick={handlePhotoClick}
-            style={{
-              width: 'clamp(80px, 20vw, 100px)',
-              height: 'clamp(80px, 20vw, 100px)',
-              borderRadius: '50%',
-              backgroundColor: AppColors.accentPurple,
-              margin: '0 auto clamp(12px, 3vw, 16px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 'clamp(32px, 8vw, 40px)',
-              position: 'relative',
-              cursor: 'pointer',
-              overflow: 'hidden',
-            }}
-          >
-            {userDocument?.photoURL ? (
-              <img
-                src={userDocument.photoURL}
-                alt="Profile"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
-            ) : (
-              (userDocument?.displayName || user?.displayName || 'U')[0].toUpperCase()
-            )}
-
-            {/* Edit overlay */}
-            <div style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: '32px',
-              backgroundColor: 'rgba(0, 0, 0, 0.6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: uploadingPhoto ? 1 : 0.8,
-              transition: 'opacity 0.2s',
-            }}>
-              {uploadingPhoto ? (
-                <span style={{ fontSize: '10px', color: 'white' }}>Uploading...</span>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
-                  <circle cx="12" cy="13" r="4" />
-                </svg>
-              )}
-            </div>
-          </div>
-
-          {/* Photo error message */}
-          {photoError && (
-            <p style={{
-              margin: '0 0 12px 0',
-              fontSize: 'clamp(12px, 3vw, 14px)',
-              color: AppColors.errorRose,
-              textAlign: 'center',
-            }}>
-              {photoError}
-            </p>
-          )}
-
-          {/* Name */}
-          <h2 style={{
-            margin: '0 0 8px 0',
-            fontSize: 'clamp(20px, 5vw, 26px)',
-            fontWeight: '700',
-          }}>
-            {userDocument?.displayName || user?.displayName || 'Learner'}
-          </h2>
-
-          {/* Email */}
-          <p style={{
-            margin: '0 0 16px 0',
-            fontSize: 'clamp(12px, 3vw, 14px)',
-            color: AppColors.textSecondary,
-          }}>
-            {user?.email}
-          </p>
-
-          {/* Level Badge */}
+          {/* Background decoration */}
           <div style={{
-            display: 'inline-block',
-            padding: '8px 16px',
-            borderRadius: '20px',
-            backgroundColor: levelColor.bg,
-            color: levelColor.text,
-            fontSize: 'clamp(14px, 3.5vw, 16px)',
-            fontWeight: '700',
-          }}>
-            Level {userLevel}
-          </div>
-        </div>
-
-        {/* Stats Row */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 'clamp(8px, 2vw, 12px)',
-          marginBottom: 'clamp(16px, 4vw, 24px)',
-        }}>
-          {/* Streak */}
+            position: 'absolute',
+            top: '10%',
+            left: '-10%',
+            width: '50%',
+            height: '80%',
+            background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.1) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
           <div style={{
-            backgroundColor: AppColors.surfaceMedium,
-            borderRadius: '16px',
-            padding: 'clamp(12px, 3vw, 18px)',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              marginBottom: '4px',
-            }}>
-              <FireIcon size={20} color={AppColors.whisperAmber} />
-              <span style={{
-                fontSize: 'clamp(20px, 5vw, 28px)',
-                fontWeight: '700',
-                color: AppColors.whisperAmber,
-              }}>
-                {userStats.currentStreak}
-              </span>
-            </div>
-            <div style={{
-              fontSize: 'clamp(10px, 2.5vw, 12px)',
-              color: AppColors.textSecondary,
-            }}>
-              Day Streak
-            </div>
-          </div>
+            position: 'absolute',
+            top: '20%',
+            right: '-15%',
+            width: '40%',
+            height: '60%',
+            background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.08) 0%, transparent 70%)',
+            pointerEvents: 'none',
+          }} />
 
-          {/* Practice Time */}
-          <div style={{
-            backgroundColor: AppColors.surfaceMedium,
-            borderRadius: '16px',
-            padding: 'clamp(12px, 3vw, 18px)',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              marginBottom: '4px',
-            }}>
-              <ClockIcon size={20} color={AppColors.accentBlue} />
-              <span style={{
-                fontSize: 'clamp(20px, 5vw, 28px)',
-                fontWeight: '700',
-                color: AppColors.accentBlue,
-              }}>
-                {formatPracticeTime(userStats.totalPracticeTime)}
-              </span>
-            </div>
-            <div style={{
-              fontSize: 'clamp(10px, 2.5vw, 12px)',
-              color: AppColors.textSecondary,
-            }}>
-              Practice Time
-            </div>
-          </div>
-
-          {/* Stars */}
-          <div style={{
-            backgroundColor: AppColors.surfaceMedium,
-            borderRadius: '16px',
-            padding: 'clamp(12px, 3vw, 18px)',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '4px',
-              marginBottom: '4px',
-            }}>
-              <StarIcon size={20} color={AppColors.whisperAmber} />
-              <span style={{
-                fontSize: 'clamp(20px, 5vw, 28px)',
-                fontWeight: '700',
-                color: AppColors.whisperAmber,
-              }}>
-                {userStats.totalStars}
-              </span>
-            </div>
-            <div style={{
-              fontSize: 'clamp(10px, 2.5vw, 12px)',
-              color: AppColors.textSecondary,
-            }}>
-              Stars Earned
-            </div>
-          </div>
-        </div>
-
-        {/* Learning Settings */}
-        {user?.uid && (
-          <LearningSettingsCard
-            userId={user.uid}
-            currentLanguage={userDocument?.targetLanguage}
-            currentGoal={userDocument?.dailyPracticeGoal}
-          />
-        )}
-
-        {/* Badges Section */}
-        <div style={{
-          backgroundColor: AppColors.surfaceMedium,
-          borderRadius: '20px',
-          padding: 'clamp(16px, 4vw, 24px)',
-          marginBottom: 'clamp(16px, 4vw, 24px)',
-        }}>
           {/* Header */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 'clamp(12px, 3vw, 16px)',
+            marginBottom: '24px',
+            position: 'relative',
+            zIndex: 1,
           }}>
-            <h3 style={{
-              margin: 0,
-              fontSize: 'clamp(16px, 4vw, 18px)',
-              fontWeight: '700',
-            }}>
-              Badges
-            </h3>
             <button
-              onClick={() => navigate('/badges')}
+              onClick={() => navigate(-1)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px',
-                padding: '6px 12px',
-                borderRadius: '16px',
-                border: 'none',
-                backgroundColor: 'rgba(255,255,255,0.1)',
-                color: AppColors.accentPurple,
-                fontSize: 'clamp(12px, 3vw, 14px)',
-                fontWeight: '600',
+                justifyContent: 'center',
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                color: AppColors.textPrimary,
+                cursor: 'pointer',
+                backdropFilter: 'blur(10px)',
+                WebkitBackdropFilter: 'blur(10px)',
+              }}
+            >
+              <ChevronLeftIcon size={24} />
+            </button>
+            <h1 style={{
+              flex: 1,
+              margin: 0,
+              fontSize: '22px',
+              fontWeight: '700',
+              textAlign: 'center',
+              letterSpacing: '-0.5px',
+            }}>
+              Profile
+            </h1>
+            <div style={{ width: '40px' }} />
+          </div>
+
+          {/* Profile Card */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            position: 'relative',
+            zIndex: 1,
+          }}>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              onChange={handlePhotoChange}
+              style={{ display: 'none' }}
+            />
+
+            {/* Avatar with ring */}
+            <div
+              onClick={handlePhotoClick}
+              style={{
+                position: 'relative',
+                marginBottom: '16px',
                 cursor: 'pointer',
               }}
             >
-              View All
-              <ChevronRightIcon size={16} />
-            </button>
+              {/* Animated ring */}
+              <div style={{
+                position: 'absolute',
+                inset: '-4px',
+                borderRadius: '50%',
+                background: levelConfig.gradient,
+                animation: 'pulse-ring 2s ease-out infinite',
+              }} />
+              <div style={{
+                position: 'absolute',
+                inset: '-4px',
+                borderRadius: '50%',
+                background: levelConfig.gradient,
+                opacity: 0.5,
+              }} />
+
+              {/* Avatar */}
+              <div style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                backgroundColor: AppColors.accentPurple,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '40px',
+                fontWeight: '600',
+                position: 'relative',
+                overflow: 'hidden',
+                border: '3px solid rgba(0, 0, 0, 0.3)',
+              }}>
+                {userDocument?.photoURL ? (
+                  <img
+                    src={userDocument.photoURL}
+                    alt="Profile"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    }}
+                  />
+                ) : (
+                  <span style={{ color: 'white' }}>
+                    {(userDocument?.displayName || user?.displayName || 'U')[0].toUpperCase()}
+                  </span>
+                )}
+
+                {/* Edit overlay */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: '28px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backdropFilter: 'blur(4px)',
+                }}>
+                  {uploadingPhoto ? (
+                    <span style={{ fontSize: '10px', color: 'white' }}>Uploading...</span>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Photo error */}
+            {photoError && (
+              <p style={{
+                margin: '0 0 8px 0',
+                fontSize: '12px',
+                color: AppColors.errorRose,
+                textAlign: 'center',
+              }}>
+                {photoError}
+              </p>
+            )}
+
+            {/* Name */}
+            <h2 style={{
+              margin: '0 0 4px 0',
+              fontSize: '24px',
+              fontWeight: '700',
+              letterSpacing: '-0.5px',
+            }}>
+              {userDocument?.displayName || user?.displayName || 'Learner'}
+            </h2>
+
+            {/* Email */}
+            <p style={{
+              margin: '0 0 12px 0',
+              fontSize: '14px',
+              color: AppColors.textSecondary,
+            }}>
+              {user?.email}
+            </p>
+
+            {/* Level Badge */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              background: levelConfig.gradient,
+              boxShadow: `0 4px 16px ${levelConfig.glow}`,
+            }}>
+              <span style={{
+                fontSize: '14px',
+                fontWeight: '700',
+                color: '#000',
+              }}>
+                Level {userLevel}
+              </span>
+              <span style={{
+                fontSize: '12px',
+                fontWeight: '500',
+                color: 'rgba(0, 0, 0, 0.6)',
+              }}>
+                {levelConfig.label}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Content Sections */}
+        <div style={{
+          padding: '0 20px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '20px',
+        }}>
+          {/* Stats Grid */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: '12px',
+          }}>
+            {/* Streak */}
+            <div
+              className="stat-card"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '20px',
+                padding: '16px 12px',
+                textAlign: 'center',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-30%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '80%',
+                height: '60%',
+                background: 'radial-gradient(ellipse at center, rgba(251, 191, 36, 0.15) 0%, transparent 70%)',
+                pointerEvents: 'none',
+              }} />
+              <div style={{
+                fontSize: '24px',
+                marginBottom: '4px',
+                animation: 'float 3s ease-in-out infinite',
+              }}>🔥</div>
+              <div style={{
+                fontSize: '26px',
+                fontWeight: '800',
+                background: 'linear-gradient(135deg, #FDE047 0%, #F59E0B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>
+                {userStats.currentStreak}
+              </div>
+              <div style={{
+                fontSize: '11px',
+                color: AppColors.textSecondary,
+                fontWeight: '500',
+              }}>
+                Day Streak
+              </div>
+            </div>
+
+            {/* Practice Time */}
+            <div
+              className="stat-card"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '20px',
+                padding: '16px 12px',
+                textAlign: 'center',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-30%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '80%',
+                height: '60%',
+                background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+                pointerEvents: 'none',
+              }} />
+              <div style={{
+                fontSize: '24px',
+                marginBottom: '4px',
+                animation: 'float 3s ease-in-out infinite 0.5s',
+              }}>⏱️</div>
+              <div style={{
+                fontSize: '22px',
+                fontWeight: '800',
+                background: 'linear-gradient(135deg, #93C5FD 0%, #3B82F6 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>
+                {formatPracticeTime(userStats.totalPracticeTime)}
+              </div>
+              <div style={{
+                fontSize: '11px',
+                color: AppColors.textSecondary,
+                fontWeight: '500',
+              }}>
+                Practice Time
+              </div>
+            </div>
+
+            {/* Stars */}
+            <div
+              className="stat-card"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '20px',
+                padding: '16px 12px',
+                textAlign: 'center',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-30%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '80%',
+                height: '60%',
+                background: 'radial-gradient(ellipse at center, rgba(251, 191, 36, 0.15) 0%, transparent 70%)',
+                pointerEvents: 'none',
+              }} />
+              <div style={{
+                fontSize: '24px',
+                marginBottom: '4px',
+                animation: 'float 3s ease-in-out infinite 1s',
+              }}>⭐</div>
+              <div style={{
+                fontSize: '26px',
+                fontWeight: '800',
+                background: 'linear-gradient(135deg, #FDE047 0%, #F59E0B 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>
+                {userStats.totalStars}
+              </div>
+              <div style={{
+                fontSize: '11px',
+                color: AppColors.textSecondary,
+                fontWeight: '500',
+              }}>
+                Stars Earned
+              </div>
+            </div>
           </div>
 
-          {/* Badge count */}
-          <p style={{
-            margin: '0 0 16px 0',
-            fontSize: 'clamp(12px, 3vw, 14px)',
-            color: AppColors.textSecondary,
-          }}>
-            {earnedBadges} of {totalBadges} badges earned
-          </p>
+          {/* Learning Settings */}
+          {user?.uid && (
+            <LearningSettingsCard
+              userId={user.uid}
+              currentLanguage={userDocument?.targetLanguage}
+              currentGoal={userDocument?.dailyPracticeGoal}
+            />
+          )}
 
-          {/* Recent badges grid */}
-          {badgesLoading ? (
+          {/* Badges Section */}
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '24px',
+            padding: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+            position: 'relative',
+            overflow: 'hidden',
+          }}>
+            {/* Decorative glow */}
             <div style={{
-              textAlign: 'center',
-              color: AppColors.textSecondary,
-              padding: '20px',
+              position: 'absolute',
+              top: '-50%',
+              right: '-20%',
+              width: '50%',
+              height: '100%',
+              background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.1) 0%, transparent 70%)',
+              pointerEvents: 'none',
+            }} />
+
+            {/* Header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '16px',
+              position: 'relative',
             }}>
-              Loading badges...
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{
+                  fontSize: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #C4B5FD 0%, #8B5CF6 100%)',
+                  boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
+                }}>
+                  🏆
+                </span>
+                <div>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: '16px',
+                    fontWeight: '700',
+                  }}>
+                    Badges
+                  </h3>
+                  <p style={{
+                    margin: 0,
+                    fontSize: '12px',
+                    color: AppColors.textSecondary,
+                  }}>
+                    {earnedBadges} of {totalBadges} earned
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => navigate('/badges')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '8px 14px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                  color: '#C4B5FD',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                View All
+                <ChevronRightIcon size={16} />
+              </button>
             </div>
-          ) : recentBadges.length > 0 ? (
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 'clamp(8px, 2vw, 12px)',
-            }}>
-              {recentBadges.map((userBadge) => (
-                <div
-                  key={userBadge.badgeId}
-                  style={{
+
+            {/* Recent badges grid */}
+            {badgesLoading ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '12px',
+              }}>
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} style={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '6px',
-                  }}
-                >
-                  <BadgeIcon
-                    iconName={userBadge.iconName}
-                    category={userBadge.category}
-                    size="md"
-                    earned={true}
-                  />
-                  <span style={{
-                    fontSize: 'clamp(9px, 2.2vw, 11px)',
-                    color: AppColors.textSecondary,
-                    textAlign: 'center',
-                    lineHeight: 1.2,
+                    gap: '8px',
                   }}>
-                    {userBadge.name}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div style={{
-              textAlign: 'center',
-              color: AppColors.textSecondary,
-              padding: '20px',
+                    <div style={{
+                      width: '60px',
+                      height: '60px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                    }} />
+                    <div style={{
+                      width: '48px',
+                      height: '10px',
+                      borderRadius: '5px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    }} />
+                  </div>
+                ))}
+              </div>
+            ) : recentBadges.length > 0 ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '12px',
+              }}>
+                {recentBadges.map((userBadge, index) => (
+                  <div
+                    key={userBadge.badgeId}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px',
+                      animation: `fadeIn 0.4s ease-out ${index * 0.1}s backwards`,
+                    }}
+                  >
+                    <BadgeIcon
+                      iconName={userBadge.iconName}
+                      category={userBadge.category}
+                      size="md"
+                      earned={true}
+                    />
+                    <span style={{
+                      fontSize: '10px',
+                      fontWeight: '500',
+                      color: AppColors.textSecondary,
+                      textAlign: 'center',
+                      lineHeight: 1.2,
+                    }}>
+                      {userBadge.name}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{
+                textAlign: 'center',
+                padding: '24px 16px',
+                borderRadius: '16px',
+                backgroundColor: 'rgba(255, 255, 255, 0.02)',
+              }}>
+                <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>🎯</span>
+                <p style={{
+                  margin: 0,
+                  fontSize: '14px',
+                  color: AppColors.textSecondary,
+                }}>
+                  Complete lessons to earn badges!
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Account Section */}
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '24px',
+            overflow: 'hidden',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+          }}>
+            {/* Settings button */}
+            <button
+              className="menu-button"
+              onClick={() => navigate('/settings')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: '16px 20px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: AppColors.textPrimary,
+                fontSize: '15px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'background 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{
+                  fontSize: '18px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                }}>⚙️</span>
+                <span>Settings</span>
+              </div>
+              <ChevronRightIcon size={20} color={AppColors.textSecondary} />
+            </button>
+
+            {/* Help button */}
+            <button
+              className="menu-button"
+              onClick={() => navigate('/help')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: '16px 20px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: AppColors.textPrimary,
+                fontSize: '15px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'background 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{
+                  fontSize: '18px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                }}>❓</span>
+                <span>Help & Support</span>
+              </div>
+              <ChevronRightIcon size={20} color={AppColors.textSecondary} />
+            </button>
+
+            {/* Logout button */}
+            <button
+              className="menu-button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                width: '100%',
+                padding: '16px 20px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: '#EF4444',
+                fontSize: '15px',
+                fontWeight: '500',
+                cursor: loggingOut ? 'not-allowed' : 'pointer',
+                opacity: loggingOut ? 0.5 : 1,
+                transition: 'background 0.2s ease',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{
+                  fontSize: '18px',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '10px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                }}>👋</span>
+                <span>{loggingOut ? 'Signing out...' : 'Sign Out'}</span>
+              </div>
+            </button>
+          </div>
+
+          {/* App Version */}
+          <div style={{
+            textAlign: 'center',
+            padding: '16px',
+          }}>
+            <p style={{
+              margin: 0,
+              fontSize: '12px',
+              color: 'rgba(255, 255, 255, 0.3)',
             }}>
-              Complete lessons to earn badges!
-            </div>
-          )}
-        </div>
-
-        {/* Account Section */}
-        <div style={{
-          backgroundColor: AppColors.surfaceMedium,
-          borderRadius: '20px',
-          overflow: 'hidden',
-        }}>
-          {/* Settings button */}
-          <button
-            onClick={() => navigate('/settings')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              padding: 'clamp(14px, 3.5vw, 18px) clamp(16px, 4vw, 24px)',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: AppColors.textPrimary,
-              fontSize: 'clamp(14px, 3.5vw, 16px)',
-              cursor: 'pointer',
-              borderBottom: `1px solid ${AppColors.borderColor}`,
-            }}
-          >
-            <span>Settings</span>
-            <ChevronRightIcon size={20} color={AppColors.textSecondary} />
-          </button>
-
-          {/* Help button */}
-          <button
-            onClick={() => navigate('/help')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              padding: 'clamp(14px, 3.5vw, 18px) clamp(16px, 4vw, 24px)',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: AppColors.textPrimary,
-              fontSize: 'clamp(14px, 3.5vw, 16px)',
-              cursor: 'pointer',
-              borderBottom: `1px solid ${AppColors.borderColor}`,
-            }}
-          >
-            <span>Help & Support</span>
-            <ChevronRightIcon size={20} color={AppColors.textSecondary} />
-          </button>
-
-          {/* Logout button */}
-          <button
-            onClick={handleLogout}
-            disabled={loggingOut}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              padding: 'clamp(14px, 3.5vw, 18px) clamp(16px, 4vw, 24px)',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: '#ef4444',
-              fontSize: 'clamp(14px, 3.5vw, 16px)',
-              cursor: loggingOut ? 'not-allowed' : 'pointer',
-              opacity: loggingOut ? 0.5 : 1,
-            }}
-          >
-            <span>{loggingOut ? 'Signing out...' : 'Sign Out'}</span>
-          </button>
+              Version 1.0.0
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -105,16 +105,30 @@ export const CreateOwnModal: React.FC<CreateOwnModalProps> = ({
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div
+        className="create-own-modal-content"
         style={{
           backgroundColor: AppColors.surfaceDark,
           borderRadius: '20px',
           width: '100%',
           maxWidth: '480px',
-          maxHeight: '90vh',
+          maxHeight: 'calc(100vh - 48px)',
           overflowY: 'auto',
           padding: 'clamp(20px, 5vw, 28px)',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
+        <style>{`
+          .create-own-modal-content::-webkit-scrollbar {
+            width: 6px;
+          }
+          .create-own-modal-content::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .create-own-modal-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+          }
+        `}</style>
         {/* Header */}
         <div
           style={{

@@ -1,5 +1,6 @@
 import { AppColors } from '../../theme/colors';
 import { CompactLessonCard } from './CompactLessonCard';
+import { ChevronRightIcon } from '../../theme/icons';
 
 export interface LessonWithCompletion {
   id: string;
@@ -28,42 +29,71 @@ interface AssignmentGridProps {
 }
 
 /**
- * 2-column lesson grid
- * Clean layout with generous spacing
+ * AssignmentGrid - Premium horizontal lesson scroll
+ * Glass-morphic design matching Progress page aesthetic
  */
 export const AssignmentGrid = ({
   teacherName,
   lessons,
-  maxVisible = 6,
+  maxVisible,
   onLessonClick,
   onSeeAll,
 }: AssignmentGridProps) => {
-  const visibleLessons = lessons.slice(0, maxVisible);
-  const hasMore = lessons.length > maxVisible;
+  // Show all lessons in horizontal scroll, or limit if maxVisible specified
+  const visibleLessons = maxVisible ? lessons.slice(0, maxVisible) : lessons;
+  const hasMore = maxVisible ? lessons.length > maxVisible : false;
   const completedCount = lessons.filter((l) => l.completed).length;
 
   if (lessons.length === 0) {
-    return null; // Don't show empty section
+    return null;
   }
 
   return (
-    <section style={{ padding: '0 20px', marginBottom: '24px' }}>
-      {/* Header */}
+    <section style={{ marginBottom: '24px' }}>
+      <style>{`
+        .see-all-btn {
+          transition: all 200ms ease;
+        }
+        .see-all-btn:hover {
+          background-color: rgba(216, 180, 254, 0.12) !important;
+        }
+        .lessons-scroll::-webkit-scrollbar {
+          display: none;
+        }
+        .lessons-scroll {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        @keyframes fadeSlideIn {
+          from {
+            opacity: 0;
+            transform: translateX(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+      `}</style>
+
+      {/* Section Header - clean like Progress page */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'baseline',
+          alignItems: 'center',
           justifyContent: 'space-between',
           marginBottom: '16px',
+          padding: '0 20px',
         }}
       >
         <div>
           <h2
             style={{
               margin: 0,
-              fontSize: '17px',
-              fontWeight: '600',
+              fontSize: '18px',
+              fontWeight: '700',
               color: AppColors.textPrimary,
+              letterSpacing: '-0.3px',
             }}
           >
             Your Lessons
@@ -73,48 +103,84 @@ export const AssignmentGrid = ({
               margin: '4px 0 0 0',
               fontSize: '13px',
               color: AppColors.textSecondary,
+              fontWeight: '500',
             }}
           >
-            From {teacherName} · {completedCount}/{lessons.length} done
+            From {teacherName}
           </p>
         </div>
 
-        {hasMore && onSeeAll && (
-          <button
-            onClick={onSeeAll}
+        {/* Right side: Progress count + See all */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span
             style={{
-              padding: '8px 0',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: AppColors.accent,
-              fontSize: '14px',
+              fontSize: '13px',
+              color: AppColors.textSecondary,
               fontWeight: '500',
-              cursor: 'pointer',
             }}
           >
-            See all
-          </button>
-        )}
+            {completedCount}/{lessons.length} done
+          </span>
+          {hasMore && onSeeAll && (
+            <button
+              className="see-all-btn"
+              onClick={onSeeAll}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '8px 12px',
+                borderRadius: '12px',
+                border: 'none',
+                backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                color: AppColors.accent,
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                letterSpacing: '-0.2px',
+              }}
+            >
+              See all
+              <ChevronRightIcon size={14} />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* 2-column Grid */}
+      {/* Horizontal scrollable lessons */}
       <div
+        className="lessons-scroll"
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
+          display: 'flex',
           gap: '12px',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          paddingBottom: '8px',
+          paddingLeft: '20px',
+          paddingRight: '20px',
+          scrollSnapType: 'x mandatory',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         {visibleLessons.map((lesson, index) => (
-          <CompactLessonCard
+          <div
             key={lesson.id || `lesson-${index}`}
-            title={lesson.title}
-            level={lesson.level}
-            duration={lesson.duration}
-            completed={lesson.completed}
-            image={lesson.image}
-            onClick={() => onLessonClick(lesson)}
-          />
+            style={{
+              flexShrink: 0,
+              width: '180px',
+              scrollSnapAlign: 'start',
+              animation: `fadeSlideIn 0.4s ease-out ${index * 0.06}s both`,
+            }}
+          >
+            <CompactLessonCard
+              title={lesson.title}
+              level={lesson.level}
+              duration={lesson.duration}
+              completed={lesson.completed}
+              image={lesson.image}
+              onClick={() => onLessonClick(lesson)}
+            />
+          </div>
         ))}
       </div>
     </section>
