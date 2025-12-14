@@ -739,7 +739,8 @@ export default function RolePlayPage() {
           overflowY: 'auto',
           overflowX: 'hidden',
           width: '100%',
-          padding: '0 20px 40px',
+          padding: '0 20px',
+          paddingBottom: 'calc(80px + env(safe-area-inset-bottom))',
         }}
       >
         {/* Collection Detail View */}

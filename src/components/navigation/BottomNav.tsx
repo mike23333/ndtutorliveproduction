@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { HomeIcon, SparklesIcon, UserIcon } from '../../theme/icons';
+import { HomeIcon, SparklesIcon, UserIcon, BarChartIcon } from '../../theme/icons';
 import { AppColors } from '../../theme/colors';
 
 interface NavItemProps {
@@ -43,6 +43,12 @@ export default function BottomNav() {
       isActive: location.pathname === '/roleplay',
     },
     {
+      icon: <BarChartIcon size={24} />,
+      label: 'Progress',
+      path: '/progress',
+      isActive: location.pathname.startsWith('/progress'),
+    },
+    {
       icon: <UserIcon size={24} />,
       label: 'Profile',
       path: '/profile',
@@ -52,7 +58,7 @@ export default function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 flex items-center"
+      className="fixed bottom-0 left-0 right-0 z-40 flex items-center"
       style={{
         backgroundColor: AppColors.bgPrimary,
         borderTop: `1px solid ${AppColors.borderColor}`,

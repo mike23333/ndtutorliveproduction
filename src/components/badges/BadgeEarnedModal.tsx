@@ -55,7 +55,7 @@ export function BadgeEarnedModal({ badges, onClose }: BadgeEarnedModalProps) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 100,
+      zIndex: 9999,
       padding: '16px',
     }}>
       <div

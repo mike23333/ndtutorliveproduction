@@ -38,7 +38,7 @@ export const PronunciationModal: React.FC<PronunciationModalProps> = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 9999,
         padding: 'clamp(16px, 4vw, 24px)',
       }}
       onClick={(e) => e.target === e.currentTarget && onClose()}

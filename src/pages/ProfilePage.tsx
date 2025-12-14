@@ -9,6 +9,7 @@ import { StarIcon, ClockIcon, FireIcon, ChevronLeftIcon, ChevronRightIcon } from
 import { useAuth } from '../hooks/useAuth';
 import { useRecentBadges, useBadgeProgress } from '../hooks/useBadges';
 import { BadgeIcon } from '../components/badges';
+import { LearningSettingsCard } from '../components/profile';
 import { useState, useEffect, useRef } from 'react';
 import { getUserStarStats } from '../services/firebase/sessionData';
 import { signOut, updateUserProfile } from '../services/firebase/auth';
@@ -174,6 +175,7 @@ export default function ProfilePage() {
         flex: 1,
         overflowY: 'auto',
         padding: 'clamp(16px, 4vw, 24px)',
+        paddingBottom: 'calc(80px + env(safe-area-inset-bottom) + 24px)',
       }}>
         {/* Profile Card */}
         <div style={{
@@ -393,6 +395,15 @@ export default function ProfilePage() {
             </div>
           </div>
         </div>
+
+        {/* Learning Settings */}
+        {user?.uid && (
+          <LearningSettingsCard
+            userId={user.uid}
+            currentLanguage={userDocument?.targetLanguage}
+            currentGoal={userDocument?.dailyPracticeGoal}
+          />
+        )}
 
         {/* Badges Section */}
         <div style={{

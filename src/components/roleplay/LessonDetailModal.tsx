@@ -261,7 +261,7 @@ export function LessonDetailModal({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 1000,
+        zIndex: 9999,
         display: 'flex',
         flexDirection: 'column',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
@@ -438,7 +438,7 @@ export function LessonDetailModal({
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden',
-            paddingBottom: '100px',
+            paddingBottom: '140px',
           }}
         >
           {/* Hero Section with Full-Width Image - Flush to top */}
@@ -647,7 +647,7 @@ export function LessonDetailModal({
           </div>
         </div>
 
-        {/* Fixed Bottom Button */}
+        {/* Fixed Bottom Button - extra padding to clear bottom nav on mobile */}
         <div
           style={{
             position: 'absolute',
@@ -657,7 +657,8 @@ export function LessonDetailModal({
             padding: `${spacing.md}px`,
             backgroundColor: ModalColors.bgCard,
             borderTop: `1px solid ${ModalColors.borderLight}`,
-            paddingBottom: 'max(16px, env(safe-area-inset-bottom))',
+            paddingBottom: 'calc(80px + env(safe-area-inset-bottom))',
+            zIndex: 10,
           }}
         >
           <button

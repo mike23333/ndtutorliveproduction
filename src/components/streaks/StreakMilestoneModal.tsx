@@ -45,7 +45,7 @@ export const StreakMilestoneModal = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 1000,
+        zIndex: 9999,
         transition: 'background-color 0.3s ease',
         padding: '20px',
       }}

@@ -733,7 +733,7 @@ export default function HomePage() {
           overflowY: 'auto',
           overflowX: 'hidden',
           width: '100%',
-          paddingBottom: '40px',
+          paddingBottom: 'calc(80px + env(safe-area-inset-bottom))',
         }}
       >
         {/* Header */}
