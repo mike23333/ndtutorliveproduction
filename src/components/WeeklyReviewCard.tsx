@@ -27,11 +27,9 @@ const StarIcon = ({ size = 20 }: { size?: number }) => (
 );
 
 export const WeeklyReviewCard: React.FC<WeeklyReviewCardProps> = ({
-  review,
+  review: _review,
   onClick,
 }) => {
-  const isReady = review.status === 'ready';
-
   return (
     <div
       className="weekly-review-card"

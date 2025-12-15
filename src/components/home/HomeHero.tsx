@@ -5,7 +5,7 @@
  */
 
 import { AppColors } from '../../theme/colors';
-import { FireIcon, PlayIcon } from '../../theme/icons';
+import { PlayIcon } from '../../theme/icons';
 
 interface HomeHeroProps {
   userName: string;

@@ -32,7 +32,6 @@ export default function HomePage() {
   const {
     lessons,
     activeReview,
-    firstIncompleteLesson,
     smartDefaultLesson,
     isFirstTimeUser,
     userLevel,
@@ -160,19 +159,19 @@ export default function HomePage() {
     navigate(`/chat/${lesson.id}`);
   };
 
-  // Handle continue learning - use currentLesson from userDocument
+  // Handle continue learning - prioritize in-progress, then newest lesson (matches group class rhythm)
   const handleContinueLearning = () => {
     const currentLesson = userDocument?.currentLesson;
     if (currentLesson) {
+      // Resume in-progress lesson (started but not finished)
       const fullLesson = lessons.find((l) => l.id === currentLesson.missionId);
       if (fullLesson) {
         handleLessonClick(fullLesson);
       } else {
         navigate(`/chat/${currentLesson.missionId}`);
       }
-    } else if (firstIncompleteLesson) {
-      handleLessonClick(firstIncompleteLesson);
     } else if (smartDefaultLesson) {
+      // Go to newest lesson (aligns with latest group class)
       handleLessonClick(smartDefaultLesson);
     }
   };
@@ -437,9 +436,9 @@ export default function HomePage() {
               streakDays={currentStreak}
             />
 
-            {/* Up Next Card - Shows next incomplete teacher-assigned lesson */}
+            {/* Up Next Card - Shows newest teacher-assigned lesson (matches group class rhythm) */}
             <UpNextCard
-              lesson={firstIncompleteLesson || smartDefaultLesson}
+              lesson={smartDefaultLesson}
               inProgressLesson={userDocument?.currentLesson}
               teacherName={teacherName}
               onContinue={handleContinueLearning}

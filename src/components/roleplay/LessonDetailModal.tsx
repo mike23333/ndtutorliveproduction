@@ -57,31 +57,27 @@ const getLevelStyle = (level: string): { bg: string; text: string; border: strin
   return { bg: AppColors.accentMuted, text: AppColors.accent, border: AppColors.borderAccent };
 };
 
-// === Translate Icon Component ===
-function TranslateIcon() {
+// === Clock Icon for Duration ===
+function ClockIcon() {
   return (
     <svg
-      width="24"
-      height="24"
+      width="14"
+      height="14"
       viewBox="0 0 24 24"
       fill="none"
-      stroke={ModalColors.textMuted}
-      strokeWidth="1.5"
+      stroke="currentColor"
+      strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M5 8l6 0" />
-      <path d="M4 5l0 3" />
-      <path d="M2 5l10 0" />
-      <path d="M7 5l0 9c0 1.5 1 3 4 3" />
-      <path d="M11 19l4 -9l4 9" />
-      <path d="M13.5 15l5 0" />
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
     </svg>
   );
 }
 
-// === Static Task Item Component (always checked) ===
-function StaticTaskItem({ task }: { task: LessonTask }) {
+// === Task Item Component (bullet point style) ===
+function TaskItem({ task }: { task: LessonTask }) {
   return (
     <div
       style={{
@@ -92,33 +88,17 @@ function StaticTaskItem({ task }: { task: LessonTask }) {
         borderBottom: `1px solid ${ModalColors.borderLight}`,
       }}
     >
-      {/* Static Checkbox - Always checked */}
+      {/* Bullet Point */}
       <div
         style={{
-          width: '28px',
-          height: '28px',
+          width: '8px',
+          height: '8px',
           borderRadius: '50%',
-          border: `2px solid ${ModalColors.accent}`,
-          backgroundColor: ModalColors.accentMuted,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
+          backgroundColor: ModalColors.accent,
           flexShrink: 0,
+          marginTop: '8px',
         }}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={ModalColors.accent}
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      </div>
+      />
 
       {/* Task Text */}
       <span
@@ -126,7 +106,6 @@ function StaticTaskItem({ task }: { task: LessonTask }) {
           fontSize: '16px',
           lineHeight: '1.5',
           color: ModalColors.textPrimary,
-          paddingTop: '2px',
         }}
       >
         {task.text}
@@ -481,26 +460,52 @@ export function LessonDetailModal({
               minHeight: '300px',
             }}
           >
-            {/* Level Badge */}
+            {/* Level Badge + Duration */}
             <div
               style={{
-                display: 'inline-block',
-                padding: '6px 16px',
-                borderRadius: radius.full,
-                backgroundColor: levelStyle.bg,
-                border: `1.5px solid ${levelStyle.border}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
                 marginBottom: spacing.sm,
               }}
             >
-              <span
+              {/* Level Badge */}
+              <div
                 style={{
-                  fontSize: '14px',
-                  fontWeight: '600',
-                  color: levelStyle.text,
+                  display: 'inline-block',
+                  padding: '6px 16px',
+                  borderRadius: radius.full,
+                  backgroundColor: levelStyle.bg,
+                  border: `1.5px solid ${levelStyle.border}`,
                 }}
               >
-                {lesson.level}
-              </span>
+                <span
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: levelStyle.text,
+                  }}
+                >
+                  {lesson.level}
+                </span>
+              </div>
+
+              {/* Duration indicator */}
+              {lesson.durationMinutes && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: ModalColors.textSecondary,
+                    fontSize: '14px',
+                    fontWeight: '500',
+                  }}
+                >
+                  <ClockIcon />
+                  <span>{lesson.durationMinutes} min</span>
+                </div>
+              )}
             </div>
 
             {/* Title */}
@@ -517,46 +522,21 @@ export function LessonDetailModal({
               {lesson.title}
             </h1>
 
-            {/* CASE Section */}
+            {/* Description Section */}
             <div style={{ marginBottom: spacing.lg }}>
               {/* Section Header */}
-              <div
+              <h2
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginBottom: spacing.sm,
+                  margin: `0 0 ${spacing.sm}px 0`,
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: ModalColors.accent,
+                  letterSpacing: '0.5px',
+                  textTransform: 'uppercase',
                 }}
               >
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: ModalColors.accent,
-                    letterSpacing: '0.5px',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  DESCRIPTION
-                </h2>
-                <button
-                  aria-label="Translate"
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '6px',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: radius.sm,
-                    transition: 'background-color 0.2s ease',
-                  }}
-                >
-                  <TranslateIcon />
-                </button>
-              </div>
+                DESCRIPTION
+              </h2>
 
               {/* Case Description Card */}
               <div
@@ -580,49 +560,24 @@ export function LessonDetailModal({
               </div>
             </div>
 
-            {/* TASKS Section - Only shown if lesson has tasks */}
+            {/* Tasks Section - Only shown if lesson has tasks */}
             {lesson.tasks && lesson.tasks.length > 0 && (
               <div>
                 {/* Section Header */}
-                <div
+                <h2
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: spacing.xs,
+                    margin: `0 0 ${spacing.xs}px 0`,
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: ModalColors.accent,
+                    letterSpacing: '0.5px',
+                    textTransform: 'uppercase',
                   }}
                 >
-                  <h2
-                    style={{
-                      margin: 0,
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      color: ModalColors.accent,
-                      letterSpacing: '0.5px',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    TASKS
-                  </h2>
-                  <button
-                    aria-label="Translate"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: '6px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderRadius: radius.sm,
-                      transition: 'background-color 0.2s ease',
-                    }}
-                  >
-                    <TranslateIcon />
-                  </button>
-                </div>
+                  TASKS
+                </h2>
 
-                {/* Tasks Card - Static checkmarks */}
+                {/* Tasks Card - Bullet points */}
                 <div
                   style={{
                     backgroundColor: ModalColors.bgPrimary,
@@ -638,7 +593,7 @@ export function LessonDetailModal({
                         borderBottom: index < lesson.tasks!.length - 1 ? `1px solid ${ModalColors.borderLight}` : 'none',
                       }}
                     >
-                      <StaticTaskItem task={task} />
+                      <TaskItem task={task} />
                     </div>
                   ))}
                 </div>
@@ -685,7 +640,7 @@ export function LessonDetailModal({
               e.currentTarget.style.transform = 'translateY(0)';
             }}
           >
-            Start Chat
+            Start Lesson
           </button>
         </div>
       </div>

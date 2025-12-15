@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppColors } from '../../theme/colors';
-import { PlusIcon, PlayIcon } from '../../theme/icons';
+import { PlayIcon } from '../../theme/icons';
 import type { CustomLessonDocument } from '../../types/firestore';
 
 // MoreVertical icon
@@ -364,7 +364,6 @@ export const MyPracticeSection: React.FC<MyPracticeSectionProps> = ({
   onLessonClick,
   onEditLesson,
   onDeleteLesson,
-  onAddNew,
 }) => {
   if (lessons.length === 0) return null;
 
