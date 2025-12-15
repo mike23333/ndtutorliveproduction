@@ -186,6 +186,9 @@ export default function ChatPage() {
   // Track if we've already sent the initial "Hi" message
   const hasSentInitialHi = useRef(false);
 
+  // Track if we've already auto-collapsed tasks (only do it once)
+  const hasAutoCollapsedTasks = useRef(false);
+
   // Track if we muted the mic for audio playback (so we can unmute afterward)
   const mutedForAudioPlayback = useRef(false);
 
@@ -253,6 +256,17 @@ export default function ChatPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Auto-collapse tasks after first AI message to maximize chat space (only once)
+  useEffect(() => {
+    if (tasks.length > 0 && !hasAutoCollapsedTasks.current) {
+      const hasAIMessage = messages.some(m => !m.isUser);
+      if (hasAIMessage) {
+        hasAutoCollapsedTasks.current = true;
+        setTasksCollapsed(true);
+      }
+    }
+  }, [messages, tasks.length]);
 
   // Show summary modal when session summary is received
   useEffect(() => {
@@ -599,10 +613,6 @@ export default function ChatPage() {
 
   const connectionState = getConnectionState();
 
-  // Event handlers
-  const handleSettings = () => {
-    console.log('Settings clicked');
-  };
 
   // Save partial practice time for incomplete sessions (X button or mic stop)
   const savePartialPracticeTime = useCallback(async () => {
@@ -633,6 +643,12 @@ export default function ChatPage() {
   }, [userId, roleConfig?.isQuickPractice, sessionSummary]);
 
   const handleClose = useCallback(async () => {
+    // Confirm if user has meaningful progress (> 2 messages)
+    if (messages.length > 2 && !sessionSummary) {
+      const confirmed = window.confirm('End this session? Your practice time will be saved.');
+      if (!confirmed) return;
+    }
+
     // Save partial time before navigating
     await savePartialPracticeTime();
 
@@ -648,7 +664,7 @@ export default function ChatPage() {
     };
     sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
     navigate('/');
-  }, [savePartialPracticeTime, roleConfig, messages, navigate]);
+  }, [savePartialPracticeTime, roleConfig, messages, navigate, sessionSummary]);
 
   // Loading state
   if (!roleConfig) {
@@ -700,7 +716,6 @@ export default function ChatPage() {
         isConnected={isConnected}
         isConnecting={isConnecting}
         connectionError={connectionError}
-        onSettings={handleSettings}
         onClose={handleClose}
         onReconnect={reconnect}
         timerElement={
@@ -739,20 +754,9 @@ export default function ChatPage() {
         flex: 1,
         overflowY: 'auto',
         padding: '16px',
+        paddingBottom: '240px', // Space for fixed control bar
         minHeight: '300px',
       }}>
-        {messages.length === 0 && isConnected && (
-          <div style={{
-            textAlign: 'center',
-            color: AppColors.textSecondary,
-            padding: '40px 20px',
-          }}>
-            <p>Start speaking - I'm listening!</p>
-            <p style={{ fontSize: '12px', marginTop: '8px' }}>
-              Tap the button to mute/unmute your microphone
-            </p>
-          </div>
-        )}
 
         {messages.map((msg) => (
           <ChatBubble
@@ -764,7 +768,6 @@ export default function ChatPage() {
             audioData={msg.audioData}
             onTranslate={() => console.log('translate', msg.id)}
             onReplay={() => handleReplay(msg)}
-            onSlowPlay={() => console.log('slow', msg.id)}
           />
         ))}
         <div ref={messagesEndRef} />

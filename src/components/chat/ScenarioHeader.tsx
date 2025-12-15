@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { AppColors } from '../../theme/colors';
-import { SettingsIcon, XIcon, WifiIcon, WifiOffIcon, LoaderIcon } from '../../theme/icons';
+import { XIcon, WifiIcon, WifiOffIcon, LoaderIcon } from '../../theme/icons';
 
 interface ScenarioHeaderProps {
   scenario: string;
@@ -15,7 +15,6 @@ interface ScenarioHeaderProps {
   isConnected: boolean;
   isConnecting: boolean;
   connectionError: string | null;
-  onSettings: () => void;
   onClose: () => void;
   onReconnect: () => void;
   timerElement?: React.ReactNode;
@@ -29,7 +28,6 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
   isConnected,
   isConnecting,
   connectionError,
-  onSettings,
   onClose,
   onReconnect,
   timerElement
@@ -42,7 +40,6 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
-      marginBottom: '12px',
     }}>
       <div style={{
         width: '48px',
@@ -83,6 +80,9 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
         </div>
       </div>
 
+      {/* Timer - inline */}
+      {timerElement}
+
       {/* Connection status indicator */}
       <button
         onClick={onReconnect}
@@ -108,19 +108,7 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
         )}
       </button>
 
-      <button
-        onClick={onSettings}
-        style={{
-          padding: '8px',
-          borderRadius: '50%',
-          border: 'none',
-          backgroundColor: 'transparent',
-          color: AppColors.textSecondary,
-          cursor: 'pointer',
-        }}
-      >
-        <SettingsIcon />
-      </button>
+      {/* Close button */}
       <button
         onClick={onClose}
         style={{
@@ -135,17 +123,6 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
         <XIcon />
       </button>
     </div>
-
-    {/* Timer positioned below the header row, aligned to the right */}
-    {timerElement && (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        marginTop: '8px',
-      }}>
-        {timerElement}
-      </div>
-    )}
   </div>
 );
 

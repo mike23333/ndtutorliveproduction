@@ -139,6 +139,22 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+    // Activities collection - teacher dashboard activity feed
+    // Teachers can read activities for their students
+    // System records activities when students complete lessons
+    match /activities/{activityId} {
+      allow read: if request.auth != null && (
+        // Teachers can read activities for their students
+        resource.data.teacherId == request.auth.uid ||
+        // Students can read their own activities
+        resource.data.studentId == request.auth.uid
+      );
+      // Any authenticated user can create activities (recorded after lesson completion)
+      allow create: if request.auth != null;
+      // No updates or deletes - activities are immutable log entries
+      allow update, delete: if false;
+    }
+
     // Token Usage (session token tracking)
     match /tokenUsage/{sessionId} {
       allow read, write: if request.auth != null;

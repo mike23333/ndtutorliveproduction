@@ -503,3 +503,24 @@ export type CreateCustomLessonInput = Omit<CustomLessonDocument, 'id' | 'created
 export type UpdateCustomLessonInput = Partial<Pick<CustomLessonDocument, 'title' | 'description' | 'imageUrl' | 'imageStoragePath' | 'systemPrompt'>> & {
   id: string;
 };
+
+/**
+ * Activity Document
+ * Collection: activities
+ * Tracks student activities for teacher dashboard real-time feed
+ */
+export type ActivityAction = 'started' | 'completed' | 'earned_stars';
+
+export interface ActivityDocument {
+  id: string;
+  teacherId: string;
+  studentId: string;
+  studentName: string;
+  action: ActivityAction;
+  lessonId: string;
+  lessonTitle: string;
+  stars?: number; // Only for 'completed' or 'earned_stars' actions
+  timestamp: Timestamp;
+}
+
+export type CreateActivityInput = Omit<ActivityDocument, 'id' | 'timestamp'>;

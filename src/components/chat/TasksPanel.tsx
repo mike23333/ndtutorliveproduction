@@ -130,6 +130,7 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
   const completedCount = tasks.filter(t => t.completed).length;
   const totalCount = tasks.length;
   const allCompleted = completedCount === totalCount && totalCount > 0;
+  const progressPercent = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
 
   return (
     <div
@@ -140,7 +141,7 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
         marginBottom: '12px',
       }}
     >
-      {/* Header */}
+      {/* Compact Header with Progress Bar when collapsed */}
       <button
         onClick={onToggleCollapse}
         style={{
@@ -148,13 +149,19 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 16px',
+          padding: isCollapsed ? '10px 16px' : '12px 16px',
           background: 'transparent',
           border: 'none',
           cursor: 'pointer',
+          gap: '12px',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          flexShrink: 0,
+        }}>
           <ListIcon />
           <span
             style={{
@@ -182,6 +189,31 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
             {completedCount}/{totalCount}
           </span>
         </div>
+
+        {/* Progress bar - only visible when collapsed */}
+        {isCollapsed && (
+          <div
+            style={{
+              flex: 1,
+              height: '6px',
+              backgroundColor: AppColors.surface10,
+              borderRadius: '3px',
+              overflow: 'hidden',
+              maxWidth: '120px',
+            }}
+          >
+            <div
+              style={{
+                width: `${progressPercent}%`,
+                height: '100%',
+                backgroundColor: allCompleted ? AppColors.success : AppColors.accentPurple,
+                borderRadius: '3px',
+                transition: 'width 0.3s ease, background-color 0.3s ease',
+              }}
+            />
+          </div>
+        )}
+
         <svg
           width="16"
           height="16"
@@ -192,6 +224,7 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
           strokeLinecap="round"
           strokeLinejoin="round"
           style={{
+            flexShrink: 0,
             transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)',
             transition: 'transform 0.2s ease',
           }}

@@ -31,6 +31,7 @@ import type {
   ReviewLessonDocument,
 } from '../../types/firestore';
 import { checkAndAwardBadges } from './badges';
+import { recordActivity } from './activities';
 import type { BadgeDefinition } from '../../types/badges';
 
 // ==================== CURRENT LESSON TRACKING ====================
@@ -62,6 +63,30 @@ export const setCurrentLesson = async (
   });
 
   console.log('[SessionData] Set current lesson:', lesson.title);
+
+  // Record "started" activity for teacher dashboard
+  try {
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      const teacherId = userData.teacherId;
+      const studentName = userData.displayName || 'Student';
+
+      if (teacherId) {
+        await recordActivity({
+          teacherId,
+          studentId: userId,
+          studentName,
+          action: 'started',
+          lessonId: lesson.missionId,
+          lessonTitle: lesson.title,
+        });
+        console.log('[SessionData] Recorded started activity for teacher dashboard');
+      }
+    }
+  } catch (error) {
+    console.warn('[SessionData] Could not record started activity:', error);
+  }
 };
 
 /**
@@ -736,6 +761,42 @@ export const saveSessionSummary = async (
     }
   } catch (error) {
     console.warn('[SessionData] Could not check badges:', error);
+  }
+
+  // Record activity for teacher dashboard real-time feed
+  try {
+    // Get user data for teacherId and studentName
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
+      const teacherId = userData.teacherId;
+      const studentName = userData.displayName || 'Student';
+
+      // Only record if student has a teacher
+      if (teacherId && missionId) {
+        // Get lesson title from missions collection
+        const missionRef = doc(db, 'missions', missionId);
+        const missionSnap = await getDoc(missionRef);
+        const lessonTitle = missionSnap.exists()
+          ? (missionSnap.data().title || 'Lesson')
+          : 'Lesson';
+
+        await recordActivity({
+          teacherId,
+          studentId: userId,
+          studentName,
+          action: 'completed',
+          lessonId: missionId,
+          lessonTitle,
+          stars: params.stars,
+        });
+        console.log('[SessionData] Recorded activity for teacher dashboard');
+      }
+    }
+  } catch (error) {
+    console.warn('[SessionData] Could not record activity:', error);
   }
 
   return { summary, newBadges };

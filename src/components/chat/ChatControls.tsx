@@ -128,6 +128,10 @@ export const ChatControlBar: React.FC<ChatControlBarProps> = ({
 
   return (
     <div style={{
+      position: 'fixed',
+      bottom: 0,
+      left: 0,
+      right: 0,
       padding: '24px 24px 40px',
       background: 'linear-gradient(to bottom, rgba(30, 27, 75, 0.95) 0%, rgba(30, 27, 75, 1) 100%)',
       borderTop: `1px solid ${AppColors.borderColor}`,
@@ -137,6 +141,7 @@ export const ChatControlBar: React.FC<ChatControlBarProps> = ({
       flexDirection: 'column',
       alignItems: 'center',
       gap: '16px',
+      zIndex: 100,
     }}>
       {/* Main Live Button */}
       <button

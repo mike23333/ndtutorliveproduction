@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { AppColors } from '../../theme/colors';
-import { LanguagesIcon, RotateCcwIcon, SnailIcon } from '../../theme/icons';
+import { LanguagesIcon, RotateCcwIcon } from '../../theme/icons';
 
 interface ChatBubbleProps {
   message: string;
@@ -15,7 +15,6 @@ interface ChatBubbleProps {
   audioData?: string; // base64 encoded audio for replay
   onTranslate: () => void;
   onReplay: () => void;
-  onSlowPlay: () => void;
 }
 
 const iconButtonStyle: React.CSSProperties = {
@@ -50,7 +49,6 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   audioData,
   onTranslate,
   onReplay,
-  onSlowPlay
 }) => {
   const hasAudio = Boolean(audioData);
   if (isUser) {
@@ -144,18 +142,6 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
             title={hasAudio ? 'Replay' : 'No audio available'}
           >
             <RotateCcwIcon size={16} />
-          </button>
-          <button
-            onClick={hasAudio ? onSlowPlay : undefined}
-            style={{
-              ...iconButtonStyleLight,
-              opacity: hasAudio ? 1 : 0.3,
-              cursor: hasAudio ? 'pointer' : 'not-allowed',
-            }}
-            disabled={!hasAudio}
-            title={hasAudio ? 'Slow playback' : 'No audio available'}
-          >
-            <SnailIcon size={16} />
           </button>
         </div>
       </div>

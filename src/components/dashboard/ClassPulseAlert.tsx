@@ -1,6 +1,5 @@
 import React from 'react';
 import { AppColors } from '../../theme/colors';
-import { AlertCircleIcon } from '../../theme/icons';
 
 interface ClassPulseAlertProps {
   title: string;
@@ -8,49 +7,96 @@ interface ClassPulseAlertProps {
   type: 'warning' | 'info' | 'success';
 }
 
-export const ClassPulseAlert: React.FC<ClassPulseAlertProps> = ({ title, message, type }) => {
-  const bgColor =
-    type === 'warning'
-      ? 'rgba(251, 191, 36, 0.15)'
-      : type === 'success'
-      ? 'rgba(74, 222, 128, 0.15)'
-      : 'rgba(96, 165, 250, 0.15)';
+const ALERT_CONFIG = {
+  warning: {
+    icon: '⚠️',
+    bgColor: 'rgba(251, 191, 36, 0.1)',
+    borderColor: 'rgba(251, 191, 36, 0.2)',
+    accentColor: '#FBBF24',
+  },
+  success: {
+    icon: '✨',
+    bgColor: 'rgba(74, 222, 128, 0.1)',
+    borderColor: 'rgba(74, 222, 128, 0.2)',
+    accentColor: '#4ade80',
+  },
+  info: {
+    icon: '💡',
+    bgColor: 'rgba(96, 165, 250, 0.1)',
+    borderColor: 'rgba(96, 165, 250, 0.2)',
+    accentColor: '#60A5FA',
+  },
+};
 
-  const iconColor =
-    type === 'warning'
-      ? AppColors.whisperAmber
-      : type === 'success'
-      ? AppColors.successGreen
-      : AppColors.accentBlue;
+export const ClassPulseAlert: React.FC<ClassPulseAlertProps> = ({ title, message, type }) => {
+  const config = ALERT_CONFIG[type];
 
   return (
     <div
       style={{
+        position: 'relative',
         display: 'flex',
-        gap: 'clamp(10px, 2.5vw, 12px)',
-        padding: 'clamp(10px, 2.5vw, 14px)',
-        background: bgColor,
-        borderRadius: 'clamp(8px, 2vw, 10px)',
-        marginBottom: 'clamp(8px, 2vw, 10px)',
+        gap: 'clamp(12px, 3vw, 14px)',
+        padding: 'clamp(14px, 3.5vw, 18px)',
+        background: config.bgColor,
+        borderRadius: 'clamp(12px, 3vw, 14px)',
+        border: `1px solid ${config.borderColor}`,
+        overflow: 'hidden',
       }}
     >
-      <div style={{ color: iconColor }}>
-        <AlertCircleIcon size={18} />
+      {/* Accent line on left */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          bottom: 0,
+          width: '3px',
+          background: config.accentColor,
+          borderRadius: '3px 0 0 3px',
+        }}
+      />
+
+      {/* Icon */}
+      <div
+        style={{
+          width: 'clamp(32px, 8vw, 36px)',
+          height: 'clamp(32px, 8vw, 36px)',
+          borderRadius: '10px',
+          background: `${config.accentColor}15`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 'clamp(16px, 3.5vw, 18px)',
+          flexShrink: 0,
+        }}
+      >
+        {config.icon}
       </div>
-      <div style={{ flex: 1 }}>
-        <div
+
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <h4
           style={{
-            fontSize: 'clamp(13px, 2.8vw, 14px)',
+            fontSize: 'clamp(14px, 3vw, 15px)',
             fontWeight: 600,
             color: AppColors.textPrimary,
-            marginBottom: 'clamp(2px, 0.5vw, 4px)',
+            margin: '0 0 4px 0',
+            lineHeight: 1.3,
           }}
         >
           {title}
-        </div>
-        <div style={{ fontSize: 'clamp(12px, 2.5vw, 13px)', color: AppColors.textSecondary }}>
+        </h4>
+        <p
+          style={{
+            fontSize: 'clamp(12px, 2.5vw, 13px)',
+            color: AppColors.textSecondary,
+            margin: 0,
+            lineHeight: 1.5,
+          }}
+        >
           {message}
-        </div>
+        </p>
       </div>
     </div>
   );

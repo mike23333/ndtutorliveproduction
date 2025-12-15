@@ -8,6 +8,7 @@ interface LessonsTabProps {
   onEdit: (lessonId: string) => void;
   onDelete: (lessonId: string) => void;
   onDuplicate: (lesson: LessonData) => void;
+  onToggleStatus?: (lessonId: string, newStatus: 'published' | 'draft') => void;
 }
 
 type FilterType = 'all' | 'published' | 'draft' | 'recent';
@@ -26,6 +27,7 @@ export const LessonsTab: React.FC<LessonsTabProps> = ({
   onEdit,
   onDelete,
   onDuplicate,
+  onToggleStatus,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
@@ -265,6 +267,7 @@ export const LessonsTab: React.FC<LessonsTabProps> = ({
               onEdit={() => onEdit(lesson.id)}
               onDelete={() => handleDelete(lesson.id)}
               onDuplicate={() => onDuplicate(lesson)}
+              onToggleStatus={onToggleStatus ? (newStatus) => onToggleStatus(lesson.id, newStatus) : undefined}
             />
           ))}
         </div>
@@ -279,6 +282,7 @@ interface LessonGridCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  onToggleStatus?: (newStatus: 'published' | 'draft') => void;
 }
 
 const LessonGridCard: React.FC<LessonGridCardProps> = ({
@@ -286,7 +290,9 @@ const LessonGridCard: React.FC<LessonGridCardProps> = ({
   onEdit,
   onDelete,
   onDuplicate,
+  onToggleStatus,
 }) => {
+  const [showMenu, setShowMenu] = useState(false);
   const levelColor = LEVEL_COLORS[lesson.targetLevel || 'B1'] || LEVEL_COLORS['B1'];
 
   return (
@@ -505,24 +511,106 @@ const LessonGridCard: React.FC<LessonGridCardProps> = ({
           >
             <CopyIcon size={14} />
           </button>
-          <button
-            onClick={onDelete}
-            style={{
-              padding: '8px 12px',
-              background: 'rgba(248, 113, 113, 0.1)',
-              border: '1px solid rgba(248, 113, 113, 0.2)',
-              borderRadius: '10px',
-              color: AppColors.errorRose,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-            title="Delete"
-          >
-            <TrashIcon size={14} />
-          </button>
+          {/* More Menu Button */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '10px',
+                color: AppColors.textSecondary,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+              }}
+              title="More options"
+            >
+              ⋮
+            </button>
+            {/* Dropdown Menu */}
+            {showMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  right: 0,
+                  marginBottom: '4px',
+                  background: 'rgba(30, 30, 40, 0.98)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
+                  padding: '6px',
+                  minWidth: '140px',
+                  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.4)',
+                  zIndex: 100,
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {onToggleStatus && (
+                  <button
+                    onClick={() => {
+                      onToggleStatus(lesson.status === 'published' ? 'draft' : 'published');
+                      setShowMenu(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      width: '100%',
+                      padding: '10px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: '8px',
+                      color: lesson.status === 'published' ? '#FCD34D' : '#4ADE80',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'background 0.15s ease',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span>{lesson.status === 'published' ? '📝' : '🚀'}</span>
+                    {lesson.status === 'published' ? 'Unpublish' : 'Publish'}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    onDelete();
+                    setShowMenu(false);
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    width: '100%',
+                    padding: '10px 12px',
+                    background: 'transparent',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: AppColors.errorRose,
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(248, 113, 113, 0.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <TrashIcon size={14} />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

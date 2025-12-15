@@ -19,6 +19,7 @@ import { useClassPulse } from '../hooks/useClassPulse';
 import { useTeacherAnalytics } from '../hooks/useTeacherAnalytics';
 import { usePromptTemplates } from '../hooks/usePromptTemplates';
 import { useCollections } from '../hooks/useCollections';
+import { useRecentActivity } from '../hooks/useRecentActivity';
 
 // Components
 import {
@@ -34,8 +35,9 @@ import {
   FloatingActionButton,
   DashboardHome,
 } from '../components/dashboard';
-import type { AttentionStudent, ActivityItem } from '../components/dashboard';
+import type { AttentionStudent } from '../components/dashboard';
 import { getStudentsForTeacher } from '../services/firebase/students';
+import { updateMission } from '../services/firebase/missions';
 import type { UserDocument } from '../types/firestore';
 
 // Types
@@ -74,6 +76,7 @@ const TeacherDashboard: React.FC = () => {
     updateLesson,
     deleteLesson,
     duplicateLesson,
+    refetch: refetchLessons,
   } = useTeacherLessons();
 
   const lessonForm = useLessonForm();
@@ -169,22 +172,11 @@ const TeacherDashboard: React.FC = () => {
     }).length;
   }, [students]);
 
-  // Mock recent activity (would come from real-time listener in production)
-  const recentActivity = useMemo((): ActivityItem[] => {
-    // In production, this would come from a real-time activity feed
-    // For now, we'll create sample data based on students
-    return students
-      .filter(s => s.lastSessionAt)
-      .slice(0, 5)
-      .map((student, i) => ({
-        id: `activity-${student.uid}-${i}`,
-        studentName: student.displayName,
-        action: (['completed', 'started', 'earned_stars'] as const)[i % 3],
-        lessonTitle: lessons[i % Math.max(lessons.length, 1)]?.title || 'Practice Session',
-        timestamp: student.lastSessionAt?.toDate?.() || new Date(),
-        stars: i % 3 === 2 ? Math.floor(Math.random() * 3) + 1 : undefined,
-      }));
-  }, [students, lessons]);
+  // Real-time activity feed from Firestore
+  const {
+    activities: recentActivity,
+    loading: activityLoading,
+  } = useRecentActivity(user?.uid, 10);
 
   // Handler to navigate to student in Students tab
   const handleNavigateToStudent = useCallback((_studentId: string) => {
@@ -340,6 +332,19 @@ const TeacherDashboard: React.FC = () => {
     setActiveTab('insights');
     handleGeneratePulse(true);
   }, [handleGeneratePulse]);
+
+  const handleToggleLessonStatus = useCallback(async (lessonId: string, newStatus: 'published' | 'draft') => {
+    try {
+      await updateMission({
+        id: lessonId,
+        isActive: newStatus === 'published',
+      });
+      await refetchLessons();
+    } catch (error) {
+      console.error('Error toggling lesson status:', error);
+      alert('Failed to update lesson status');
+    }
+  }, [refetchLessons]);
 
   return (
     <div
@@ -524,6 +529,7 @@ const TeacherDashboard: React.FC = () => {
               activeToday={activeToday}
               attentionStudents={attentionStudents}
               recentActivity={recentActivity}
+              activityLoading={activityLoading}
               onCreateLesson={handleOpenCreateModal}
               onGenerateInsights={handleNavigateToInsights}
               onNavigateToStudent={handleNavigateToStudent}
@@ -537,6 +543,7 @@ const TeacherDashboard: React.FC = () => {
               onEdit={handleEditLesson}
               onDelete={handleDeleteLesson}
               onDuplicate={handleDuplicateLesson}
+              onToggleStatus={handleToggleLessonStatus}
             />
           )}
 
