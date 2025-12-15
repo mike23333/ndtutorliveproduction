@@ -7,8 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppColors } from '../theme/colors';
 import { ChevronLeftIcon, ChevronRightIcon } from '../theme/icons';
 import { useAuth } from '../hooks/useAuth';
-import { useRecentBadges, useBadgeProgress } from '../hooks/useBadges';
-import { BadgeIcon } from '../components/badges';
+import { useBadgeProgress } from '../hooks/useBadges';
 import { LearningSettingsCard } from '../components/profile';
 import { useState, useEffect, useRef } from 'react';
 import { getUserStarStats } from '../services/firebase/sessionData';
@@ -18,9 +17,6 @@ import { uploadProfilePhoto } from '../services/firebase/storage';
 interface UserStats {
   totalSessions: number;
   totalStars: number;
-  averageStars: number;
-  totalPracticeTime: number;
-  currentStreak: number;
   longestStreak: number;
 }
 
@@ -72,14 +68,10 @@ const LEVEL_CONFIG: Record<string, {
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { user, userDocument } = useAuth();
-  const { recentBadges, loading: badgesLoading } = useRecentBadges(user?.uid, 4);
-  const { earnedBadges, totalBadges } = useBadgeProgress(user?.uid);
+  const { earnedBadges } = useBadgeProgress(user?.uid);
   const [userStats, setUserStats] = useState<UserStats>({
     totalSessions: 0,
     totalStars: 0,
-    averageStars: 0,
-    totalPracticeTime: 0,
-    currentStreak: 0,
     longestStreak: 0,
   });
   const [loggingOut, setLoggingOut] = useState(false);
@@ -140,15 +132,6 @@ export default function ProfilePage() {
 
   const userLevel = userDocument?.level || 'B1';
   const levelConfig = LEVEL_CONFIG[userLevel] || LEVEL_CONFIG['B1'];
-
-  const formatPracticeTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    if (hours > 0) {
-      return `${hours}h ${minutes}m`;
-    }
-    return `${minutes}m`;
-  };
 
   return (
     <div style={{
@@ -411,6 +394,7 @@ export default function ProfilePage() {
               borderRadius: '20px',
               background: levelConfig.gradient,
               boxShadow: `0 4px 16px ${levelConfig.glow}`,
+              marginBottom: '16px',
             }}>
               <span style={{
                 fontSize: '14px',
@@ -427,6 +411,22 @@ export default function ProfilePage() {
                 {levelConfig.label}
               </span>
             </div>
+
+            {/* Member Since & Lessons */}
+            <p style={{
+              margin: 0,
+              fontSize: '13px',
+              color: AppColors.textSecondary,
+              textAlign: 'center',
+            }}>
+              {userDocument?.createdAt && (
+                <>
+                  Member since {new Date(userDocument.createdAt.toDate()).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  {' '}&bull;{' '}
+                </>
+              )}
+              {userStats.totalSessions} lessons completed
+            </p>
           </div>
         </div>
 
@@ -437,115 +437,19 @@ export default function ProfilePage() {
           flexDirection: 'column',
           gap: '20px',
         }}>
-          {/* Stats Grid */}
+          {/* Stats Grid - 2 columns */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
+            gridTemplateColumns: 'repeat(2, 1fr)',
             gap: '12px',
           }}>
-            {/* Streak */}
-            <div
-              className="stat-card"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: '20px',
-                padding: '16px 12px',
-                textAlign: 'center',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                transition: 'all 0.2s ease',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{
-                position: 'absolute',
-                top: '-30%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '80%',
-                height: '60%',
-                background: 'radial-gradient(ellipse at center, rgba(251, 191, 36, 0.15) 0%, transparent 70%)',
-                pointerEvents: 'none',
-              }} />
-              <div style={{
-                fontSize: '24px',
-                marginBottom: '4px',
-                animation: 'float 3s ease-in-out infinite',
-              }}>🔥</div>
-              <div style={{
-                fontSize: '26px',
-                fontWeight: '800',
-                background: 'linear-gradient(135deg, #FDE047 0%, #F59E0B 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}>
-                {userStats.currentStreak}
-              </div>
-              <div style={{
-                fontSize: '11px',
-                color: AppColors.textSecondary,
-                fontWeight: '500',
-              }}>
-                Day Streak
-              </div>
-            </div>
-
-            {/* Practice Time */}
-            <div
-              className="stat-card"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: '20px',
-                padding: '16px 12px',
-                textAlign: 'center',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
-                transition: 'all 0.2s ease',
-                position: 'relative',
-                overflow: 'hidden',
-              }}
-            >
-              <div style={{
-                position: 'absolute',
-                top: '-30%',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                width: '80%',
-                height: '60%',
-                background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
-                pointerEvents: 'none',
-              }} />
-              <div style={{
-                fontSize: '24px',
-                marginBottom: '4px',
-                animation: 'float 3s ease-in-out infinite 0.5s',
-              }}>⏱️</div>
-              <div style={{
-                fontSize: '22px',
-                fontWeight: '800',
-                background: 'linear-gradient(135deg, #93C5FD 0%, #3B82F6 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}>
-                {formatPracticeTime(userStats.totalPracticeTime)}
-              </div>
-              <div style={{
-                fontSize: '11px',
-                color: AppColors.textSecondary,
-                fontWeight: '500',
-              }}>
-                Practice Time
-              </div>
-            </div>
-
             {/* Stars */}
             <div
               className="stat-card"
               style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.03)',
                 borderRadius: '20px',
-                padding: '16px 12px',
+                padding: '20px 16px',
                 textAlign: 'center',
                 border: '1px solid rgba(255, 255, 255, 0.06)',
                 transition: 'all 0.2s ease',
@@ -564,12 +468,12 @@ export default function ProfilePage() {
                 pointerEvents: 'none',
               }} />
               <div style={{
-                fontSize: '24px',
-                marginBottom: '4px',
-                animation: 'float 3s ease-in-out infinite 1s',
-              }}>⭐</div>
+                fontSize: '28px',
+                marginBottom: '6px',
+                animation: 'float 3s ease-in-out infinite',
+              }}>&#11088;</div>
               <div style={{
-                fontSize: '26px',
+                fontSize: '32px',
                 fontWeight: '800',
                 background: 'linear-gradient(135deg, #FDE047 0%, #F59E0B 100%)',
                 WebkitBackgroundClip: 'text',
@@ -579,12 +483,166 @@ export default function ProfilePage() {
                 {userStats.totalStars}
               </div>
               <div style={{
-                fontSize: '11px',
+                fontSize: '12px',
                 color: AppColors.textSecondary,
                 fontWeight: '500',
               }}>
                 Stars Earned
               </div>
+            </div>
+
+            {/* Badges Count */}
+            <div
+              className="stat-card"
+              onClick={() => navigate('/badges')}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: '20px',
+                padding: '20px 16px',
+                textAlign: 'center',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                overflow: 'hidden',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{
+                position: 'absolute',
+                top: '-30%',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: '80%',
+                height: '60%',
+                background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.15) 0%, transparent 70%)',
+                pointerEvents: 'none',
+              }} />
+              <div style={{
+                fontSize: '28px',
+                marginBottom: '6px',
+                animation: 'float 3s ease-in-out infinite 0.5s',
+              }}>&#127942;</div>
+              <div style={{
+                fontSize: '32px',
+                fontWeight: '800',
+                background: 'linear-gradient(135deg, #C4B5FD 0%, #8B5CF6 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>
+                {earnedBadges}
+              </div>
+              <div style={{
+                fontSize: '12px',
+                color: AppColors.textSecondary,
+                fontWeight: '500',
+              }}>
+                Badges Earned
+              </div>
+            </div>
+          </div>
+
+          {/* Longest Streak */}
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '16px',
+            padding: '14px 20px',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }}>
+              <span style={{ fontSize: '20px' }}>&#128293;</span>
+              <span style={{
+                fontSize: '14px',
+                color: AppColors.textSecondary,
+                fontWeight: '500',
+              }}>
+                Longest Streak
+              </span>
+            </div>
+            <span style={{
+              fontSize: '18px',
+              fontWeight: '700',
+              background: 'linear-gradient(135deg, #FDE047 0%, #F59E0B 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+            }}>
+              {userStats.longestStreak} days
+            </span>
+          </div>
+
+          {/* Level Progress */}
+          <div style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.03)',
+            borderRadius: '20px',
+            padding: '20px',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
+          }}>
+            <h3 style={{
+              margin: '0 0 16px 0',
+              fontSize: '14px',
+              fontWeight: '600',
+              color: AppColors.textSecondary,
+            }}>
+              Level Progress
+            </h3>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+            }}>
+              {['A1', 'A2', 'B1', 'B2', 'C1', 'C2'].map((level, index, arr) => {
+                const isCurrentLevel = level === userLevel;
+                const isPastLevel = arr.indexOf(userLevel) > index;
+                const levelColors: Record<string, string> = {
+                  'A1': '#22C55E',
+                  'A2': '#16A34A',
+                  'B1': '#EAB308',
+                  'B2': '#EA580C',
+                  'C1': '#8B5CF6',
+                  'C2': '#EC4899',
+                };
+
+                return (
+                  <div
+                    key={level}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '8px',
+                    }}
+                  >
+                    <div style={{
+                      width: '100%',
+                      height: '6px',
+                      borderRadius: '3px',
+                      backgroundColor: isPastLevel || isCurrentLevel
+                        ? levelColors[level]
+                        : 'rgba(255, 255, 255, 0.1)',
+                      transition: 'all 0.3s ease',
+                      boxShadow: isCurrentLevel ? `0 0 12px ${levelColors[level]}` : 'none',
+                    }} />
+                    <span style={{
+                      fontSize: '11px',
+                      fontWeight: isCurrentLevel ? '700' : '500',
+                      color: isCurrentLevel ? levelColors[level] : AppColors.textSecondary,
+                      opacity: isPastLevel || isCurrentLevel ? 1 : 0.5,
+                    }}>
+                      {level}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -597,170 +655,6 @@ export default function ProfilePage() {
             />
           )}
 
-          {/* Badges Section */}
-          <div style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-            borderRadius: '24px',
-            padding: '20px',
-            border: '1px solid rgba(255, 255, 255, 0.06)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}>
-            {/* Decorative glow */}
-            <div style={{
-              position: 'absolute',
-              top: '-50%',
-              right: '-20%',
-              width: '50%',
-              height: '100%',
-              background: 'radial-gradient(ellipse at center, rgba(139, 92, 246, 0.1) 0%, transparent 70%)',
-              pointerEvents: 'none',
-            }} />
-
-            {/* Header */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '16px',
-              position: 'relative',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{
-                  fontSize: '20px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #C4B5FD 0%, #8B5CF6 100%)',
-                  boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)',
-                }}>
-                  🏆
-                </span>
-                <div>
-                  <h3 style={{
-                    margin: 0,
-                    fontSize: '16px',
-                    fontWeight: '700',
-                  }}>
-                    Badges
-                  </h3>
-                  <p style={{
-                    margin: 0,
-                    fontSize: '12px',
-                    color: AppColors.textSecondary,
-                  }}>
-                    {earnedBadges} of {totalBadges} earned
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => navigate('/badges')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '8px 14px',
-                  borderRadius: '20px',
-                  border: 'none',
-                  backgroundColor: 'rgba(139, 92, 246, 0.2)',
-                  color: '#C4B5FD',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                View All
-                <ChevronRightIcon size={16} />
-              </button>
-            </div>
-
-            {/* Recent badges grid */}
-            {badgesLoading ? (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '12px',
-              }}>
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}>
-                    <div style={{
-                      width: '60px',
-                      height: '60px',
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                    }} />
-                    <div style={{
-                      width: '48px',
-                      height: '10px',
-                      borderRadius: '5px',
-                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                    }} />
-                  </div>
-                ))}
-              </div>
-            ) : recentBadges.length > 0 ? (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '12px',
-              }}>
-                {recentBadges.map((userBadge, index) => (
-                  <div
-                    key={userBadge.badgeId}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '8px',
-                      animation: `fadeIn 0.4s ease-out ${index * 0.1}s backwards`,
-                    }}
-                  >
-                    <BadgeIcon
-                      iconName={userBadge.iconName}
-                      category={userBadge.category}
-                      size="md"
-                      earned={true}
-                    />
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: '500',
-                      color: AppColors.textSecondary,
-                      textAlign: 'center',
-                      lineHeight: 1.2,
-                    }}>
-                      {userBadge.name}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{
-                textAlign: 'center',
-                padding: '24px 16px',
-                borderRadius: '16px',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-              }}>
-                <span style={{ fontSize: '32px', display: 'block', marginBottom: '8px' }}>🎯</span>
-                <p style={{
-                  margin: 0,
-                  fontSize: '14px',
-                  color: AppColors.textSecondary,
-                }}>
-                  Complete lessons to earn badges!
-                </p>
-              </div>
-            )}
-          </div>
-
           {/* Account Section */}
           <div style={{
             backgroundColor: 'rgba(255, 255, 255, 0.03)',
@@ -768,10 +662,10 @@ export default function ProfilePage() {
             overflow: 'hidden',
             border: '1px solid rgba(255, 255, 255, 0.06)',
           }}>
-            {/* Settings button */}
+            {/* Account Security button */}
             <button
               className="menu-button"
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate('/settings/account')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -797,17 +691,17 @@ export default function ProfilePage() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderRadius: '10px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                }}>⚙️</span>
-                <span>Settings</span>
+                  backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                }}>&#128274;</span>
+                <span>Account Security</span>
               </div>
               <ChevronRightIcon size={20} color={AppColors.textSecondary} />
             </button>
 
             {/* Help button */}
-            <button
+            <a
               className="menu-button"
-              onClick={() => navigate('/help')}
+              href="mailto:natasha.milto@ukr.net?subject=Help%20%26%20Support"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -822,6 +716,7 @@ export default function ProfilePage() {
                 cursor: 'pointer',
                 borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
                 transition: 'background 0.2s ease',
+                textDecoration: 'none',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -834,11 +729,11 @@ export default function ProfilePage() {
                   justifyContent: 'center',
                   borderRadius: '10px',
                   backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                }}>❓</span>
+                }}>&#9993;</span>
                 <span>Help & Support</span>
               </div>
               <ChevronRightIcon size={20} color={AppColors.textSecondary} />
-            </button>
+            </a>
 
             {/* Logout button */}
             <button
@@ -871,7 +766,7 @@ export default function ProfilePage() {
                   justifyContent: 'center',
                   borderRadius: '10px',
                   backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                }}>👋</span>
+                }}>&#128075;</span>
                 <span>{loggingOut ? 'Signing out...' : 'Sign Out'}</span>
               </div>
             </button>

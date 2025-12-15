@@ -19,6 +19,7 @@ import PronunciationReviewPage from './pages/PronunciationReviewPage';
 import GrammarReviewPage from './pages/GrammarReviewPage';
 import VocabularyReviewPage from './pages/VocabularyReviewPage';
 import CulturalReviewPage from './pages/CulturalReviewPage';
+import AccountSettingsPage from './pages/AccountSettingsPage';
 
 /**
  * Wrapper that forces ChatPage to remount when lessonId changes.
@@ -87,6 +88,13 @@ function App() {
                 <ProtectedRoute>
                   <MainLayout>
                     <ProfilePage />
+                  </MainLayout>
+                </ProtectedRoute>
+              } />
+              <Route path="/settings/account" element={
+                <ProtectedRoute>
+                  <MainLayout>
+                    <AccountSettingsPage />
                   </MainLayout>
                 </ProtectedRoute>
               } />

@@ -8,7 +8,7 @@ interface InputFieldProps {
   onChange: (value: string) => void;
   multiline?: boolean;
   rows?: number;
-  type?: 'text' | 'number';
+  type?: 'text' | 'number' | 'email' | 'password';
   min?: number;
   max?: number;
 }

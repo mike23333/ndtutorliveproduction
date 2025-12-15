@@ -12,6 +12,10 @@ import {
   User,
   UserCredential,
   updateProfile,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updateEmail as firebaseUpdateEmail,
+  updatePassword as firebaseUpdatePassword,
 } from 'firebase/auth';
 import { auth, db } from '../../config/firebase';
 import { doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
@@ -192,5 +196,93 @@ export const updateUserProfile = async (
   } catch (error) {
     console.error('Error updating user profile:', error);
     throw error;
+  }
+};
+
+/**
+ * Reauthenticate user before sensitive operations
+ * Required by Firebase before email/password changes
+ */
+export const reauthenticateUser = async (
+  email: string,
+  password: string
+): Promise<void> => {
+  if (!auth || !auth.currentUser) {
+    throw new Error('No user is currently signed in.');
+  }
+
+  try {
+    const credential = EmailAuthProvider.credential(email, password);
+    await reauthenticateWithCredential(auth.currentUser, credential);
+  } catch (error: any) {
+    console.error('Error reauthenticating:', error.code, error.message);
+
+    if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+      throw new Error('Current password is incorrect.');
+    } else if (error.code === 'auth/too-many-requests') {
+      throw new Error('Too many attempts. Please try again later.');
+    } else if (error.code === 'auth/user-mismatch') {
+      throw new Error('Email does not match the signed-in user.');
+    }
+
+    throw new Error('Failed to verify password. Please try again.');
+  }
+};
+
+/**
+ * Update user email (requires recent authentication)
+ */
+export const updateUserEmail = async (newEmail: string): Promise<void> => {
+  if (!auth || !auth.currentUser) {
+    throw new Error('No user is currently signed in.');
+  }
+
+  try {
+    await firebaseUpdateEmail(auth.currentUser, newEmail);
+
+    // Also update Firestore document
+    if (db) {
+      const userDocRef = doc(db, 'users', auth.currentUser.uid);
+      await setDoc(
+        userDocRef,
+        { email: newEmail, updatedAt: Timestamp.now() },
+        { merge: true }
+      );
+    }
+  } catch (error: any) {
+    console.error('Error updating email:', error.code, error.message);
+
+    if (error.code === 'auth/email-already-in-use') {
+      throw new Error('This email is already in use by another account.');
+    } else if (error.code === 'auth/invalid-email') {
+      throw new Error('Please provide a valid email address.');
+    } else if (error.code === 'auth/requires-recent-login') {
+      throw new Error('Please re-enter your current password first.');
+    }
+
+    throw new Error('Failed to update email. Please try again.');
+  }
+};
+
+/**
+ * Update user password (requires recent authentication)
+ */
+export const updateUserPassword = async (newPassword: string): Promise<void> => {
+  if (!auth || !auth.currentUser) {
+    throw new Error('No user is currently signed in.');
+  }
+
+  try {
+    await firebaseUpdatePassword(auth.currentUser, newPassword);
+  } catch (error: any) {
+    console.error('Error updating password:', error.code, error.message);
+
+    if (error.code === 'auth/weak-password') {
+      throw new Error('Password should be at least 6 characters long.');
+    } else if (error.code === 'auth/requires-recent-login') {
+      throw new Error('Please re-enter your current password first.');
+    }
+
+    throw new Error('Failed to update password. Please try again.');
   }
 };
