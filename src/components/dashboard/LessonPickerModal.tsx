@@ -67,6 +67,7 @@ export const LessonPickerModal: React.FC<LessonPickerModalProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 'clamp(16px, 4vw, 24px)',
+        paddingBottom: 'calc(80px + env(safe-area-inset-bottom))',
         zIndex: 1000,
       }}
       onClick={(e) => {
@@ -79,7 +80,7 @@ export const LessonPickerModal: React.FC<LessonPickerModalProps> = ({
           borderRadius: 'clamp(16px, 4vw, 20px)',
           width: '100%',
           maxWidth: 500,
-          maxHeight: '80vh',
+          maxHeight: 'calc(80vh - 64px)',
           display: 'flex',
           flexDirection: 'column',
         }}

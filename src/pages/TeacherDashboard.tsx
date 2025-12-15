@@ -1,15 +1,15 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppColors } from '../theme/colors';
 import { useAuth } from '../hooks/useAuth';
 import {
   PlusIcon,
-  BarChartIcon,
   SparklesIcon,
   ArrowLeftIcon,
   SettingsIcon,
   UserIcon,
   BookOpenIcon,
+  HomeIcon,
 } from '../theme/icons';
 
 // Hooks
@@ -31,25 +31,31 @@ import {
   InsightsTab,
   BillingTab,
   RolePlayTab,
+  FloatingActionButton,
+  DashboardHome,
 } from '../components/dashboard';
+import type { AttentionStudent, ActivityItem } from '../components/dashboard';
 import { getStudentsForTeacher } from '../services/firebase/students';
 import type { UserDocument } from '../types/firestore';
 
 // Types
 import type { TabType, LessonData } from '../types/dashboard';
 
+// Extended tab type to include new dashboard tab
+type ExtendedTabType = TabType | 'dashboard' | 'settings';
+
 const TeacherDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user, userDocument } = useAuth();
 
-  // Tab state
-  const [activeTab, setActiveTab] = useState<TabType>('lessons');
+  // Tab state - now defaults to dashboard
+  const [activeTab, setActiveTab] = useState<ExtendedTabType>('dashboard');
 
   // Class code state (can be updated when regenerated)
   const [classCode, setClassCode] = useState<string | undefined>(undefined);
 
   // Initialize classCode from userDocument
-  React.useEffect(() => {
+  useEffect(() => {
     if (userDocument?.classCode) {
       setClassCode(userDocument.classCode);
     }
@@ -89,13 +95,13 @@ const TeacherDashboard: React.FC = () => {
     loading: analyticsLoading,
     period: analyticsPeriod,
     setPeriod: setAnalyticsPeriod,
-  } = useTeacherAnalytics(user?.uid, activeTab === 'billing');
+  } = useTeacherAnalytics(user?.uid, activeTab === 'billing' || activeTab === 'settings');
 
   // Students list for insights tab and private student assignment
-  const [students, setStudents] = React.useState<UserDocument[]>([]);
+  const [students, setStudents] = useState<UserDocument[]>([]);
 
   // Fetch students on mount (needed for private student assignment in lesson modal)
-  React.useEffect(() => {
+  useEffect(() => {
     if (user?.uid && students.length === 0) {
       getStudentsForTeacher(user.uid)
         .then(setStudents)
@@ -104,10 +110,81 @@ const TeacherDashboard: React.FC = () => {
   }, [user?.uid, students.length]);
 
   // Filter private students for lesson assignment
-  const privateStudents = React.useMemo(() =>
+  const privateStudents = useMemo(() =>
     students.filter(s => s.isPrivateStudent),
     [students]
   );
+
+  // Compute attention students (inactive 7+ days or struggling)
+  const attentionStudents = useMemo((): AttentionStudent[] => {
+    const now = new Date();
+    const result: AttentionStudent[] = [];
+
+    for (const student of students) {
+      if (student.status === 'suspended') continue;
+
+      const lastActive = student.lastSessionAt?.toDate?.() ||
+        student.joinedClassAt?.toDate?.() ||
+        new Date();
+      const daysSinceActive = Math.floor(
+        (now.getTime() - lastActive.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      if (daysSinceActive >= 7) {
+        result.push({
+          uid: student.uid,
+          name: student.displayName,
+          reason: 'inactive',
+          details: `Inactive for ${daysSinceActive} days`,
+        });
+        continue;
+      }
+
+      // Check for struggling (low average stars)
+      if (student.totalSessions && student.totalSessions > 2 && student.totalStars !== undefined) {
+        const avgStars = student.totalStars / student.totalSessions;
+        if (avgStars < 1.5) {
+          result.push({
+            uid: student.uid,
+            name: student.displayName,
+            reason: 'struggling',
+            details: `Averaging ${avgStars.toFixed(1)} stars per lesson`,
+          });
+        }
+      }
+    }
+
+    return result.slice(0, 5);
+  }, [students]);
+
+  // Compute active students today (based on lastSessionAt)
+  const activeToday = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return students.filter(s => {
+      const lastActive = s.lastSessionAt?.toDate?.();
+      if (!lastActive) return false;
+      return lastActive >= today;
+    }).length;
+  }, [students]);
+
+  // Mock recent activity (would come from real-time listener in production)
+  const recentActivity = useMemo((): ActivityItem[] => {
+    // In production, this would come from a real-time activity feed
+    // For now, we'll create sample data based on students
+    return students
+      .filter(s => s.lastSessionAt)
+      .slice(0, 5)
+      .map((student, i) => ({
+        id: `activity-${student.uid}-${i}`,
+        studentName: student.displayName,
+        action: (['completed', 'started', 'earned_stars'] as const)[i % 3],
+        lessonTitle: lessons[i % Math.max(lessons.length, 1)]?.title || 'Practice Session',
+        timestamp: student.lastSessionAt?.toDate?.() || new Date(),
+        stars: i % 3 === 2 ? Math.floor(Math.random() * 3) + 1 : undefined,
+      }));
+  }, [students, lessons]);
 
   // Handler to navigate to student in Students tab
   const handleNavigateToStudent = useCallback((_studentId: string) => {
@@ -160,7 +237,7 @@ const TeacherDashboard: React.FC = () => {
     introLessonTemplateLoading,
     introLessonTemplateSaving,
     introLessonTemplateChanged,
-  } = usePromptTemplates(user?.uid, activeTab === 'templates');
+  } = usePromptTemplates(user?.uid, activeTab === 'templates' || activeTab === 'settings');
 
   // Handlers
   const handleEditLesson = useCallback((lessonId: string) => {
@@ -255,6 +332,15 @@ const TeacherDashboard: React.FC = () => {
     }
   }, [newTemplateName, lessonForm.formData, createTemplate]);
 
+  const handleOpenCreateModal = useCallback(() => {
+    setShowCreateModal(true);
+  }, []);
+
+  const handleNavigateToInsights = useCallback(() => {
+    setActiveTab('insights');
+    handleGeneratePulse(true);
+  }, [handleGeneratePulse]);
+
   return (
     <div
       style={{
@@ -265,15 +351,42 @@ const TeacherDashboard: React.FC = () => {
         bottom: 0,
         background: AppColors.bgPrimary,
         color: AppColors.textPrimary,
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif',
         overflowY: 'auto',
       }}
     >
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .dashboard-content {
+          animation: fadeInUp 0.4s ease-out;
+        }
+        .stat-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+        .tab-button:hover {
+          background: rgba(139, 92, 246, 0.12);
+        }
+        .header-button:hover {
+          background: rgba(255, 255, 255, 0.1) !important;
+        }
+        @media (max-width: 640px) {
+          .new-lesson-desktop { display: none !important; }
+        }
+        @media (min-width: 641px) {
+          .new-lesson-desktop { display: flex !important; }
+        }
+      `}</style>
+
       <div
         style={{
           maxWidth: '800px',
           margin: '0 auto',
           padding: 'clamp(16px, 4vw, 24px)',
+          paddingBottom: 'calc(80px + env(safe-area-inset-bottom))',
         }}
       >
         {/* Header */}
@@ -288,16 +401,19 @@ const TeacherDashboard: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 'clamp(10px, 2.5vw, 14px)' }}>
             <button
               onClick={() => navigate('/')}
+              className="header-button"
               style={{
-                background: AppColors.surfaceLight,
-                border: 'none',
-                borderRadius: 'clamp(8px, 2vw, 10px)',
-                padding: 'clamp(8px, 2vw, 10px)',
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '50%',
+                width: '42px',
+                height: '42px',
                 color: AppColors.textPrimary,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                transition: 'all 0.2s ease',
               }}
             >
               <ArrowLeftIcon size={20} />
@@ -308,6 +424,7 @@ const TeacherDashboard: React.FC = () => {
                   fontSize: 'clamp(20px, 5vw, 26px)',
                   fontWeight: 700,
                   margin: 0,
+                  letterSpacing: '-0.02em',
                 }}
               >
                 Teacher Dashboard
@@ -324,7 +441,8 @@ const TeacherDashboard: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={handleOpenCreateModal}
+            className="new-lesson-desktop"
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -337,30 +455,43 @@ const TeacherDashboard: React.FC = () => {
               fontSize: 'clamp(13px, 2.8vw, 15px)',
               fontWeight: 600,
               cursor: 'pointer',
+              boxShadow: '0 4px 16px rgba(139, 92, 246, 0.3)',
+              transition: 'all 0.2s ease',
             }}
           >
             <PlusIcon size={18} />
-            <span style={{ display: 'none' }} className="hide-mobile">New Lesson</span>
+            <span>New Lesson</span>
           </button>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs - Consolidated to 4 + Settings */}
         <div
           style={{
             display: 'flex',
-            gap: 'clamp(6px, 1.5vw, 8px)',
+            gap: 'clamp(4px, 1vw, 6px)',
             marginBottom: 'clamp(20px, 5vw, 28px)',
-            background: AppColors.surfaceLight,
+            background: 'rgba(255, 255, 255, 0.03)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
             padding: 'clamp(4px, 1vw, 6px)',
-            borderRadius: 'clamp(20px, 5vw, 24px)',
+            borderRadius: 'clamp(16px, 4vw, 20px)',
+            border: '1px solid rgba(255, 255, 255, 0.06)',
             overflowX: 'auto',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
           }}
         >
           <TabButton
+            label="Home"
+            isActive={activeTab === 'dashboard'}
+            onClick={() => setActiveTab('dashboard')}
+            icon={<HomeIcon size={16} />}
+          />
+          <TabButton
             label="Lessons"
-            isActive={activeTab === 'lessons'}
+            isActive={activeTab === 'lessons' || activeTab === 'roleplay'}
             onClick={() => setActiveTab('lessons')}
-            icon={<SparklesIcon size={16} />}
+            icon={<BookOpenIcon size={16} />}
           />
           <TabButton
             label="Students"
@@ -372,118 +503,261 @@ const TeacherDashboard: React.FC = () => {
             label="Insights"
             isActive={activeTab === 'insights'}
             onClick={() => setActiveTab('insights')}
-            icon={<BarChartIcon size={16} />}
+            icon={<SparklesIcon size={16} />}
           />
           <TabButton
-            label="Billing"
-            isActive={activeTab === 'billing'}
-            onClick={() => setActiveTab('billing')}
-            icon={<BarChartIcon size={16} />}
-          />
-          <TabButton
-            label="Templates"
-            isActive={activeTab === 'templates'}
-            onClick={() => setActiveTab('templates')}
+            label="Settings"
+            isActive={activeTab === 'settings' || activeTab === 'billing' || activeTab === 'templates'}
+            onClick={() => setActiveTab('settings')}
             icon={<SettingsIcon size={16} />}
-          />
-          <TabButton
-            label="Collections"
-            isActive={activeTab === 'roleplay'}
-            onClick={() => setActiveTab('roleplay')}
-            icon={<BookOpenIcon size={16} />}
+            iconOnly
           />
         </div>
 
         {/* Tab Content */}
-        {activeTab === 'lessons' && (
-          <LessonsTab
-            lessons={lessons}
-            onEdit={handleEditLesson}
-            onDelete={handleDeleteLesson}
-            onDuplicate={handleDuplicateLesson}
-          />
-        )}
+        <div className="dashboard-content">
+          {activeTab === 'dashboard' && (
+            <DashboardHome
+              teacherName={userDocument?.displayName || user?.displayName || 'Teacher'}
+              lessonsCount={lessons.length}
+              studentsCount={students.length}
+              activeToday={activeToday}
+              attentionStudents={attentionStudents}
+              recentActivity={recentActivity}
+              onCreateLesson={handleOpenCreateModal}
+              onGenerateInsights={handleNavigateToInsights}
+              onNavigateToStudent={handleNavigateToStudent}
+              onNavigateToStudents={() => setActiveTab('students')}
+            />
+          )}
 
-        {activeTab === 'students' && user && (
-          <StudentsTab
-            teacherId={user.uid}
-            teacherName={userDocument?.displayName || user.email || 'Teacher'}
-            classCode={classCode}
-            onClassCodeRegenerated={setClassCode}
-          />
-        )}
+          {activeTab === 'lessons' && (
+            <LessonsTab
+              lessons={lessons}
+              onEdit={handleEditLesson}
+              onDelete={handleDeleteLesson}
+              onDuplicate={handleDuplicateLesson}
+            />
+          )}
 
-        {activeTab === 'insights' && user && (
-          <InsightsTab
-            teacherId={user.uid}
-            students={students}
-            onNavigateToStudent={handleNavigateToStudent}
-            classPulseInsights={classPulseInsights}
-            classPulseLoading={pulseLoading}
-            classPulseGenerating={pulseGenerating}
-            classPulseLastGenerated={pulseLastGenerated}
-            onGeneratePulse={() => handleGeneratePulse(true)}
-          />
-        )}
+          {activeTab === 'roleplay' && (
+            <RolePlayTab />
+          )}
 
-        {activeTab === 'billing' && (
-          <BillingTab
-            data={analyticsData}
-            loading={analyticsLoading}
-            period={analyticsPeriod}
-            onPeriodChange={setAnalyticsPeriod}
-          />
-        )}
+          {activeTab === 'students' && user && (
+            <StudentsTab
+              teacherId={user.uid}
+              teacherName={userDocument?.displayName || user.email || 'Teacher'}
+              classCode={classCode}
+              onClassCodeRegenerated={setClassCode}
+            />
+          )}
 
-        {activeTab === 'roleplay' && (
-          <RolePlayTab />
-        )}
+          {activeTab === 'insights' && user && (
+            <InsightsTab
+              teacherId={user.uid}
+              students={students}
+              onNavigateToStudent={handleNavigateToStudent}
+              classPulseInsights={classPulseInsights}
+              classPulseLoading={pulseLoading}
+              classPulseGenerating={pulseGenerating}
+              classPulseLastGenerated={pulseLastGenerated}
+              onGeneratePulse={() => handleGeneratePulse(true)}
+            />
+          )}
 
-        {activeTab === 'templates' && (
-          <TemplatesTab
-            // Weekly Review Template
-            reviewTemplate={reviewTemplate}
-            editedReviewTemplate={editedReviewTemplate}
-            onReviewTemplateChange={setEditedReviewTemplate}
-            onSaveReview={saveReviewTemplate}
-            onDiscardReviewChanges={discardReviewChanges}
-            onResetReviewToDefault={resetReviewToDefault}
-            reviewLoading={reviewTemplateLoading}
-            reviewSaving={reviewTemplateSaving}
-            reviewHasChanges={reviewTemplateChanged}
-            // Custom Lesson Template
-            customLessonTemplate={customLessonTemplate}
-            editedCustomLessonTemplate={editedCustomLessonTemplate}
-            onCustomLessonTemplateChange={setEditedCustomLessonTemplate}
-            onSaveCustomLesson={saveCustomLessonTemplate}
-            onDiscardCustomLessonChanges={discardCustomLessonChanges}
-            onResetCustomLessonToDefault={resetCustomLessonToDefault}
-            customLessonLoading={customLessonTemplateLoading}
-            customLessonSaving={customLessonTemplateSaving}
-            customLessonHasChanges={customLessonTemplateChanged}
-            // Pronunciation Coach Template
-            pronunciationTemplate={pronunciationTemplate}
-            editedPronunciationTemplate={editedPronunciationTemplate}
-            onPronunciationTemplateChange={setEditedPronunciationTemplate}
-            onSavePronunciation={savePronunciationTemplate}
-            onDiscardPronunciationChanges={discardPronunciationChanges}
-            onResetPronunciationToDefault={resetPronunciationToDefault}
-            pronunciationLoading={pronunciationTemplateLoading}
-            pronunciationSaving={pronunciationTemplateSaving}
-            pronunciationHasChanges={pronunciationTemplateChanged}
-            // Default Intro Lesson Template
-            introLessonTemplate={introLessonTemplate}
-            editedIntroLessonTemplate={editedIntroLessonTemplate}
-            onIntroLessonTemplateChange={setEditedIntroLessonTemplate}
-            onSaveIntroLesson={saveIntroLessonTemplate}
-            onDiscardIntroLessonChanges={discardIntroLessonChanges}
-            onResetIntroLessonToDefault={resetIntroLessonToDefault}
-            introLessonLoading={introLessonTemplateLoading}
-            introLessonSaving={introLessonTemplateSaving}
-            introLessonHasChanges={introLessonTemplateChanged}
-          />
-        )}
+          {/* Settings Tab - Combines Billing, Templates, Collections */}
+          {activeTab === 'settings' && (
+            <div>
+              {/* Section Navigation */}
+              <div
+                style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '24px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <SettingsSubTab
+                  label="Billing"
+                  icon="💳"
+                  isActive={false}
+                  onClick={() => setActiveTab('billing')}
+                />
+                <SettingsSubTab
+                  label="Templates"
+                  icon="📝"
+                  isActive={false}
+                  onClick={() => setActiveTab('templates')}
+                />
+                <SettingsSubTab
+                  label="Collections"
+                  icon="📚"
+                  isActive={false}
+                  onClick={() => setActiveTab('roleplay')}
+                />
+              </div>
+
+              {/* Default Settings Content */}
+              <div
+                style={{
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderRadius: '20px',
+                  padding: 'clamp(24px, 6vw, 32px)',
+                  textAlign: 'center',
+                }}
+              >
+                <div style={{ fontSize: '48px', marginBottom: '16px' }}>⚙️</div>
+                <h2
+                  style={{
+                    fontSize: 'clamp(18px, 4vw, 22px)',
+                    fontWeight: 600,
+                    margin: '0 0 8px 0',
+                    color: AppColors.textPrimary,
+                  }}
+                >
+                  Settings
+                </h2>
+                <p
+                  style={{
+                    fontSize: 'clamp(14px, 3vw, 15px)',
+                    color: AppColors.textSecondary,
+                    margin: '0 0 24px 0',
+                  }}
+                >
+                  Manage billing, templates, and collections
+                </p>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                    gap: '12px',
+                  }}
+                >
+                  <SettingsCard
+                    title="Billing"
+                    description="Usage & payments"
+                    icon="💳"
+                    onClick={() => setActiveTab('billing')}
+                  />
+                  <SettingsCard
+                    title="Templates"
+                    description="Prompt templates"
+                    icon="📝"
+                    onClick={() => setActiveTab('templates')}
+                  />
+                  <SettingsCard
+                    title="Collections"
+                    description="Lesson groups"
+                    icon="📚"
+                    onClick={() => setActiveTab('roleplay')}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'billing' && (
+            <div>
+              <button
+                onClick={() => setActiveTab('settings')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: AppColors.textSecondary,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  marginBottom: '16px',
+                  padding: 0,
+                }}
+              >
+                <ArrowLeftIcon size={16} />
+                Back to Settings
+              </button>
+              <BillingTab
+                data={analyticsData}
+                loading={analyticsLoading}
+                period={analyticsPeriod}
+                onPeriodChange={setAnalyticsPeriod}
+              />
+            </div>
+          )}
+
+          {activeTab === 'templates' && (
+            <div>
+              <button
+                onClick={() => setActiveTab('settings')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'transparent',
+                  border: 'none',
+                  color: AppColors.textSecondary,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  marginBottom: '16px',
+                  padding: 0,
+                }}
+              >
+                <ArrowLeftIcon size={16} />
+                Back to Settings
+              </button>
+              <TemplatesTab
+                // Weekly Review Template
+                reviewTemplate={reviewTemplate}
+                editedReviewTemplate={editedReviewTemplate}
+                onReviewTemplateChange={setEditedReviewTemplate}
+                onSaveReview={saveReviewTemplate}
+                onDiscardReviewChanges={discardReviewChanges}
+                onResetReviewToDefault={resetReviewToDefault}
+                reviewLoading={reviewTemplateLoading}
+                reviewSaving={reviewTemplateSaving}
+                reviewHasChanges={reviewTemplateChanged}
+                // Custom Lesson Template
+                customLessonTemplate={customLessonTemplate}
+                editedCustomLessonTemplate={editedCustomLessonTemplate}
+                onCustomLessonTemplateChange={setEditedCustomLessonTemplate}
+                onSaveCustomLesson={saveCustomLessonTemplate}
+                onDiscardCustomLessonChanges={discardCustomLessonChanges}
+                onResetCustomLessonToDefault={resetCustomLessonToDefault}
+                customLessonLoading={customLessonTemplateLoading}
+                customLessonSaving={customLessonTemplateSaving}
+                customLessonHasChanges={customLessonTemplateChanged}
+                // Pronunciation Coach Template
+                pronunciationTemplate={pronunciationTemplate}
+                editedPronunciationTemplate={editedPronunciationTemplate}
+                onPronunciationTemplateChange={setEditedPronunciationTemplate}
+                onSavePronunciation={savePronunciationTemplate}
+                onDiscardPronunciationChanges={discardPronunciationChanges}
+                onResetPronunciationToDefault={resetPronunciationToDefault}
+                pronunciationLoading={pronunciationTemplateLoading}
+                pronunciationSaving={pronunciationTemplateSaving}
+                pronunciationHasChanges={pronunciationTemplateChanged}
+                // Default Intro Lesson Template
+                introLessonTemplate={introLessonTemplate}
+                editedIntroLessonTemplate={editedIntroLessonTemplate}
+                onIntroLessonTemplateChange={setEditedIntroLessonTemplate}
+                onSaveIntroLesson={saveIntroLessonTemplate}
+                onDiscardIntroLessonChanges={discardIntroLessonChanges}
+                onResetIntroLessonToDefault={resetIntroLessonToDefault}
+                introLessonLoading={introLessonTemplateLoading}
+                introLessonSaving={introLessonTemplateSaving}
+                introLessonHasChanges={introLessonTemplateChanged}
+              />
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Floating Action Button for Mobile */}
+      <FloatingActionButton onClick={handleOpenCreateModal} />
 
       {/* Lesson Form Modal */}
       <LessonFormModal
@@ -531,5 +805,95 @@ const TeacherDashboard: React.FC = () => {
     </div>
   );
 };
+
+// Settings Sub-Tab Button
+interface SettingsSubTabProps {
+  label: string;
+  icon: string;
+  isActive: boolean;
+  onClick: () => void;
+}
+
+const SettingsSubTab: React.FC<SettingsSubTabProps> = ({
+  label,
+  icon,
+  isActive,
+  onClick,
+}) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '10px 16px',
+      background: isActive
+        ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)'
+        : 'rgba(255, 255, 255, 0.05)',
+      border: isActive
+        ? '1px solid rgba(139, 92, 246, 0.3)'
+        : '1px solid rgba(255, 255, 255, 0.1)',
+      borderRadius: '12px',
+      color: isActive ? AppColors.textPrimary : AppColors.textSecondary,
+      fontSize: '14px',
+      fontWeight: isActive ? 600 : 500,
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+    }}
+  >
+    <span>{icon}</span>
+    {label}
+  </button>
+);
+
+// Settings Card
+interface SettingsCardProps {
+  title: string;
+  description: string;
+  icon: string;
+  onClick: () => void;
+}
+
+const SettingsCard: React.FC<SettingsCardProps> = ({
+  title,
+  description,
+  icon,
+  onClick,
+}) => (
+  <button
+    onClick={onClick}
+    style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      padding: '20px 16px',
+      background: 'rgba(255, 255, 255, 0.05)',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      borderRadius: '16px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+    }}
+  >
+    <span style={{ fontSize: '28px', marginBottom: '8px' }}>{icon}</span>
+    <span
+      style={{
+        fontSize: '15px',
+        fontWeight: 600,
+        color: AppColors.textPrimary,
+        marginBottom: '2px',
+      }}
+    >
+      {title}
+    </span>
+    <span
+      style={{
+        fontSize: '12px',
+        color: AppColors.textSecondary,
+      }}
+    >
+      {description}
+    </span>
+  </button>
+);
 
 export default TeacherDashboard;

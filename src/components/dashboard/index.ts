@@ -16,3 +16,11 @@ export { MistakeDrillDown } from './MistakeDrillDown';
 export { MistakeCard } from './MistakeCard';
 // RolePlay Collections
 export { RolePlayTab } from './RolePlayTab';
+// New Dashboard Redesign Components
+export { FloatingActionButton } from './FloatingActionButton';
+export { DashboardHome } from './DashboardHome';
+export { QuickStatsGrid } from './QuickStatsGrid';
+export { NeedsAttentionCard } from './NeedsAttentionCard';
+export type { AttentionStudent } from './NeedsAttentionCard';
+export { RecentActivityFeed } from './RecentActivityFeed';
+export type { ActivityItem } from './RecentActivityFeed';

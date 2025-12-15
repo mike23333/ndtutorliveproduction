@@ -32,6 +32,7 @@ export const SaveTemplateModal: React.FC<SaveTemplateModalProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1100,
+        paddingBottom: 'calc(64px + env(safe-area-inset-bottom))',
       }}
       onClick={onClose}
     >

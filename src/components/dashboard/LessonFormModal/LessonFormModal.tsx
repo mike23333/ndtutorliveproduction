@@ -287,7 +287,8 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
         style={{
           width: '100%',
           maxWidth: '600px',
-          maxHeight: '90vh',
+          maxHeight: 'calc(90vh - 64px)',
+          marginBottom: 'calc(64px + env(safe-area-inset-bottom))',
           background: AppColors.surfaceDark,
           borderRadius: 'clamp(16px, 4vw, 24px) clamp(16px, 4vw, 24px) 0 0',
           display: 'flex',

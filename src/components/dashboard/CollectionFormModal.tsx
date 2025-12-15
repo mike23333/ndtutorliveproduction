@@ -142,6 +142,7 @@ export const CollectionFormModal: React.FC<CollectionFormModalProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 'clamp(16px, 4vw, 24px)',
+        paddingBottom: 'calc(80px + env(safe-area-inset-bottom))',
         zIndex: 1000,
       }}
       onClick={(e) => {
@@ -154,7 +155,7 @@ export const CollectionFormModal: React.FC<CollectionFormModalProps> = ({
           borderRadius: 'clamp(16px, 4vw, 20px)',
           width: '100%',
           maxWidth: 500,
-          maxHeight: '90vh',
+          maxHeight: 'calc(90vh - 64px)',
           overflow: 'auto',
         }}
       >
