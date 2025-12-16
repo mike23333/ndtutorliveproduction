@@ -8,6 +8,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
   updateDoc,
@@ -119,6 +120,7 @@ export const createMission = async (
 
 /**
  * Get a single mission by ID
+ * Uses getDocFromServer to bypass cache and get fresh data
  */
 export const getMission = async (missionId: string): Promise<MissionDocument | null> => {
   if (!db) {
@@ -127,7 +129,8 @@ export const getMission = async (missionId: string): Promise<MissionDocument | n
 
   try {
     const missionRef = doc(db, MISSIONS_COLLECTION, missionId);
-    const missionSnap = await getDoc(missionRef);
+    // Use getDocFromServer to always get fresh data (bypass cache)
+    const missionSnap = await getDocFromServer(missionRef);
 
     if (missionSnap.exists()) {
       return missionSnap.data() as MissionDocument;

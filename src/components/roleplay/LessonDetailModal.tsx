@@ -204,6 +204,9 @@ export function LessonDetailModal({
 
   const handleStartChat = () => {
     if (lesson) {
+      // DEBUG: Log what prompt we're about to use
+      console.log('[LessonDetailModal] Starting chat with systemPrompt:', lesson.systemPrompt?.slice(0, 150) + '...');
+
       // Set up sessionStorage for the chat page (like HomePage does)
       const roleConfig = {
         id: lesson.id,

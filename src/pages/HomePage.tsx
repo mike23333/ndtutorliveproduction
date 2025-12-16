@@ -102,6 +102,13 @@ export default function HomePage() {
       const mission = await getMission(lessonId);
       if (!mission) return null;
 
+      // DEBUG: Log what we're getting from Firebase
+      console.log('[fetchLessonDetail] Raw mission from Firebase:', {
+        id: mission.id,
+        systemPrompt: mission.systemPrompt?.slice(0, 150) + '...',
+        scenario: mission.scenario?.slice(0, 150) + '...',
+      });
+
       return {
         id: mission.id,
         title: mission.title,

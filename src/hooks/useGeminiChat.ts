@@ -358,10 +358,12 @@ export function useGeminiChat(
   const handleToolCalls = useCallback(async (
     functionCalls: GeminiFunctionCall[]
   ): Promise<GeminiFunctionResponse[]> => {
+    console.log('[Function] 🔧 handleToolCalls called with', functionCalls.length, 'function(s)');
+    console.log('[Function] 🔧 Functions:', functionCalls.map(fc => fc.name).join(', '));
     const responses: GeminiFunctionResponse[] = [];
 
     for (const fc of functionCalls) {
-      console.log('[Function] Processing:', fc.name, fc.args);
+      console.log('[Function] 📝 Processing:', fc.name, JSON.stringify(fc.args));
 
       try {
         switch (fc.name) {
@@ -614,10 +616,12 @@ export function useGeminiChat(
 
           case 'mark_task_complete': {
             const params = fc.args as unknown as MarkTaskCompleteParams;
+            console.log('[Function] 🎯 mark_task_complete called with params:', JSON.stringify(params));
+            console.log('[Function] 🎯 onTaskComplete callback exists:', !!onTaskComplete);
 
             // Validate required fields
             if (!params.task_id) {
-              console.warn('[Function] Invalid mark_task_complete params:', fc.args);
+              console.warn('[Function] ⚠️ Invalid mark_task_complete params:', fc.args);
               responses.push({
                 id: fc.id,
                 name: fc.name,
@@ -628,8 +632,11 @@ export function useGeminiChat(
 
             // Call the callback to update UI state
             if (onTaskComplete) {
-              console.log('[Function] Marking task complete:', params.task_id);
+              console.log('[Function] ✅ Calling onTaskComplete with task_id:', params.task_id);
               onTaskComplete(params.task_id);
+              console.log('[Function] ✅ onTaskComplete called successfully');
+            } else {
+              console.warn('[Function] ⚠️ No onTaskComplete callback provided!');
             }
 
             responses.push({

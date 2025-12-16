@@ -158,6 +158,11 @@ export class GeminiDirectClient {
     // Debug: log all messages to see what we're receiving
     console.log('[GeminiClient] Message received:', Object.keys(message));
 
+    // Deep debug: log full message structure for tool call debugging
+    if (message.toolCall || message.serverContent?.modelTurn?.parts?.some((p: any) => p.functionCall || p.executableCode)) {
+      console.log('[GeminiClient] 🔧 TOOL CALL DETECTED - Full message:', JSON.stringify(message, null, 2));
+    }
+
     // Session resumption update - store new handle
     // Check for both resumable flag and newHandle
     if (message.sessionResumptionUpdate) {
@@ -183,6 +188,8 @@ export class GeminiDirectClient {
 
       // Handle model turn parts
       if (content.modelTurn?.parts) {
+        console.log('[GeminiClient] Model turn parts:', content.modelTurn.parts.map((p: any) => Object.keys(p)));
+
         for (const part of content.modelTurn.parts) {
           // Audio response
           if (part.inlineData) {
@@ -192,6 +199,19 @@ export class GeminiDirectClient {
           // Text response
           if (part.text) {
             this.callbacks.onText?.(part.text);
+          }
+          // Thought/reasoning (new in 2.5 models) - log but don't display
+          if (part.thought) {
+            const thoughtStr = typeof part.thought === 'string'
+              ? part.thought
+              : JSON.stringify(part.thought);
+            console.log('[GeminiClient] 🧠 Model thought:', thoughtStr.substring(0, 200));
+          }
+          // Function call in parts (new format in some 2.5 models)
+          if (part.functionCall) {
+            console.log('[GeminiClient] 🔧 Function call in modelTurn.parts:', part.functionCall);
+            // Handle this as a tool call
+            this.handleToolCall({ functionCalls: [part.functionCall] });
           }
         }
       }
@@ -238,8 +258,13 @@ export class GeminiDirectClient {
 
     // Tool calls (function calling) - Gemini wants us to execute a function
     if (message.toolCall) {
-      console.log('[GeminiClient] Tool call received:', message.toolCall);
+      console.log('[GeminiClient] 🔧 Tool call received (top-level):', JSON.stringify(message.toolCall, null, 2));
       this.handleToolCall(message.toolCall);
+    }
+
+    // Check for tool calls in other locations (Gemini 2.5 model variations)
+    if (message.toolCallCancellation) {
+      console.log('[GeminiClient] ⚠️ Tool call cancellation:', message.toolCallCancellation);
     }
   }
 
@@ -247,20 +272,30 @@ export class GeminiDirectClient {
    * Handle tool/function calls from Gemini
    */
   private async handleToolCall(toolCall: any): Promise<void> {
+    console.log('[GeminiClient] 🔧 handleToolCall called with:', JSON.stringify(toolCall, null, 2));
+
     if (!toolCall.functionCalls || !Array.isArray(toolCall.functionCalls)) {
-      console.warn('[GeminiClient] Invalid tool call format:', toolCall);
-      return;
+      console.warn('[GeminiClient] ⚠️ Invalid tool call format - no functionCalls array:', toolCall);
+      // Check if it's a single function call (not array)
+      if (toolCall.name && (toolCall.args || toolCall.id)) {
+        console.log('[GeminiClient] 📝 Single function call format detected, converting to array');
+        toolCall = { functionCalls: [toolCall] };
+      } else {
+        return;
+      }
     }
 
     // Convert to our typed format
     const functionCalls: GeminiFunctionCall[] = toolCall.functionCalls.map((fc: any) => ({
-      id: fc.id,
+      id: fc.id || `auto-${Date.now()}`, // Generate ID if missing
       name: fc.name,
       args: fc.args || {},
     }));
 
-    console.log('[GeminiClient] Processing', functionCalls.length, 'function call(s):',
-      functionCalls.map(fc => fc.name).join(', '));
+    console.log('[GeminiClient] 🔧 Processing', functionCalls.length, 'function call(s)');
+    functionCalls.forEach((fc, i) => {
+      console.log(`[GeminiClient] 🔧 Function ${i + 1}: ${fc.name}`, JSON.stringify(fc.args));
+    });
 
     // Check if we have a handler
     if (!this.callbacks.onToolCall) {

@@ -145,9 +145,18 @@ export default function ChatPage() {
   // Handle task completion from Gemini tool call
   const handleTaskComplete = useCallback((taskId: string) => {
     console.log('[ChatPage] Task completed:', taskId);
-    setTasks(prev => prev.map(t =>
-      t.id === taskId ? { ...t, completed: true } : t
-    ));
+    setTasks(prev => {
+      console.log('[ChatPage] Current tasks before update:', JSON.stringify(prev));
+      const updated = prev.map(t => {
+        // Handle both formats: "task-1" (from Gemini) or "1" or 1 (from config)
+        const taskIdStr = String(t.id);
+        const incomingId = taskId.replace('task-', ''); // "task-1" -> "1"
+        const matches = taskIdStr === taskId || taskIdStr === incomingId || `task-${taskIdStr}` === taskId;
+        return matches ? { ...t, completed: true } : t;
+      });
+      console.log('[ChatPage] Tasks after update:', JSON.stringify(updated));
+      return updated;
+    });
   }, []);
 
   // Initialize Gemini chat hook (direct connection with ephemeral tokens)
@@ -235,10 +244,13 @@ export default function ChatPage() {
       setAiRole(role);
 
       // Initialize tasks if present
-      console.log('[ChatPage] Config tasks:', config.tasks);
+      console.log('[ChatPage] Config tasks from sessionStorage:', config.tasks);
       if (config.tasks?.length) {
-        console.log('[ChatPage] Initializing tasks:', config.tasks);
-        setTasks(config.tasks.map(t => ({ ...t, completed: false })));
+        const initialTasks = config.tasks.map(t => ({ ...t, completed: false }));
+        console.log('[ChatPage] ✅ Initializing tasks:', JSON.stringify(initialTasks));
+        setTasks(initialTasks);
+      } else {
+        console.log('[ChatPage] ⚠️ No tasks in config');
       }
 
       // Check if this is the user's first session (from sessionStorage flag)
