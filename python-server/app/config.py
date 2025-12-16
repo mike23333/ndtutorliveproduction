@@ -29,9 +29,10 @@ class Config:
     ).split(",")
 
     # Gemini Model - Native Audio for voice conversations
+    # Updated to December 2025 version which has improved function calling
     GEMINI_MODEL: str = os.getenv(
         "GEMINI_MODEL",
-        "gemini-2.5-flash-native-audio-preview-09-2025"
+        "gemini-2.5-flash-native-audio-preview-12-2025"
     )
 
     @classmethod

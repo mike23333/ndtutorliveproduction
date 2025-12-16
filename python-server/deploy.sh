@@ -52,7 +52,7 @@ gcloud run deploy ${SERVICE_NAME} \
     --min-instances 1 \
     --max-instances 10 \
     --session-affinity \
-    --set-env-vars "GCP_PROJECT_ID=${PROJECT_ID},GCP_LOCATION=${REGION},GEMINI_MODEL=gemini-live-2.5-flash-preview-native-audio-09-2025,GEMINI_VOICE=Aoede"
+    --set-env-vars "GCP_PROJECT_ID=${PROJECT_ID},GCP_LOCATION=${REGION},GEMINI_MODEL=gemini-2.5-flash-native-audio-preview-12-2025,GEMINI_VOICE=Aoede"
 
 # Get the service URL
 SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} --region ${REGION} --format="value(status.url)")
