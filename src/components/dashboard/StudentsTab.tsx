@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AppColors } from '../../theme/colors';
-import { UserDocument, PrivateStudentCodeDocument } from '../../types/firestore';
+import { UserDocument, PrivateStudentCodeDocument, SubscriptionPlan } from '../../types/firestore';
 import { getStudentsForTeacher } from '../../services/firebase/students';
 import { removeStudentFromClass, regenerateClassCode, suspendStudent, reactivateStudent } from '../../services/firebase/classCode';
 import {
@@ -8,6 +8,9 @@ import {
   getPrivateCodesForTeacher,
   revokePrivateStudentCode,
 } from '../../services/firebase/privateStudentCode';
+import { updateStudentPlan, getUsageStats } from '../../services/firebase/subscriptionUsage';
+import { formatTimeRemaining } from '../../constants/subscriptionPlans';
+import { PlanSelector } from './PlanSelector';
 
 interface StudentsTabProps {
   teacherId: string;
@@ -36,6 +39,9 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
   const [generatingPrivateCode, setGeneratingPrivateCode] = useState(false);
   const [copiedPrivateLink, setCopiedPrivateLink] = useState<string | null>(null);
   const [revokingCode, setRevokingCode] = useState<string | null>(null);
+
+  // Plan management state
+  const [changingPlan, setChangingPlan] = useState<string | null>(null);
 
   // Fetch students and private codes on mount
   useEffect(() => {
@@ -198,6 +204,23 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
       alert('Failed to reactivate student. Please try again.');
     } finally {
       setReactivatingStudent(null);
+    }
+  };
+
+  // Handle subscription plan change
+  const handlePlanChange = async (studentId: string, newPlan: SubscriptionPlan) => {
+    setChangingPlan(studentId);
+    try {
+      await updateStudentPlan(studentId, newPlan);
+      // Update local state
+      setStudents(prev => prev.map(s =>
+        s.uid === studentId ? { ...s, subscriptionPlan: newPlan } : s
+      ));
+    } catch (error) {
+      console.error('Error changing plan:', error);
+      alert('Failed to change plan. Please try again.');
+    } finally {
+      setChangingPlan(null);
     }
   };
 
@@ -563,7 +586,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                   transition: 'all 0.2s ease',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
                   <div style={{
                     width: '42px',
                     height: '42px',
@@ -578,7 +601,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                   }}>
                     {student.displayName.charAt(0).toUpperCase()}
                   </div>
-                  <div>
+                  <div style={{ flex: 1 }}>
                     <div style={{
                       fontSize: 'clamp(15px, 3.2vw, 16px)',
                       fontWeight: 600,
@@ -587,32 +610,78 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     }}>
                       {student.displayName}
                     </div>
-                    <div style={{
-                      fontSize: 'clamp(12px, 2.5vw, 13px)',
-                      color: AppColors.textSecondary,
-                    }}>
-                      Joined {formatDate(student.joinedClassAt)}
-                    </div>
+                    {/* Usage Stats */}
+                    {(() => {
+                      const stats = getUsageStats(student);
+                      if (stats.isUnlimited) {
+                        return (
+                          <div style={{ fontSize: 'clamp(11px, 2.3vw, 12px)', color: AppColors.textSecondary, marginTop: '4px' }}>
+                            {formatTimeRemaining(stats.usedSeconds)} this week
+                          </div>
+                        );
+                      }
+                      const progressPercent = Math.min(stats.percentUsed * 100, 100);
+                      const progressColor = stats.isAtLimit ? AppColors.errorRose :
+                        progressPercent > 75 ? AppColors.whisperAmber : AppColors.successGreen;
+                      return (
+                        <div style={{ marginTop: '4px' }}>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            fontSize: 'clamp(11px, 2.3vw, 12px)',
+                            color: stats.isAtLimit ? AppColors.errorRose : AppColors.textSecondary,
+                            marginBottom: '4px',
+                          }}>
+                            <span>{formatTimeRemaining(stats.usedSeconds)} / {formatTimeRemaining(stats.limitSeconds)}</span>
+                            {stats.isAtLimit && <span style={{ fontWeight: 600 }}>At limit</span>}
+                          </div>
+                          <div style={{
+                            height: '4px',
+                            width: '100px',
+                            borderRadius: '2px',
+                            background: 'rgba(255,255,255,0.1)',
+                            overflow: 'hidden',
+                          }}>
+                            <div style={{
+                              height: '100%',
+                              width: `${progressPercent}%`,
+                              borderRadius: '2px',
+                              background: progressColor,
+                              transition: 'width 0.3s ease',
+                            }} />
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleSuspendStudent(student.uid, student.displayName)}
-                  disabled={suspendingStudent === student.uid}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: '8px 12px',
-                    color: AppColors.textSecondary,
-                    fontSize: 'clamp(12px, 2.5vw, 13px)',
-                    cursor: suspendingStudent === student.uid ? 'not-allowed' : 'pointer',
-                    opacity: suspendingStudent === student.uid ? 0.5 : 0.7,
-                    transition: 'opacity 0.2s ease',
-                  }}
-                  onMouseEnter={(e) => { if (suspendingStudent !== student.uid) e.currentTarget.style.opacity = '1'; }}
-                  onMouseLeave={(e) => { if (suspendingStudent !== student.uid) e.currentTarget.style.opacity = '0.7'; }}
-                >
-                  {suspendingStudent === student.uid ? '...' : 'Pause'}
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <PlanSelector
+                    currentPlan={student.subscriptionPlan || 'starter'}
+                    onChange={(plan) => handlePlanChange(student.uid, plan)}
+                    disabled={changingPlan === student.uid}
+                    compact
+                  />
+                  <button
+                    onClick={() => handleSuspendStudent(student.uid, student.displayName)}
+                    disabled={suspendingStudent === student.uid}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '8px 12px',
+                      color: AppColors.textSecondary,
+                      fontSize: 'clamp(12px, 2.5vw, 13px)',
+                      cursor: suspendingStudent === student.uid ? 'not-allowed' : 'pointer',
+                      opacity: suspendingStudent === student.uid ? 0.5 : 0.7,
+                      transition: 'opacity 0.2s ease',
+                    }}
+                    onMouseEnter={(e) => { if (suspendingStudent !== student.uid) e.currentTarget.style.opacity = '1'; }}
+                    onMouseLeave={(e) => { if (suspendingStudent !== student.uid) e.currentTarget.style.opacity = '0.7'; }}
+                  >
+                    {suspendingStudent === student.uid ? '...' : 'Pause'}
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -825,6 +894,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     display: 'flex',
                     gap: 'clamp(12px, 3vw, 16px)',
                     flexWrap: 'wrap',
+                    alignItems: 'center',
                   }}
                 >
                   <span>Level: {student.level || 'Not set'}</span>
@@ -836,8 +906,57 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     <span>Avg Stars: {(student.totalStars / student.totalSessions).toFixed(1)}</span>
                   )}
                 </div>
+                {/* Usage Stats */}
+                {(() => {
+                  const stats = getUsageStats(student);
+                  if (stats.isUnlimited) {
+                    return (
+                      <div style={{
+                        fontSize: 'clamp(11px, 2.3vw, 12px)',
+                        color: AppColors.textSecondary,
+                        marginTop: '6px',
+                      }}>
+                        {formatTimeRemaining(stats.usedSeconds)} this week
+                      </div>
+                    );
+                  }
+                  const progressPercent = Math.min(stats.percentUsed * 100, 100);
+                  const progressColor = stats.isAtLimit ? AppColors.errorRose :
+                    progressPercent > 75 ? AppColors.whisperAmber : AppColors.successGreen;
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '6px' }}>
+                      <div style={{
+                        height: '4px',
+                        width: '80px',
+                        borderRadius: '2px',
+                        background: 'rgba(255,255,255,0.1)',
+                        overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          width: `${progressPercent}%`,
+                          borderRadius: '2px',
+                          background: progressColor,
+                        }} />
+                      </div>
+                      <span style={{
+                        fontSize: 'clamp(11px, 2.3vw, 12px)',
+                        color: stats.isAtLimit ? AppColors.errorRose : AppColors.textSecondary,
+                      }}>
+                        {formatTimeRemaining(stats.usedSeconds)} / {formatTimeRemaining(stats.limitSeconds)}
+                        {stats.isAtLimit && ' (limit)'}
+                      </span>
+                    </div>
+                  );
+                })()}
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+                <PlanSelector
+                  currentPlan={student.subscriptionPlan || 'starter'}
+                  onChange={(plan) => handlePlanChange(student.uid, plan)}
+                  disabled={changingPlan === student.uid}
+                  compact
+                />
                 <button
                   onClick={() => handleSuspendStudent(student.uid, student.displayName)}
                   disabled={suspendingStudent === student.uid}

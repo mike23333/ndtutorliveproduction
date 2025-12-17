@@ -42,29 +42,30 @@ function formatDate(date: Date): string {
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 /**
- * Calculate actual current streak from practiceHistory
- * More reliable than stored currentStreak which can get out of sync
+ * Calculate actual current streak from completionHistory
+ * Only counts days with completed sessions (not just practice time)
+ * This matches industry standard (Duolingo, Headspace, etc.)
  */
-function calculateStreakFromHistory(practiceHistory: Record<string, number>): number {
+function calculateStreakFromCompletions(completionHistory: Record<string, number>): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   let streak = 0;
   let checkDate = new Date(today);
 
-  // Check if practiced today first
+  // Check if completed a session today first
   const todayStr = formatDate(checkDate);
-  const practicedToday = (practiceHistory[todayStr] || 0) > 0;
+  const completedToday = (completionHistory[todayStr] || 0) > 0;
 
-  // If not practiced today, start checking from yesterday
-  if (!practicedToday) {
+  // If not completed today, start checking from yesterday
+  if (!completedToday) {
     checkDate.setDate(checkDate.getDate() - 1);
   }
 
-  // Count consecutive days backwards
+  // Count consecutive days backwards with completions
   while (true) {
     const dateStr = formatDate(checkDate);
-    if ((practiceHistory[dateStr] || 0) > 0) {
+    if ((completionHistory[dateStr] || 0) > 0) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
     } else {
@@ -81,22 +82,26 @@ export function useStreakCalendar(userDocument: UserDocument | null): UseStreakC
     const todayStr = formatDate(today);
     const monday = getMonday(today);
     const practiceHistory = userDocument?.practiceHistory || {};
+    const completionHistory = userDocument?.completionHistory || {};
 
-    // Calculate actual streak from practice history (more reliable)
-    const calculatedStreak = calculateStreakFromHistory(practiceHistory);
+    // Calculate streak from completions only (not just practice time)
+    const calculatedStreak = calculateStreakFromCompletions(completionHistory);
 
     // Build array of 7 days (Mon-Sun)
+    // Show checkmark only for days with completed sessions
     const weekDays: DayData[] = [];
     for (let i = 0; i < 7; i++) {
       const day = new Date(monday);
       day.setDate(monday.getDate() + i);
       const dateStr = formatDate(day);
       const secondsPracticed = practiceHistory[dateStr] || 0;
+      const completedSessions = completionHistory[dateStr] || 0;
 
       weekDays.push({
         date: dateStr,
         dayLabel: DAY_LABELS[i],
-        practiced: secondsPracticed > 0,
+        // Only mark as practiced if a session was COMPLETED that day
+        practiced: completedSessions > 0,
         isToday: dateStr === todayStr,
         secondsPracticed,
       });
@@ -104,7 +109,7 @@ export function useStreakCalendar(userDocument: UserDocument | null): UseStreakC
 
     return {
       weekDays,
-      // Use calculated streak from history for accuracy
+      // Use calculated streak from completions for accuracy
       currentStreak: calculatedStreak,
       longestStreak: Math.max(userDocument?.longestStreak || 0, calculatedStreak),
     };

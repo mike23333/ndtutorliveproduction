@@ -9,6 +9,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '../theme/icons';
 import { useAuth } from '../hooks/useAuth';
 import { useBadgeProgress } from '../hooks/useBadges';
 import { LearningSettingsCard } from '../components/profile';
+import { SubscriptionCard } from '../components/profile/SubscriptionCard';
 import { InstallAppButton } from '../components/pwa';
 import { useState, useEffect, useRef } from 'react';
 import { getUserStarStats } from '../services/firebase/sessionData';
@@ -646,6 +647,9 @@ export default function ProfilePage() {
               })}
             </div>
           </div>
+
+          {/* Subscription Card - shows plan and weekly usage */}
+          <SubscriptionCard userDocument={userDocument} />
 
           {/* Learning Settings */}
           {user?.uid && (

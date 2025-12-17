@@ -25,6 +25,11 @@ export type ProficiencyLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 export type ConversationTone = 'friendly' | 'formal' | 'encouraging' | 'challenging';
 
 /**
+ * Subscription plan tiers for Gemini time limits
+ */
+export type SubscriptionPlan = 'starter' | 'plus' | 'unlimited';
+
+/**
  * Latest badge info for quick display on profile
  */
 export interface LatestBadgeInfo {
@@ -54,6 +59,13 @@ export interface UserDocument {
   privateStudentCode?: string;   // The private code used to join (for reference)
   // Student status (for payment/access control)
   status?: 'active' | 'suspended';  // undefined or 'active' = can access, 'suspended' = blocked
+  // Subscription plan (for Gemini time limits)
+  subscriptionPlan?: SubscriptionPlan;
+  weeklyUsage?: {
+    weekStartDate: string;           // YYYY-MM-DD (Monday of current week)
+    usedSeconds: number;             // Gemini seconds used this week
+    lastSessionEndedAt?: Timestamp;  // Last session end time
+  };
   // Teacher fields
   classCode?: string;        // Unique 6-char code for students to join (teachers only)
   // Aggregate stats for fast UI reads (denormalized)

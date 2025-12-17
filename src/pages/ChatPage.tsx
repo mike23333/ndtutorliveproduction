@@ -13,6 +13,14 @@ import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
 import { useUserId } from '../hooks/useAuth';
 import { completeReviewLesson, setCurrentLesson, savePracticeTimeOnly } from '../services/firebase/sessionData';
+import {
+  canStartSession,
+  recordSessionUsage,
+  resetWeekIfNeeded,
+  getUserDocument,
+  type UsageStats,
+} from '../services/firebase/subscriptionUsage';
+import type { UserDocument } from '../types/firestore';
 import { updateCustomLessonPracticed } from '../services/firebase/customLessons';
 import type { AIRole, StudentLevel, ToneType, PersonaType } from '../types/ai-role';
 import { LEVEL_CONFIGS } from '../types/ai-role';
@@ -31,6 +39,10 @@ import { TasksPanel, type TaskItem } from '../components/chat/TasksPanel';
 // Session timer and summary components
 import { SessionTimerCompact } from '../components/chat/SessionTimer';
 import { StarAnimation } from '../components/chat/StarAnimation';
+
+// Subscription usage components
+import { UsageWarningBanner } from '../components/chat/UsageWarningBanner';
+import { UsageBlockedModal } from '../components/chat/UsageBlockedModal';
 
 // Badge components
 import { BadgeEarnedModal } from '../components/badges';
@@ -192,6 +204,12 @@ export default function ChatPage() {
   const [isReplayingAudio, setIsReplayingAudio] = useState(false);
   const sessionDuration = roleConfig?.durationMinutes || 15;
 
+  // Subscription usage state
+  const [, setUserDocument] = useState<UserDocument | null>(null);
+  const [usageBlockedMessage, setUsageBlockedMessage] = useState<string | null>(null);
+  const [showUsageWarning, setShowUsageWarning] = useState(false);
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null);
+
   // Track if we've already sent the initial "Hi" message
   const hasSentInitialHi = useRef(false);
 
@@ -263,6 +281,37 @@ export default function ChatPage() {
       navigate('/roles');
     }
   }, [navigate]);
+
+  // Fetch user document and check subscription status on mount
+  useEffect(() => {
+    async function checkSubscriptionStatus() {
+      if (!userId) return;
+
+      try {
+        // Fetch user document
+        const userDoc = await getUserDocument(userId);
+        setUserDocument(userDoc);
+
+        // Reset week usage if needed (new week started)
+        await resetWeekIfNeeded(userId, userDoc);
+
+        // Check if user can start a session
+        const { canStart, reason, usageStats: stats } = canStartSession(userDoc);
+        setUsageStats(stats);
+
+        if (!canStart && reason) {
+          setUsageBlockedMessage(reason);
+        } else if (stats.showWarning) {
+          // Show warning if at 10% or less remaining
+          setShowUsageWarning(true);
+        }
+      } catch (error) {
+        console.error('[ChatPage] Error checking subscription status:', error);
+      }
+    }
+
+    checkSubscriptionStatus();
+  }, [userId]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -648,6 +697,8 @@ export default function ChatPage() {
 
     try {
       await savePracticeTimeOnly(userId, elapsedSeconds);
+      // Also record subscription usage (for weekly limits)
+      await recordSessionUsage(userId, elapsedSeconds);
       console.log('[ChatPage] Saved partial practice time:', elapsedSeconds, 'seconds');
     } catch (error) {
       console.error('[ChatPage] Failed to save practice time:', error);
@@ -718,6 +769,23 @@ export default function ChatPage() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(216, 180, 254, 0.3); border-radius: 4px; }
       `}</style>
+
+      {/* Subscription Usage Warning Banner */}
+      {showUsageWarning && usageStats && !usageBlockedMessage && (
+        <UsageWarningBanner
+          remainingSeconds={usageStats.remainingSeconds}
+          planName={usageStats.plan.name}
+          onDismiss={() => setShowUsageWarning(false)}
+        />
+      )}
+
+      {/* Subscription Usage Blocked Modal */}
+      {usageBlockedMessage && (
+        <UsageBlockedModal
+          message={usageBlockedMessage}
+          onGoBack={() => navigate('/')}
+        />
+      )}
 
       {/* Header with scenario info and connection status */}
       <ScenarioHeader
