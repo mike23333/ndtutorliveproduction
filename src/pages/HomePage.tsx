@@ -19,6 +19,7 @@ import {
   PronunciationModal,
   MyPracticeSection,
   AssignmentGrid,
+  AllLessonsModal,
   LessonWithCompletion,
 } from '../components/home';
 import { LessonDetailModal, LessonDetailData } from '../components/roleplay';
@@ -50,6 +51,7 @@ export default function HomePage() {
   // Modal states
   const [showCreateOwnModal, setShowCreateOwnModal] = useState(false);
   const [showPronunciationModal, setShowPronunciationModal] = useState(false);
+  const [showAllLessonsModal, setShowAllLessonsModal] = useState(false);
   const [editingLesson, setEditingLesson] = useState<CustomLessonDocument | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<LessonDetailData | null>(null);
   const [showLessonModal, setShowLessonModal] = useState(false);
@@ -484,6 +486,7 @@ export default function HomePage() {
                 teacherName={teacherName}
                 lessons={lessons}
                 onLessonClick={handleLessonClick}
+                onSeeAll={() => setShowAllLessonsModal(true)}
               />
 
               {/* Quick Practice Section */}
@@ -532,9 +535,19 @@ export default function HomePage() {
         }}
         onStartChat={(lessonId) => {
           setShowLessonModal(false);
+          setShowAllLessonsModal(false); // Close "See All" modal too if open
           navigate(`/chat/${lessonId}`);
         }}
         lesson={selectedLesson}
+      />
+
+      {/* All Lessons Modal - shows all teacher lessons */}
+      <AllLessonsModal
+        isOpen={showAllLessonsModal}
+        onClose={() => setShowAllLessonsModal(false)}
+        lessons={lessons}
+        teacherName={teacherName}
+        onLessonClick={handleLessonClick}
       />
     </div>
   );

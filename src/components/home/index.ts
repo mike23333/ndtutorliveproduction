@@ -10,6 +10,7 @@ export { MyPracticeSection } from './MyPracticeSection';
 export { CompactLessonCard } from './CompactLessonCard';
 export { AssignmentGrid } from './AssignmentGrid';
 export type { LessonWithCompletion } from './AssignmentGrid';
+export { AllLessonsModal } from './AllLessonsModal';
 export { PrimaryActionCard } from './PrimaryActionCard';
 
 // Hero and header components

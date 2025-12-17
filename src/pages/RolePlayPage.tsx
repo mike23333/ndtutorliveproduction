@@ -162,11 +162,17 @@ export default function RolePlayPage() {
     setCollectionLevelFilter('all');
   }, []);
 
-  const handleRandomClick = useCallback(() => {
+  const handleRandomClick = useCallback(async () => {
     const allLessons = collections.flatMap((col) => col.lessons);
     if (allLessons.length === 0) return;
     const randomLesson = allLessons[Math.floor(Math.random() * allLessons.length)];
-    navigate(`/chat/${randomLesson.id}`);
+    const lessonDetail = await fetchLessonDetail(randomLesson.id);
+    if (lessonDetail) {
+      setSelectedLesson(lessonDetail);
+      setShowLessonModal(true);
+    } else {
+      navigate(`/chat/${randomLesson.id}`);
+    }
   }, [collections, navigate]);
 
   const handleScenarioClick = useCallback(

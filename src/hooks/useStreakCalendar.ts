@@ -41,12 +41,49 @@ function formatDate(date: Date): string {
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
+/**
+ * Calculate actual current streak from practiceHistory
+ * More reliable than stored currentStreak which can get out of sync
+ */
+function calculateStreakFromHistory(practiceHistory: Record<string, number>): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let streak = 0;
+  let checkDate = new Date(today);
+
+  // Check if practiced today first
+  const todayStr = formatDate(checkDate);
+  const practicedToday = (practiceHistory[todayStr] || 0) > 0;
+
+  // If not practiced today, start checking from yesterday
+  if (!practicedToday) {
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  // Count consecutive days backwards
+  while (true) {
+    const dateStr = formatDate(checkDate);
+    if ((practiceHistory[dateStr] || 0) > 0) {
+      streak++;
+      checkDate.setDate(checkDate.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
 export function useStreakCalendar(userDocument: UserDocument | null): UseStreakCalendarResult {
   const result = useMemo(() => {
     const today = new Date();
     const todayStr = formatDate(today);
     const monday = getMonday(today);
     const practiceHistory = userDocument?.practiceHistory || {};
+
+    // Calculate actual streak from practice history (more reliable)
+    const calculatedStreak = calculateStreakFromHistory(practiceHistory);
 
     // Build array of 7 days (Mon-Sun)
     const weekDays: DayData[] = [];
@@ -67,8 +104,9 @@ export function useStreakCalendar(userDocument: UserDocument | null): UseStreakC
 
     return {
       weekDays,
-      currentStreak: userDocument?.currentStreak || 0,
-      longestStreak: userDocument?.longestStreak || 0,
+      // Use calculated streak from history for accuracy
+      currentStreak: calculatedStreak,
+      longestStreak: Math.max(userDocument?.longestStreak || 0, calculatedStreak),
     };
   }, [userDocument]);
 

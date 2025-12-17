@@ -9,11 +9,10 @@
 1. [Overview](#overview)
 2. [Data Architecture](#data-architecture)
 3. [User Flows](#user-flows)
-4. [Lesson Creation UX](#lesson-creation-ux)
-5. [UI Components](#ui-components)
-6. [Services & Hooks](#services--hooks)
-7. [Migration Strategy](#migration-strategy)
-8. [Implementation Phases](#implementation-phases)
+4. [UI Components](#ui-components)
+5. [Services & Hooks](#services--hooks)
+6. [Migration Strategy](#migration-strategy)
+7. [Implementation Phases](#implementation-phases)
 
 ---
 
@@ -303,275 +302,6 @@ const CATEGORY_PRESETS = [
 4. Lesson.showOnHomepage updated
 5. Student's homepage updates accordingly
 ```
-
----
-
-## Lesson Creation UX
-
-> **Design Principle**: Progressive disclosure. Show only what's needed at each step. Advanced options exist but don't overwhelm.
-
-### The Problem with Current LessonFormModal
-
-The current modal is ~700 lines showing everything at once:
-- Title, Level, Template selector, System prompt (150+ line textarea), Duration, Tasks, First lesson toggle, Private student assignment, Image upload
-
-**This is overwhelming.** Teachers see a wall of options before they've even named their lesson.
-
-### The Solution: Two Creation Paths
-
-#### Path 1: Quick Create (Within Collection Context)
-
-When teacher is inside a collection and clicks "+ Add Scenario":
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Add to "Restaurant"                              [×]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  STEP 1 OF 2                                           │
-│                                                         │
-│  What scenario are we creating?                         │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ Celebrating a Birthday Dinner                       ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  Brief description (optional)                           │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ Practice making reservations and special requests   ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│                              [Cancel]  [Next →]         │
-└─────────────────────────────────────────────────────────┘
-```
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Add to "Restaurant"                              [×]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  STEP 2 OF 2                                           │
-│                                                         │
-│  Level              Duration                            │
-│  [B1 ▼]             [5 min ▼]                          │
-│                                                         │
-│  Also show on Homepage?                                 │
-│  Students will see this in their assignments            │
-│  [○ No]  [● Yes]                                       │
-│                                                         │
-│  ─────────────────────────────────────────────────────  │
-│  ▼ Advanced Options                                     │
-│  │ (System prompt, tasks, image - collapsed)           │
-│  ─────────────────────────────────────────────────────  │
-│                                                         │
-│                        [← Back]  [Create Scenario]      │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Key behaviors:**
-- Collection is pre-selected (user is already in that context)
-- System prompt auto-generated from title + description + collection context
-- Advanced options collapsed by default (90% of teachers won't need them)
-- Two simple steps, each fits on one screen
-
-#### Path 2: Full Create (From Dashboard Lessons Tab)
-
-When teacher clicks "New Lesson" from the main Lessons tab:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Create New Lesson                                [×]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  STEP 1: What are we practicing?                        │
-│  ─────────────────────────────────────────────────────  │
-│                                                         │
-│  Title *                                                │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ Ordering at a Coffee Shop                           ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  Description                                            │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ Practice ordering drinks and small talk with        ││
-│  │ the barista                                         ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│                                          [Next →]       │
-└─────────────────────────────────────────────────────────┘
-```
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Create New Lesson                                [×]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  STEP 2: Who is this for?                               │
-│  ─────────────────────────────────────────────────────  │
-│                                                         │
-│  Student Level *                                        │
-│  [A1] [A2] [B1●] [B2] [C1] [C2]                        │
-│                                                         │
-│  Assign to specific students? (optional)                │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ ○ All students at this level                        ││
-│  │ ○ Select specific students...                       ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│                              [← Back]  [Next →]         │
-└─────────────────────────────────────────────────────────┘
-```
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Create New Lesson                                [×]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  STEP 3: Where does it appear?                          │
-│  ─────────────────────────────────────────────────────  │
-│                                                         │
-│  ☑ Show on Homepage (student assignments)              │
-│                                                         │
-│  ☑ Add to a RolePlay Collection                        │
-│    ┌─────────────────────────────────────────────────┐ │
-│    │ [Select collection...              ▼]           │ │
-│    │  ├── Restaurant                                 │ │
-│    │  ├── Daily Life                                 │ │
-│    │  └── + Create new collection                    │ │
-│    └─────────────────────────────────────────────────┘ │
-│                                                         │
-│                              [← Back]  [Next →]         │
-└─────────────────────────────────────────────────────────┘
-```
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Create New Lesson                                [×]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  STEP 4: Customize (optional)                           │
-│  ─────────────────────────────────────────────────────  │
-│                                                         │
-│  Duration        [5 min ▼]                             │
-│                                                         │
-│  ▼ System Prompt (auto-generated, tap to edit)         │
-│  ┌─────────────────────────────────────────────────────┐│
-│  │ You are a friendly barista at a coffee shop...      ││
-│  │ The student is practicing ordering drinks...        ││
-│  │ [Auto-generated from title and description]         ││
-│  └─────────────────────────────────────────────────────┘│
-│                                                         │
-│  ▶ Add lesson tasks (0)                                │
-│  ▶ Upload cover image                                  │
-│  ▶ Mark as first lesson for new students               │
-│                                                         │
-│                       [← Back]  [Create Lesson]         │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Auto-Generated System Prompts
-
-When teacher provides title + description, we generate a starter prompt:
-
-```typescript
-const generateDefaultPrompt = (
-  title: string,
-  description: string,
-  level: ProficiencyLevel,
-  collection?: CollectionDocument
-): string => {
-  const levelGuidance = {
-    'A1': 'Use very simple vocabulary and short sentences. Speak slowly.',
-    'A2': 'Use basic vocabulary. Keep sentences simple but natural.',
-    'B1': 'Use everyday vocabulary. Can handle some complexity.',
-    'B2': 'Use varied vocabulary. Can discuss abstract topics.',
-    'C1': 'Use sophisticated language. Challenge the student appropriately.',
-    'C2': 'Use native-level complexity. Nuanced expressions welcome.',
-  };
-
-  const collectionContext = collection
-    ? `This is part of the "${collection.title}" collection. ${collection.description || ''}`
-    : '';
-
-  return `You are playing a role in a conversation scenario.
-
-**Scenario**: ${title}
-${description ? `**Context**: ${description}` : ''}
-${collectionContext}
-
-**Student Level**: ${level}
-${levelGuidance[level]}
-
-**Your Role**:
-- Stay in character throughout the conversation
-- Guide the student naturally through the scenario
-- Gently correct mistakes without breaking immersion
-- Celebrate small wins to build confidence
-
-**Conversation Style**:
-- Be warm and encouraging
-- Use natural pauses and reactions
-- Ask follow-up questions to keep the conversation flowing
-- If the student struggles, offer hints rather than answers`;
-};
-```
-
-Teachers who want full control can edit. Most won't need to.
-
-### Lesson Tasks: Progressive Add
-
-Instead of showing an empty task list upfront:
-
-```
-▶ Add lesson tasks (0)
-```
-
-Tap to expand:
-
-```
-▼ Lesson Tasks
-  Students see checkmarks as they complete each task.
-
-  ┌─────────────────────────────────────────────────────┐
-  │ 1. │ Order a drink                           [×]   │
-  │ 2. │ Ask about food options                  [×]   │
-  │ + Add another task                                 │
-  └─────────────────────────────────────────────────────┘
-```
-
-### Quick Duplicate to Collection
-
-From any lesson, teacher can quickly add to another collection:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Add to Collection                                [×]   │
-├─────────────────────────────────────────────────────────┤
-│                                                         │
-│  Create a copy of "Ordering Coffee" in:                │
-│                                                         │
-│  ○ Restaurant (current)                                │
-│  ● Daily Life                                          │
-│  ○ Travel                                              │
-│  ○ + Create new collection                             │
-│                                                         │
-│  ─────────────────────────────────────────────────────  │
-│  The copy can be customized independently.              │
-│  Original lesson is unchanged.                          │
-│                                                         │
-│              [Cancel]  [Create Copy]                    │
-└─────────────────────────────────────────────────────────┘
-```
-
-### Design Decisions Summary
-
-| Decision | Rationale |
-|----------|-----------|
-| Single collection per lesson | Simpler mental model; duplicate for multi-placement |
-| Auto-generate prompts | Reduces blank-page anxiety; teachers edit, not write from scratch |
-| Steps instead of single form | Each decision feels intentional; less overwhelming |
-| Collapsed advanced options | 90% of teachers use defaults; power users can expand |
-| Quick Create vs Full Create | Context-aware: inside collection = fast; dashboard = comprehensive |
-| Homepage toggle prominent | Most common customization; shouldn't require full edit |
 
 ---
 
@@ -886,47 +616,15 @@ export const useStudentRolePlay = (teacherId: string | undefined, studentLevel: 
 
 ---
 
-## Resolved Decisions
+## Open Questions
 
-1. **Lesson in multiple collections?**
-   - **Decision**: Single collection per lesson.
-   - **Rationale**: Simpler mental model. Teachers can duplicate a lesson to place it in another collection, allowing customization for each context.
+1. **Lesson in multiple collections?** Current design assumes one collection per lesson. Should a lesson be able to appear in multiple collections? No.
 
-2. **Teacher workspace isolation?**
-   - **Decision**: Fully isolated. Each teacher's collections and lessons are private.
-   - **Rationale**: Simpler permissions model. No cross-teacher visibility concerns.
+2. **Collection sharing between teachers?** Future feature: teachers share collections with each other?
 
-3. **System collection customization?**
-   - **Decision**: Clone-on-edit. Teachers can "Make It Mine" to get a fully editable copy.
-   - **Rationale**: Shared content for efficiency, full customization when needed.
+3. **Analytics per collection?** Track which collections/scenarios students engage with most?
 
-4. **Lesson creation approach?**
-   - **Decision**: Progressive disclosure with two paths (Quick Create within collection, Full Create from dashboard).
-   - **Rationale**: Reduces cognitive load. Auto-generate prompts for teachers who don't need full control.
-
----
-
-## Future Considerations
-
-1. **Collection sharing between teachers?**
-   - Teachers share collections with colleagues
-   - Would require permission model and sharing UI
-   - *Priority: Low - evaluate after v1 adoption*
-
-2. **Analytics per collection?**
-   - Track which collections/scenarios students engage with most
-   - Collection-level completion rates and time spent
-   - *Priority: Medium - adds value for teachers*
-
-3. **Collection templates marketplace?**
-   - Teachers publish collections for others to clone
-   - Rating/review system for quality
-   - *Priority: Low - requires community features*
-
-4. **AI-assisted prompt generation?**
-   - Use LLM to generate richer prompts from title/description
-   - Suggest tasks based on scenario type
-   - *Priority: Medium - improves creation experience*
+4. **Collection templates marketplace?** Teachers publish their collections for others to clone?
 
 ---
 
@@ -963,74 +661,28 @@ TeacherDashboard
 │   │       ├── DragHandle
 │   │       ├── LessonInfo
 │   │       ├── HomepageToggle
-│   │       ├── DuplicateButton → DuplicateToCollectionModal
 │   │       └── EditButton
-│   └── AddLessonButton → QuickLessonStepper
+│   └── AddLessonButton
 │
 ├── CollectionFormModal (NEW)
-│
-├── QuickLessonStepper (NEW - 2 steps, within collection context)
-│   ├── Step1: Title + Description
-│   └── Step2: Level + Duration + Homepage toggle + Advanced (collapsed)
-│
-├── FullLessonStepper (NEW - 4 steps, from dashboard)
-│   ├── Step1: What (Title + Description)
-│   ├── Step2: Who (Level + Student assignment)
-│   ├── Step3: Where (Homepage + Collection picker)
-│   └── Step4: Customize (Duration + Prompt + Tasks + Image - collapsible)
-│
-├── DuplicateToCollectionModal (NEW)
-│   └── Collection picker with "Create new" option
-│
+├── QuickLessonModal (NEW)
 └── CloneCollectionModal (NEW)
-    └── Confirmation + collection info
 
-RolePlayPage (REWRITE for students)
+RolePlayPage (REWRITE)
 ├── Header
-├── LevelFilter (chip selector)
-├── CategorySections (dynamic, grouped by collection.category)
+├── LevelFilter
+├── CategorySections (dynamic)
 │   └── CategorySection (multiple)
 │       ├── CategoryHeader
 │       └── CollectionGrid
 │           └── CollectionCard (multiple)
-│               ├── Cover image (from DB)
-│               ├── Title
-│               └── Lesson count
-└── CollectionDetailSheet (bottom sheet when collection tapped)
-    ├── CollectionHeader (image + description)
+└── CollectionDetailSheet (when collection tapped)
     └── LessonList
         └── LessonItem (multiple)
-            ├── Title + Level badge
-            ├── Duration
-            └── Completion indicator
-```
-
-### Modal State Flow
-
-```
-Teacher Dashboard
-│
-├─ "New Lesson" button (top) ────────→ FullLessonStepper
-│
-├─ RolePlayTab
-│   ├─ "Create Collection" ──────────→ CollectionFormModal
-│   ├─ CollectionCard click ─────────→ CollectionDetailView
-│   │   ├─ "+ Add Scenario" ─────────→ QuickLessonStepper (pre-filled collection)
-│   │   └─ Lesson row "..." menu
-│   │       ├─ "Edit" ───────────────→ FullLessonStepper (edit mode)
-│   │       └─ "Add to Collection" ──→ DuplicateToCollectionModal
-│   └─ SystemCollectionCard
-│       └─ "Make It Mine" ───────────→ CloneCollectionModal
-│
-└─ LessonsTab
-    └─ Lesson row "..." menu
-        ├─ "Edit" ───────────────────→ FullLessonStepper (edit mode)
-        └─ "Add to Collection" ──────→ DuplicateToCollectionModal
 ```
 
 ---
 
-*Document Version: 1.1*
+*Document Version: 1.0*
 *Created: December 2024*
-*Updated: December 2024 - Added progressive disclosure lesson creation UX*
 *Author: Design & Engineering*

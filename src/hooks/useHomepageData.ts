@@ -31,6 +31,7 @@ const missionToLesson = (
     duration: `${durationMinutes} min`,
     durationMinutes,
     completed: completedMissionIds.includes(mission.id),
+    createdAt: mission.createdAt,
     systemPrompt: mission.systemPrompt || mission.scenario,
     functionCallingEnabled: mission.functionCallingEnabled,
     functionCallingInstructions: mission.functionCallingInstructions,

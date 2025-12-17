@@ -1,7 +1,7 @@
 # Chat Page UX Improvements
 
 > Created: December 2024
-> Status: Planned
+> Status: Implemented (except translate button)
 > Priority: Medium
 
 ## Overview
@@ -368,21 +368,21 @@ export const ScenarioHeader: React.FC<ScenarioHeaderProps> = ({
 ## Implementation Checklist
 
 ### Phase 1: Cleanup (Quick)
-- [ ] Remove `onSlowPlay` button from ChatBubble.tsx
-- [ ] Remove `SnailIcon` import
-- [ ] Remove `onSlowPlay` prop from interface and ChatPage
-- [ ] Remove Settings button from ScenarioHeader.tsx
-- [ ] Remove `onSettings` prop and handler
+- [x] Remove `onSlowPlay` button from ChatBubble.tsx
+- [x] Remove `SnailIcon` import
+- [x] Remove `onSlowPlay` prop from interface and ChatPage
+- [x] Remove Settings button from ScenarioHeader.tsx
+- [x] Remove `onSettings` prop and handler
 
 ### Phase 2: Improvements (Medium)
-- [ ] Replace empty state with contextual design
-- [ ] Add exit confirmation dialog
-- [ ] Move timer inline in header
+- [x] Replace empty state with contextual design
+- [x] Add exit confirmation dialog
+- [x] Move timer inline in header
 
 ### Phase 3: Decision Required
-- [ ] Translate button: Remove or implement?
-  - If removing: Delete button and `onTranslate` prop
-  - If implementing: Integrate translation API
+- [ ] Translate button: Keep for future implementation
+  - Currently shows in AI messages but logs to console
+  - TODO: Integrate translation API when ready
 
 ---
 

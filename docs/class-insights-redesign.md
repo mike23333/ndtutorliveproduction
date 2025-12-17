@@ -317,12 +317,12 @@ Teachers should be able to:
 ## Open Questions
 
 1. **Pattern detection**: How do we group "I go to store" and "She have cat" as "grammar" vs specific patterns like "articles" and "verb agreement"?
-   - Option A: Simple grouping by `errorType` only
-   - Option B: Use AI to categorize into sub-patterns
+   - Option A: Simple grouping by `errorType`  do this one.
+   - Option B: Use AI to categorize into sub-patterns  
    - Option C: Extract from `explanation` field
 
 2. **Student detail from Insights**: When clicking a student in "Needs Attention", go to Students tab or show inline?
 
-3. **Time filter**: Default to "This Week" — also offer "This Month" and "All Time"?
+3. **Time filter**: Default to "This Week" — also offer "This Month" and "All Time"? give them options like they can filter by yesterday last 5 days, this month etc.
 
-4. **Mobile**: Will teachers use this on phones? If so, need responsive drill-down.
+4. **Mobile**: Will teachers use this on phones? If so, need responsive drill-down. yes some may.

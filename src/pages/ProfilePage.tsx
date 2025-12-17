@@ -9,6 +9,7 @@ import { ChevronLeftIcon, ChevronRightIcon } from '../theme/icons';
 import { useAuth } from '../hooks/useAuth';
 import { useBadgeProgress } from '../hooks/useBadges';
 import { LearningSettingsCard } from '../components/profile';
+import { InstallAppButton } from '../components/pwa';
 import { useState, useEffect, useRef } from 'react';
 import { getUserStarStats } from '../services/firebase/sessionData';
 import { signOut, updateUserProfile } from '../services/firebase/auth';
@@ -662,6 +663,9 @@ export default function ProfilePage() {
             overflow: 'hidden',
             border: '1px solid rgba(255, 255, 255, 0.06)',
           }}>
+            {/* Install App button (only shows if app not installed) */}
+            <InstallAppButton />
+
             {/* Account Security button */}
             <button
               className="menu-button"

@@ -10,6 +10,7 @@ export interface LessonWithCompletion {
   durationMinutes?: number;
   completed: boolean;
   completedAt?: Date;
+  createdAt?: Date | { toDate: () => Date };
   systemPrompt?: string;
   functionCallingEnabled?: boolean;
   functionCallingInstructions?: string;
@@ -25,7 +26,7 @@ interface AssignmentGridProps {
   lessons: LessonWithCompletion[];
   maxVisible?: number;
   onLessonClick: (lesson: LessonWithCompletion) => void;
-  onSeeAll?: () => void;
+  onSeeAll: () => void;
 }
 
 /**
@@ -41,7 +42,6 @@ export const AssignmentGrid = ({
 }: AssignmentGridProps) => {
   // Show all lessons in horizontal scroll, or limit if maxVisible specified
   const visibleLessons = maxVisible ? lessons.slice(0, maxVisible) : lessons;
-  const hasMore = maxVisible ? lessons.length > maxVisible : false;
   const completedCount = lessons.filter((l) => l.completed).length;
 
   if (lessons.length === 0) {
@@ -87,17 +87,37 @@ export const AssignmentGrid = ({
         }}
       >
         <div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: '18px',
-              fontWeight: '700',
-              color: AppColors.textPrimary,
-              letterSpacing: '-0.3px',
-            }}
-          >
-            Your Lessons
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2
+              style={{
+                margin: 0,
+                fontSize: '18px',
+                fontWeight: '700',
+                color: AppColors.textPrimary,
+                letterSpacing: '-0.3px',
+              }}
+            >
+              Your Lessons
+            </h2>
+            {/* Progress pill badge */}
+            <span
+              style={{
+                padding: '3px 8px',
+                borderRadius: '10px',
+                backgroundColor: completedCount > 0
+                  ? 'rgba(74, 222, 128, 0.15)'
+                  : 'rgba(255, 255, 255, 0.08)',
+                color: completedCount > 0
+                  ? '#4ADE80'
+                  : AppColors.textMuted,
+                fontSize: '11px',
+                fontWeight: '600',
+                letterSpacing: '0.2px',
+              }}
+            >
+              {completedCount}/{lessons.length}
+            </span>
+          </div>
           <p
             style={{
               margin: '4px 0 0 0',
@@ -110,41 +130,28 @@ export const AssignmentGrid = ({
           </p>
         </div>
 
-        {/* Right side: Progress count + See all */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span
-            style={{
-              fontSize: '13px',
-              color: AppColors.textSecondary,
-              fontWeight: '500',
-            }}
-          >
-            {completedCount}/{lessons.length} done
-          </span>
-          {hasMore && onSeeAll && (
-            <button
-              className="see-all-btn"
-              onClick={onSeeAll}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '8px 12px',
-                borderRadius: '12px',
-                border: 'none',
-                backgroundColor: 'rgba(255, 255, 255, 0.06)',
-                color: AppColors.accent,
-                fontSize: '13px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                letterSpacing: '-0.2px',
-              }}
-            >
-              See all
-              <ChevronRightIcon size={14} />
-            </button>
-          )}
-        </div>
+        {/* Right side: See All button - always visible */}
+        <button
+          className="see-all-btn"
+          onClick={onSeeAll}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '8px 14px',
+            borderRadius: '12px',
+            border: 'none',
+            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+            color: AppColors.accent,
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: 'pointer',
+            letterSpacing: '-0.2px',
+          }}
+        >
+          See All
+          <ChevronRightIcon size={14} />
+        </button>
       </div>
 
       {/* Horizontal scrollable lessons */}
