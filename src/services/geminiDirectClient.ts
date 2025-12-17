@@ -163,6 +163,19 @@ export class GeminiDirectClient {
       console.log('[GeminiClient] 🔧 TOOL CALL DETECTED - Full message:', JSON.stringify(message, null, 2));
     }
 
+    // Additional debug: log modelTurn parts to see what types are being sent
+    if (message.serverContent?.modelTurn?.parts) {
+      const partTypes = message.serverContent.modelTurn.parts.map((p: any) => {
+        const keys = Object.keys(p);
+        // Check for any function-related keys
+        if (keys.some(k => k.toLowerCase().includes('function') || k.toLowerCase().includes('tool'))) {
+          console.log('[GeminiClient] 🔧 Potential function call in part:', JSON.stringify(p));
+        }
+        return keys.join(',');
+      });
+      console.log('[GeminiClient] Part types:', partTypes);
+    }
+
     // Session resumption update - store new handle
     // Check for both resumable flag and newHandle
     if (message.sessionResumptionUpdate) {

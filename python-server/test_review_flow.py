@@ -313,6 +313,46 @@ def test_meta_prompt_template(db: firestore.Client):
     return True
 
 
+def update_weekly_review_template(db: firestore.Client):
+    """Update the weekly review template in Firestore with stronger function calling instructions."""
+    print("\n" + "-" * 40)
+    print("Updating Weekly Review Template")
+    print("-" * 40)
+
+    from app.review_service import ReviewService
+
+    # Get the new template from the code
+    new_template = ReviewService.DEFAULT_REVIEW_TEMPLATE
+
+    template_ref = db.document("systemTemplates/weeklyReviewTemplate")
+    template_doc = template_ref.get()
+
+    if template_doc.exists:
+        # Update existing template
+        template_ref.update({
+            "template": new_template,
+            "updatedAt": datetime.now(timezone.utc),
+            "updatedBy": "test_script"
+        })
+        print("✅ Updated existing template with new function calling instructions")
+    else:
+        # Create new template
+        template_ref.set({
+            "id": "weeklyReviewTemplate",
+            "name": "Weekly Review Generation Prompt",
+            "description": "Template for weekly review sessions with mandatory function calling",
+            "template": new_template,
+            "placeholders": ["{{level}}", "{{struggles}}", "{{studentName}}", "{{itemReference}}"],
+            "updatedAt": datetime.now(timezone.utc),
+            "updatedBy": "test_script"
+        })
+        print("✅ Created new template with function calling instructions")
+
+    print(f"   Template length: {len(new_template)} chars")
+    print("   Key change: Added CRITICAL section about mandatory function calling")
+    return True
+
+
 def cleanup_test_data(db: firestore.Client):
     """Optional: Clean up test data (safe for real users)."""
     print("\n" + "-" * 40)
@@ -362,6 +402,58 @@ def cleanup_test_data(db: firestore.Client):
         print("   Keeping all data for frontend testing")
 
 
+def regenerate_review_only(db: firestore.Client):
+    """Quick regeneration: update template, clear reviews, regenerate."""
+    print("\n" + "=" * 60)
+    print("QUICK REVIEW REGENERATION")
+    print("=" * 60)
+
+    # Step 1: Update the template in Firestore
+    update_weekly_review_template(db)
+
+    # Step 2: Check user exists
+    user_ref = db.document(f"users/{TEST_USER_ID}")
+    user_doc = user_ref.get()
+    if user_doc.exists:
+        user_data = user_doc.to_dict()
+        print(f"\n✅ User found: {user_data.get('displayName', TEST_USER_ID)}")
+        print(f"   Level: {user_data.get('level', 'B1')}")
+    else:
+        print(f"\n❌ User {TEST_USER_ID} not found!")
+        return None
+
+    # Step 3: Check existing reviewItems (not struggles)
+    review_items_ref = db.collection(f"users/{TEST_USER_ID}/reviewItems")
+    review_items = list(review_items_ref.where('mastered', '==', False).stream())
+    print(f"\n📋 Found {len(review_items)} unmastered review items:")
+    for item in review_items[:5]:  # Show first 5
+        data = item.to_dict()
+        audio_status = "🔊 HAS AUDIO" if data.get('audioUrl') else "no audio"
+        print(f"   - {item.id}: \"{data.get('correction', 'N/A')[:40]}\" ({audio_status})")
+    if len(review_items) > 5:
+        print(f"   ... and {len(review_items) - 5} more")
+
+    # Step 4: Clear existing reviews
+    clear_existing_reviews(db)
+
+    # Step 5: Generate new review using reviewItems
+    print("\n" + "-" * 40)
+    print("Generating new review")
+    print("-" * 40)
+
+    review_service = get_review_service()
+    review = review_service.create_review_lesson(TEST_USER_ID)
+
+    if review:
+        print(f"\n✅ Review created!")
+        print(f"   Review ID: {review.id}")
+        print(f"   Items: {len(review.struggle_words)}")
+        return review
+    else:
+        print("\n❌ Review creation failed - check reviewItems")
+        return None
+
+
 def main():
     """Run the full test flow."""
     # Initialize Firestore
@@ -370,6 +462,19 @@ def main():
         print("\n❌ Cannot proceed without Firestore connection")
         sys.exit(1)
 
+    # Check command line args for quick mode
+    if len(sys.argv) > 1 and sys.argv[1] == '--quick':
+        # Quick mode: just regenerate review with updated template
+        review = regenerate_review_only(db)
+        if review:
+            display_generated_prompt(review)
+            print("\n" + "=" * 60)
+            print("REGENERATION COMPLETE!")
+            print("=" * 60)
+            print("\nNow test in the app - function calls should trigger properly.")
+        sys.exit(0 if review else 1)
+
+    # Full test mode (original behavior)
     # Step 1: Create test user
     if not create_test_user(db):
         sys.exit(1)
