@@ -697,6 +697,8 @@ export const saveSessionSummary = async (
         currentLesson: deleteField(),
         // Practice history for Progress page
         [`practiceHistory.${todayStr}`]: increment(durationSeconds),
+        // Completion history for streak tracking (only completed sessions count)
+        [`completionHistory.${todayStr}`]: increment(1),
         updatedAt: Timestamp.now(),
       };
 
@@ -724,6 +726,8 @@ export const saveSessionSummary = async (
         uniqueScenariosCompleted: missionId ? [missionId] : [],
         // Practice history for Progress page
         practiceHistory: { [todayStr]: durationSeconds },
+        // Completion history for streak tracking
+        completionHistory: { [todayStr]: 1 },
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       };

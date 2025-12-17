@@ -78,6 +78,9 @@ export interface UserDocument {
   practiceHistory?: {
     [date: string]: number;               // YYYY-MM-DD -> seconds practiced that day
   };
+  completionHistory?: {
+    [date: string]: number;               // YYYY-MM-DD -> number of sessions completed that day
+  };
   // Continue Learning - tracks incomplete sessions
   currentLesson?: {
     missionId: string;
