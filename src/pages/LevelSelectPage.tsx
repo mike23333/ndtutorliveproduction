@@ -606,10 +606,11 @@ const LevelSelectPage: React.FC = () => {
               </p>
             </div>
 
-            <div style={{ maxHeight: '340px', overflowY: 'auto', marginBottom: '8px' }}>
+            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '8px' }}>
               <VoiceSelector
                 selectedVoice={selectedVoice}
                 onVoiceSelect={setSelectedVoice}
+                showHint
               />
             </div>
 

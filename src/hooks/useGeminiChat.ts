@@ -1179,13 +1179,11 @@ Base your assessment on our entire conversation. Call the show_session_summary f
   useEffect(() => {
     // Only connect when we have a valid role with systemPrompt
     if (!initialRole?.systemPrompt) {
-      console.log('[Gemini] Waiting for role with systemPrompt...');
       return;
     }
 
     // Wait for user document to load so we have the correct voice preference
     if (userDocumentReady === false) {
-      console.log('[Gemini] Waiting for user document to load (voice preference)...');
       return;
     }
 
@@ -1193,8 +1191,6 @@ Base your assessment on our entire conversation. Call the show_session_summary f
 
     // Update role ref BEFORE connecting
     roleRef.current = initialRole;
-    console.log('[Gemini] Role set, connecting with systemPrompt:', initialRole.systemPrompt.substring(0, 100) + '...');
-    console.log('[Gemini] Using voice:', voiceNameRef.current || 'Aoede (default)');
 
     // Async connection with cancellation check
     const initConnection = async () => {
