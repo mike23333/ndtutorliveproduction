@@ -582,15 +582,22 @@ const LevelSelectPage: React.FC = () => {
           </>
         )}
 
-        {/* Step 4: Voice Selection */}
+        {/* Step 4: Voice Selection - flex layout to keep buttons above fold */}
         {currentStep === 'voice' && (
-          <>
-            <div style={{ textAlign: 'center', marginBottom: 'clamp(24px, 6vw, 32px)' }}>
-              <div style={{ fontSize: 'clamp(40px, 10vw, 56px)', marginBottom: 'clamp(8px, 2vw, 12px)' }}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            minHeight: 'calc(100vh - 200px)',
+            maxHeight: 'calc(100vh - 120px)',
+          }}>
+            {/* Header - fixed height */}
+            <div style={{ textAlign: 'center', marginBottom: 'clamp(16px, 4vw, 24px)', flexShrink: 0 }}>
+              <div style={{ fontSize: 'clamp(36px, 8vw, 48px)', marginBottom: 'clamp(6px, 1.5vw, 10px)' }}>
                 🎤
               </div>
               <h1 style={{
-                fontSize: 'clamp(22px, 5.5vw, 28px)',
+                fontSize: 'clamp(20px, 5vw, 26px)',
                 fontWeight: 700,
                 color: AppColors.textPrimary,
                 margin: 0,
@@ -598,15 +605,21 @@ const LevelSelectPage: React.FC = () => {
                 Choose Your Tutor's Voice
               </h1>
               <p style={{
-                fontSize: 'clamp(14px, 3.5vw, 16px)',
+                fontSize: 'clamp(13px, 3vw, 15px)',
                 color: AppColors.textSecondary,
-                margin: 'clamp(8px, 2vw, 12px) 0 0 0',
+                margin: 'clamp(6px, 1.5vw, 10px) 0 0 0',
               }}>
                 Find a voice you'll enjoy learning with
               </p>
             </div>
 
-            <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '8px' }}>
+            {/* Voice list - scrollable, takes remaining space */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              marginBottom: 'clamp(12px, 3vw, 16px)',
+              minHeight: 0, // Important for flex scroll
+            }}>
               <VoiceSelector
                 selectedVoice={selectedVoice}
                 onVoiceSelect={setSelectedVoice}
@@ -614,10 +627,12 @@ const LevelSelectPage: React.FC = () => {
               />
             </div>
 
+            {/* Buttons - fixed at bottom */}
             <div style={{
               display: 'flex',
               gap: '12px',
-              marginTop: 'clamp(24px, 6vw, 32px)',
+              flexShrink: 0,
+              paddingTop: '8px',
             }}>
               <button
                 type="button"
@@ -658,7 +673,7 @@ const LevelSelectPage: React.FC = () => {
                 {loading ? 'Saving...' : 'Start Learning'}
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

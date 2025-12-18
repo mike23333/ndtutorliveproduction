@@ -180,14 +180,21 @@ export default function VoiceSelector({
         </div>
       )}
 
-      {/* Voice grid */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: compact ? '1fr' : 'repeat(2, 1fr)',
-          gap: compact ? '8px' : '12px',
-        }}
-      >
+      {/* Voice grid - responsive: 1 column on mobile, 2 on larger screens */}
+      <style>{`
+        .voice-grid {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 10px;
+        }
+        @media (min-width: 480px) {
+          .voice-grid:not(.voice-grid-compact) {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+          }
+        }
+      `}</style>
+      <div className={`voice-grid ${compact ? 'voice-grid-compact' : ''}`}>
         {AVAILABLE_VOICES.map((voice) => {
           const isSelected = selectedVoice === voice.id;
           const isPlaying = playingVoice === voice.id;
