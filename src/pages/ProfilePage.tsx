@@ -657,6 +657,7 @@ export default function ProfilePage() {
               userId={user.uid}
               currentLanguage={userDocument?.targetLanguage}
               currentGoal={userDocument?.dailyPracticeGoal}
+              currentVoice={userDocument?.preferredVoice}
             />
           )}
 

@@ -87,6 +87,7 @@ export interface UserDocument {
   // Learning settings
   targetLanguage?: string;                // BCP-47 code (default: 'uk-UA')
   dailyPracticeGoal?: number;             // Minutes per day goal (default: 15)
+  preferredVoice?: string;                // Gemini voice name (default: 'Aoede')
   // Teacher class settings
   allowTranslation?: boolean;             // Whether students can use translate button (default: true)
   practiceHistory?: {

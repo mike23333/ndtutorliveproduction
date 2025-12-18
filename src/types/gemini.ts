@@ -90,4 +90,6 @@ export interface GeminiClientConfig {
   // Function calling options
   enableFunctionCalling?: boolean;
   functionCallingInstructions?: string;
+  // Voice configuration
+  voiceName?: string;  // Gemini voice name (default: 'Aoede')
 }

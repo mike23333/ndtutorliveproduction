@@ -54,11 +54,12 @@ export class GeminiDirectClient {
     }
 
     try {
-      // Get ephemeral token from backend
-      console.log('[GeminiClient] Getting ephemeral token...');
+      // Get ephemeral token from backend (includes voice in locked config)
       const ephemeralToken = await this.tokenService.getToken(
         this.config.userId,
-        this.config.systemPrompt
+        this.config.systemPrompt,
+        false, // forceRefresh
+        this.config.voiceName
       );
 
       // Initialize client with ephemeral token as API key
@@ -121,7 +122,7 @@ export class GeminiDirectClient {
       speechConfig: {
         voiceConfig: {
           prebuiltVoiceConfig: {
-            voiceName: 'Aoede'
+            voiceName: this.config.voiceName || 'Aoede'
           }
         }
       },

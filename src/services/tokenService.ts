@@ -10,11 +10,12 @@ interface TokenCache {
   token: EphemeralToken | null;
   refreshPromise: Promise<EphemeralToken> | null;
   systemPrompt: string | null; // Track which prompt the token was created for
+  voiceName: string | null; // Track which voice the token was created for
 }
 
 export class TokenService {
   private apiUrl: string;
-  private cache: TokenCache = { token: null, refreshPromise: null, systemPrompt: null };
+  private cache: TokenCache = { token: null, refreshPromise: null, systemPrompt: null, voiceName: null };
   private refreshBuffer = 5 * 60 * 1000; // Refresh 5 minutes before expiry
 
   constructor(apiUrl?: string) {
@@ -24,14 +25,15 @@ export class TokenService {
   /**
    * Get a valid ephemeral token, fetching a new one if needed
    */
-  async getToken(userId: string, systemPrompt?: string, forceRefresh = false): Promise<EphemeralToken> {
-    // Check cache validity - must also match the system prompt since it's baked into the token
+  async getToken(userId: string, systemPrompt?: string, forceRefresh = false, voiceName?: string): Promise<EphemeralToken> {
+    // Check cache validity - must also match the system prompt and voice since they're baked into the token
     const promptChanged = systemPrompt !== this.cache.systemPrompt;
+    const voiceChanged = voiceName !== this.cache.voiceName;
     if (promptChanged) {
       console.log('[TokenService] System prompt changed, invalidating cache');
     }
 
-    if (!forceRefresh && !promptChanged && this.cache.token) {
+    if (!forceRefresh && !promptChanged && !voiceChanged && this.cache.token) {
       const expiresIn = this.cache.token.expiresAt.getTime() - Date.now();
       if (expiresIn > this.refreshBuffer) {
         console.log('[TokenService] Using cached token');
@@ -46,12 +48,12 @@ export class TokenService {
     }
 
     // Fetch new token
-    console.log('[TokenService] Fetching new token');
-    this.cache.refreshPromise = this.fetchToken(userId, systemPrompt);
+    this.cache.refreshPromise = this.fetchToken(userId, systemPrompt, voiceName);
 
     try {
       this.cache.token = await this.cache.refreshPromise;
       this.cache.systemPrompt = systemPrompt || null; // Store which prompt this token is for
+      this.cache.voiceName = voiceName || null; // Store which voice this token is for
       return this.cache.token;
     } finally {
       this.cache.refreshPromise = null;
@@ -61,7 +63,7 @@ export class TokenService {
   /**
    * Fetch a new token from the backend
    */
-  private async fetchToken(userId: string, systemPrompt?: string): Promise<EphemeralToken> {
+  private async fetchToken(userId: string, systemPrompt?: string, voiceName?: string): Promise<EphemeralToken> {
     const response = await fetch(`${this.apiUrl}/api/token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -69,7 +71,8 @@ export class TokenService {
         userId,
         systemPrompt,
         expireMinutes: 30,
-        lockConfig: true
+        lockConfig: true,
+        voiceName
       })
     });
 
@@ -92,7 +95,7 @@ export class TokenService {
    * Clear the token cache (e.g., on logout or error)
    */
   clearCache(): void {
-    this.cache = { token: null, refreshPromise: null, systemPrompt: null };
+    this.cache = { token: null, refreshPromise: null, systemPrompt: null, voiceName: null };
   }
 
   /**

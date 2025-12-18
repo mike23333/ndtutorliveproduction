@@ -113,7 +113,9 @@ export interface UseGeminiChatResult {
 export function useGeminiChat(
   initialRole?: AIRole,
   userId?: string,
-  onTaskComplete?: (taskId: string) => void
+  onTaskComplete?: (taskId: string) => void,
+  voiceName?: string,
+  userDocumentReady?: boolean  // True when user document has loaded (voice preference available)
 ): UseGeminiChatResult {
   // Connection state
   const [isConnected, setIsConnected] = useState(false);
@@ -163,7 +165,19 @@ export function useGeminiChat(
   const isStreamingRef = useRef(false);
   const sessionIdRef = useRef<string | null>(null);
   const userIdRef = useRef(userId || `user_${Date.now()}`);
+  const voiceNameRef = useRef(voiceName);
   const missionIdRef = useRef<string | null>(null);
+
+  // Keep voiceNameRef in sync with voiceName prop
+  useEffect(() => {
+    voiceNameRef.current = voiceName;
+  }, [voiceName]);
+
+  // Track userDocumentReady
+  const userDocumentReadyRef = useRef(userDocumentReady);
+  useEffect(() => {
+    userDocumentReadyRef.current = userDocumentReady;
+  }, [userDocumentReady]);
   const sessionEndTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const recentReviewItems = useRef<Map<string, number>>(new Map()); // Deduplication map: key -> timestamp
   const recentMasteryMarks = useRef<Map<string, number>>(new Map()); // Rate limiting for mark_item_mastered
@@ -833,6 +847,7 @@ Base your assessment on our entire conversation. Call the show_session_summary f
       userId: userIdRef.current,
       systemPrompt,
       enableFunctionCalling,
+      voiceName: voiceNameRef.current,
       callbacks: {
         onConnected: () => {
           console.log('[Gemini] Connected');
@@ -1168,11 +1183,18 @@ Base your assessment on our entire conversation. Call the show_session_summary f
       return;
     }
 
+    // Wait for user document to load so we have the correct voice preference
+    if (userDocumentReady === false) {
+      console.log('[Gemini] Waiting for user document to load (voice preference)...');
+      return;
+    }
+
     let isCancelled = false;
 
     // Update role ref BEFORE connecting
     roleRef.current = initialRole;
     console.log('[Gemini] Role set, connecting with systemPrompt:', initialRole.systemPrompt.substring(0, 100) + '...');
+    console.log('[Gemini] Using voice:', voiceNameRef.current || 'Aoede (default)');
 
     // Async connection with cancellation check
     const initConnection = async () => {
@@ -1206,7 +1228,7 @@ Base your assessment on our entire conversation. Call the show_session_summary f
         clientRef.current = null;
       }
     };
-  }, [initialRole?.systemPrompt]);
+  }, [initialRole?.systemPrompt, userDocumentReady]);
 
   /**
    * Update role ref when initialRole changes

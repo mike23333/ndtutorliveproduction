@@ -232,7 +232,7 @@ export default function ChatPage() {
     audioToPlay,
     onAudioPlaybackComplete,
     onAudioPlaybackError,
-  } = useGeminiChat(aiRole || undefined, userId || undefined, handleTaskComplete);
+  } = useGeminiChat(aiRole || undefined, userId || undefined, handleTaskComplete, userDocument?.preferredVoice, userDocument !== null);
 
   // Session timer state
   const [showSummary, setShowSummary] = useState(false);

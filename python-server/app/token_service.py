@@ -41,7 +41,8 @@ class TokenService:
         expire_minutes: int = 30,
         new_session_expire_minutes: int = 2,
         lock_config: bool = True,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        voice_name: Optional[str] = None
     ) -> EphemeralToken:
         """
         Create an ephemeral token for client-side Gemini Live API connection.
@@ -90,7 +91,7 @@ class TokenService:
                 'speech_config': {
                     'voice_config': {
                         'prebuilt_voice_config': {
-                            'voice_name': 'Aoede'
+                            'voice_name': voice_name or 'Aoede'
                         }
                     }
                 },

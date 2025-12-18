@@ -29,6 +29,7 @@ class TokenRequest(BaseModel):
     systemPrompt: Optional[str] = None
     expireMinutes: int = 30
     lockConfig: bool = True
+    voiceName: Optional[str] = None  # Gemini voice (e.g., 'Aoede', 'Puck', 'Leda')
 
 
 class TokenResponse(BaseModel):
@@ -113,10 +114,11 @@ async def create_token(request: TokenRequest):
             expire_minutes=min(request.expireMinutes, 30),
             new_session_expire_minutes=2,
             lock_config=request.lockConfig,
-            system_prompt=request.systemPrompt
+            system_prompt=request.systemPrompt,
+            voice_name=request.voiceName
         )
 
-        print(f"[Token] Created token for user {request.userId}", flush=True)
+        print(f"[Token] Created token for user {request.userId} with voice: {request.voiceName or 'Aoede (default)'}", flush=True)
         if request.systemPrompt:
             print(f"[Token] System prompt length: {len(request.systemPrompt)} chars", flush=True)
             print(f"[Token] System prompt (first 300 chars): {request.systemPrompt[:300]}...", flush=True)

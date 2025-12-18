@@ -1,6 +1,6 @@
 /**
  * Learning Settings Card
- * Allows users to configure target language and daily practice goal
+ * Allows users to configure target language, daily practice goal, and tutor voice
  */
 
 import { useState } from 'react';
@@ -14,27 +14,38 @@ import {
   getLanguageByCode,
   getDailyGoalOption
 } from '../../constants/languages';
+import {
+  AVAILABLE_VOICES,
+  DEFAULT_VOICE,
+  getVoiceById,
+} from '../../constants/voices';
+import { VoiceSelector } from '../voice';
 import { updateUserProfile } from '../../services/firebase/auth';
 
 interface LearningSettingsCardProps {
   userId: string;
   currentLanguage?: string;
   currentGoal?: number;
+  currentVoice?: string;
 }
 
 export default function LearningSettingsCard({
   userId,
   currentLanguage,
-  currentGoal
+  currentGoal,
+  currentVoice
 }: LearningSettingsCardProps) {
   const [languageOpen, setLanguageOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const selectedLanguage = getLanguageByCode(currentLanguage || DEFAULT_TARGET_LANGUAGE)
     || SUPPORTED_LANGUAGES[0];
   const selectedGoal = getDailyGoalOption(currentGoal || DEFAULT_DAILY_GOAL)
     || DAILY_GOAL_OPTIONS[2];
+  const selectedVoice = getVoiceById(currentVoice || DEFAULT_VOICE)
+    || AVAILABLE_VOICES[4]; // Aoede is at index 4
 
   const handleLanguageChange = async (code: string) => {
     setLanguageOpen(false);
@@ -62,6 +73,26 @@ export default function LearningSettingsCard({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleVoiceChange = async (voiceId: string) => {
+    setVoiceOpen(false);
+    if (voiceId === currentVoice) return;
+
+    setSaving(true);
+    try {
+      await updateUserProfile(userId, { preferredVoice: voiceId });
+    } catch (error) {
+      console.error('Error updating voice:', error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const closeAllDropdowns = () => {
+    setLanguageOpen(false);
+    setGoalOpen(false);
+    setVoiceOpen(false);
   };
 
   return (
@@ -103,7 +134,7 @@ export default function LearningSettingsCard({
         </label>
         <div style={{ position: 'relative' }}>
           <button
-            onClick={() => { setLanguageOpen(!languageOpen); setGoalOpen(false); }}
+            onClick={() => { closeAllDropdowns(); setLanguageOpen(!languageOpen); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -180,7 +211,7 @@ export default function LearningSettingsCard({
         </label>
         <div style={{ position: 'relative' }}>
           <button
-            onClick={() => { setGoalOpen(!goalOpen); setLanguageOpen(false); }}
+            onClick={() => { closeAllDropdowns(); setGoalOpen(!goalOpen); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -253,6 +284,77 @@ export default function LearningSettingsCard({
                   </span>
                 </button>
               ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Tutor Voice */}
+      <div style={{ marginTop: '16px' }}>
+        <label style={{
+          display: 'block',
+          fontSize: 'clamp(12px, 3vw, 14px)',
+          color: AppColors.textSecondary,
+          marginBottom: '8px',
+        }}>
+          Tutor Voice
+        </label>
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => { closeAllDropdowns(); setVoiceOpen(!voiceOpen); }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              border: `1px solid ${AppColors.borderColor}`,
+              backgroundColor: AppColors.bgSecondary,
+              color: AppColors.textPrimary,
+              fontSize: 'clamp(14px, 3.5vw, 16px)',
+              cursor: 'pointer',
+            }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '18px' }}>🎤</span>
+              <span>{selectedVoice.name}</span>
+              <span style={{ color: AppColors.textSecondary, fontSize: '13px' }}>
+                - {selectedVoice.description}
+              </span>
+            </span>
+            <ChevronDownIcon size={20} />
+          </button>
+
+          {voiceOpen && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              marginTop: '4px',
+              backgroundColor: AppColors.bgSecondary,
+              borderRadius: '16px',
+              border: `1px solid ${AppColors.borderColor}`,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              zIndex: 100,
+              padding: '16px',
+              maxHeight: '400px',
+              overflowY: 'auto',
+            }}>
+              <div style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                color: AppColors.textPrimary,
+                marginBottom: '12px',
+              }}>
+                Choose a voice
+              </div>
+              <VoiceSelector
+                selectedVoice={currentVoice || DEFAULT_VOICE}
+                onVoiceSelect={handleVoiceChange}
+                compact
+              />
             </div>
           )}
         </div>

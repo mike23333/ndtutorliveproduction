@@ -11,6 +11,8 @@ import {
   DEFAULT_TARGET_LANGUAGE,
   DEFAULT_DAILY_GOAL,
 } from '../constants/languages';
+import { DEFAULT_VOICE } from '../constants/voices';
+import { VoiceSelector } from '../components/voice';
 
 interface LevelOption {
   id: ProficiencyLevel;
@@ -59,7 +61,7 @@ const levels: LevelOption[] = [
 ];
 
 // Onboarding steps
-type OnboardingStep = 'level' | 'language' | 'goal';
+type OnboardingStep = 'level' | 'language' | 'goal' | 'voice';
 
 const LevelSelectPage: React.FC = () => {
   const navigate = useNavigate();
@@ -72,6 +74,7 @@ const LevelSelectPage: React.FC = () => {
   const [selectedLevel, setSelectedLevel] = useState<ProficiencyLevel | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string>(DEFAULT_TARGET_LANGUAGE);
   const [selectedGoal, setSelectedGoal] = useState<number>(DEFAULT_DAILY_GOAL);
+  const [selectedVoice, setSelectedVoice] = useState<string>(DEFAULT_VOICE);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -86,6 +89,8 @@ const LevelSelectPage: React.FC = () => {
       setCurrentStep('language');
     } else if (currentStep === 'language') {
       setCurrentStep('goal');
+    } else if (currentStep === 'goal') {
+      setCurrentStep('voice');
     }
   };
 
@@ -94,6 +99,8 @@ const LevelSelectPage: React.FC = () => {
       setCurrentStep('level');
     } else if (currentStep === 'goal') {
       setCurrentStep('language');
+    } else if (currentStep === 'voice') {
+      setCurrentStep('goal');
     }
   };
 
@@ -118,6 +125,7 @@ const LevelSelectPage: React.FC = () => {
         level: selectedLevel,
         targetLanguage: selectedLanguage,
         dailyPracticeGoal: selectedGoal,
+        preferredVoice: selectedVoice,
       });
 
       // Check and award level badges
@@ -134,7 +142,7 @@ const LevelSelectPage: React.FC = () => {
   };
 
   // Progress indicator
-  const steps = ['level', 'language', 'goal'] as const;
+  const steps = ['level', 'language', 'goal', 'voice'] as const;
   const currentStepIndex = steps.indexOf(currentStep);
 
   return (
@@ -529,6 +537,80 @@ const LevelSelectPage: React.FC = () => {
                   )}
                 </button>
               ))}
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              marginTop: 'clamp(24px, 6vw, 32px)',
+            }}>
+              <button
+                type="button"
+                onClick={handleBack}
+                style={{
+                  flex: 1,
+                  height: 'clamp(48px, 12vw, 56px)',
+                  background: AppColors.surfaceLight,
+                  border: `1px solid ${AppColors.borderColor}`,
+                  borderRadius: 'clamp(10px, 2.5vw, 12px)',
+                  color: AppColors.textSecondary,
+                  fontSize: 'clamp(15px, 3.5vw, 17px)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                style={{
+                  flex: 2,
+                  height: 'clamp(48px, 12vw, 56px)',
+                  background: `linear-gradient(135deg, ${AppColors.accentPurple} 0%, ${AppColors.accentBlue} 100%)`,
+                  border: 'none',
+                  borderRadius: 'clamp(10px, 2.5vw, 12px)',
+                  color: AppColors.textDark,
+                  fontSize: 'clamp(15px, 3.5vw, 17px)',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                Continue
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Step 4: Voice Selection */}
+        {currentStep === 'voice' && (
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 'clamp(24px, 6vw, 32px)' }}>
+              <div style={{ fontSize: 'clamp(40px, 10vw, 56px)', marginBottom: 'clamp(8px, 2vw, 12px)' }}>
+                🎤
+              </div>
+              <h1 style={{
+                fontSize: 'clamp(22px, 5.5vw, 28px)',
+                fontWeight: 700,
+                color: AppColors.textPrimary,
+                margin: 0,
+              }}>
+                Choose Your Tutor's Voice
+              </h1>
+              <p style={{
+                fontSize: 'clamp(14px, 3.5vw, 16px)',
+                color: AppColors.textSecondary,
+                margin: 'clamp(8px, 2vw, 12px) 0 0 0',
+              }}>
+                Find a voice you'll enjoy learning with
+              </p>
+            </div>
+
+            <div style={{ maxHeight: '340px', overflowY: 'auto', marginBottom: '8px' }}>
+              <VoiceSelector
+                selectedVoice={selectedVoice}
+                onVoiceSelect={setSelectedVoice}
+              />
             </div>
 
             <div style={{
