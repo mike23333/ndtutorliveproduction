@@ -42,7 +42,18 @@ interface ClassPulseSectionProps {
   generating: boolean;
   lastGenerated: string | null;
   onGenerate: () => void;
+  onAskQuestion?: (question: string) => void;
+  isAskingQuestion?: boolean;
+  questionAnswer?: string | null;
 }
+
+const SUGGESTED_QUESTIONS = [
+  "Who hasn't practiced this week?",
+  "Who's struggling the most?",
+  "What should I focus on tomorrow?",
+  "Which lesson needs work?",
+  "Compare my top and struggling students",
+];
 
 export const ClassPulseSection: React.FC<ClassPulseSectionProps> = ({
   insights,
@@ -50,8 +61,32 @@ export const ClassPulseSection: React.FC<ClassPulseSectionProps> = ({
   generating,
   lastGenerated,
   onGenerate,
+  onAskQuestion,
+  isAskingQuestion = false,
+  questionAnswer = null,
 }) => {
-  const isDisabled = generating || loading;
+  const [questionText, setQuestionText] = React.useState('');
+  const isDisabled = generating || loading || isAskingQuestion;
+
+  const handleAskQuestion = () => {
+    if (questionText.trim() && onAskQuestion) {
+      onAskQuestion(questionText.trim());
+    }
+  };
+
+  const handleSuggestedQuestion = (question: string) => {
+    setQuestionText(question);
+    if (onAskQuestion) {
+      onAskQuestion(question);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleAskQuestion();
+    }
+  };
 
   const formatLastGenerated = (isoString: string | null): string => {
     if (!isoString) return '';
@@ -178,6 +213,164 @@ export const ClassPulseSection: React.FC<ClassPulseSectionProps> = ({
             )}
           </button>
         </div>
+
+        {/* Ask a Question Section */}
+        {onAskQuestion && (
+          <div style={{ marginTop: 'clamp(16px, 4vw, 20px)' }}>
+            {/* Text Input */}
+            <div
+              style={{
+                display: 'flex',
+                gap: '8px',
+                marginBottom: 'clamp(10px, 2.5vw, 12px)',
+              }}
+            >
+              <input
+                type="text"
+                value={questionText}
+                onChange={(e) => setQuestionText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask anything about your class..."
+                disabled={isAskingQuestion}
+                style={{
+                  flex: 1,
+                  padding: 'clamp(10px, 2.5vw, 12px) clamp(12px, 3vw, 14px)',
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: 'clamp(8px, 2vw, 10px)',
+                  color: AppColors.textPrimary,
+                  fontSize: 'clamp(13px, 2.8vw, 14px)',
+                  outline: 'none',
+                  transition: 'border-color 0.2s ease',
+                }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = 'rgba(139, 92, 246, 0.4)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                }}
+              />
+              <button
+                onClick={handleAskQuestion}
+                disabled={!questionText.trim() || isAskingQuestion}
+                style={{
+                  padding: 'clamp(10px, 2.5vw, 12px) clamp(14px, 3.5vw, 18px)',
+                  background: questionText.trim()
+                    ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.3) 0%, rgba(96, 165, 250, 0.3) 100%)'
+                    : 'rgba(255, 255, 255, 0.05)',
+                  border: questionText.trim()
+                    ? '1px solid rgba(139, 92, 246, 0.4)'
+                    : '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: 'clamp(8px, 2vw, 10px)',
+                  color: questionText.trim() ? AppColors.textPrimary : AppColors.textMuted,
+                  fontSize: 'clamp(13px, 2.8vw, 14px)',
+                  fontWeight: 600,
+                  cursor: !questionText.trim() || isAskingQuestion ? 'not-allowed' : 'pointer',
+                  opacity: isAskingQuestion ? 0.6 : 1,
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                {isAskingQuestion ? (
+                  <>
+                    <Spinner size={14} />
+                    <span>Thinking</span>
+                  </>
+                ) : (
+                  'Ask'
+                )}
+              </button>
+            </div>
+
+            {/* Suggested Questions */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: 'clamp(6px, 1.5vw, 8px)',
+              }}
+            >
+              {SUGGESTED_QUESTIONS.map((question, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSuggestedQuestion(question)}
+                  disabled={isAskingQuestion}
+                  style={{
+                    padding: 'clamp(6px, 1.5vw, 8px) clamp(10px, 2.5vw, 12px)',
+                    background: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: 'clamp(6px, 1.5vw, 8px)',
+                    color: AppColors.textSecondary,
+                    fontSize: 'clamp(11px, 2.2vw, 12px)',
+                    cursor: isAskingQuestion ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s ease',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isAskingQuestion) {
+                      e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.3)';
+                      e.currentTarget.style.color = AppColors.textPrimary;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.08)';
+                    e.currentTarget.style.color = AppColors.textSecondary;
+                  }}
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Question Answer Display */}
+        {questionAnswer && (
+          <div
+            style={{
+              marginTop: 'clamp(16px, 4vw, 20px)',
+              padding: 'clamp(14px, 3.5vw, 18px)',
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(96, 165, 250, 0.08) 100%)',
+              borderRadius: 'clamp(10px, 2.5vw, 12px)',
+              border: '1px solid rgba(139, 92, 246, 0.15)',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+              }}
+            >
+              <div
+                style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(96, 165, 250, 0.25) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >
+                <SparklesIcon size={14} />
+              </div>
+              <p
+                style={{
+                  fontSize: 'clamp(13px, 2.8vw, 14px)',
+                  color: AppColors.textPrimary,
+                  margin: 0,
+                  lineHeight: 1.6,
+                }}
+              >
+                {questionAnswer}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Content States */}
         {generating ? (

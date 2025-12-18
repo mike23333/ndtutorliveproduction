@@ -5,11 +5,15 @@ import { useAuth } from './useAuth';
 import type { MissionDocument } from '../types/firestore';
 import type { LessonData, LessonFormData } from '../types/dashboard';
 
+interface CreateLessonOptions {
+  allowTranslation?: boolean; // Default from teacher's class setting
+}
+
 interface UseTeacherLessonsResult {
   lessons: LessonData[];
   loading: boolean;
   error: string | null;
-  createLesson: (data: LessonFormData, teacherId: string, teacherName: string) => Promise<LessonData>;
+  createLesson: (data: LessonFormData, teacherId: string, teacherName: string, options?: CreateLessonOptions) => Promise<LessonData>;
   updateLesson: (lessonId: string, data: Partial<LessonFormData>) => Promise<void>;
   deleteLesson: (lessonId: string) => Promise<void>;
   duplicateLesson: (lesson: LessonData) => LessonFormData;
@@ -87,7 +91,8 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
   const createLessonHandler = useCallback(async (
     data: LessonFormData,
     teacherId: string,
-    teacherName: string
+    teacherName: string,
+    options?: CreateLessonOptions
   ): Promise<LessonData> => {
     // If assigning to a collection, get the next order
     let collectionOrder: number | undefined;
@@ -117,6 +122,8 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       collectionId: data.collectionId || undefined,
       collectionOrder,
       showOnHomepage: data.showOnHomepage !== false, // Default true
+      // Student settings - use teacher's class-level setting as default
+      allowTranslation: options?.allowTranslation ?? true,
     });
 
     const newLesson = mapMissionToLesson(newMission);

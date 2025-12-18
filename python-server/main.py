@@ -19,6 +19,7 @@ from app.config import config
 from app.token_service import get_token_service
 from app.review_service import get_review_service
 from app.analytics_service import get_analytics_service
+from app.language_service import get_language_service
 
 
 # Request/Response models
@@ -157,7 +158,9 @@ async def root():
             "analytics": "GET /api/analytics/teacher/{teacherId}",
             "mistakes": "GET /api/mistakes/teacher/{teacherId}",
             "pulse_get": "GET /api/pulse/teacher/{teacherId}",
-            "pulse_generate": "POST /api/pulse/teacher/{teacherId}"
+            "pulse_generate": "POST /api/pulse/teacher/{teacherId}",
+            "translate": "POST /api/translate",
+            "tts": "POST /api/tts"
         },
         "architecture": "Client gets token here, then connects directly to Gemini Live API"
     }
@@ -402,6 +405,152 @@ async def generate_class_pulse(teacherId: str, force: bool = False):
     except Exception as e:
         import traceback
         print(f"[ClassPulse] Error generating pulse: {e}", flush=True)
+        print(f"[ClassPulse] Traceback: {traceback.format_exc()}", flush=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AskQuestionRequest(BaseModel):
+    """Request body for asking a custom question about the class."""
+    question: str
+
+
+# ==================== TRANSLATION ENDPOINTS ====================
+
+class TranslateRequest(BaseModel):
+    """Request body for translation."""
+    text: str
+    targetLanguage: str  # BCP-47 code like 'uk-UA', 'es-ES'
+    sourceLanguage: Optional[str] = None  # Auto-detect if not provided
+
+
+class TranslateResponse(BaseModel):
+    """Response with translated text."""
+    translatedText: str
+    detectedSourceLanguage: str
+    targetLanguage: str
+
+
+@app.post("/api/translate", response_model=TranslateResponse)
+async def translate_text(request: TranslateRequest):
+    """
+    Translate text to the target language.
+
+    Uses Google Cloud Translation API to translate text.
+    The target language should be a BCP-47 code (e.g., 'uk-UA', 'es-ES').
+
+    Request Body:
+        text: Text to translate
+        targetLanguage: Target language code (BCP-47)
+        sourceLanguage: Optional source language (auto-detects if not provided)
+
+    Returns:
+        translatedText: The translated text
+        detectedSourceLanguage: The detected source language
+        targetLanguage: The target language used
+    """
+    try:
+        language_service = get_language_service()
+        result = language_service.translate_text(
+            text=request.text,
+            target_language=request.targetLanguage,
+            source_language=request.sourceLanguage
+        )
+
+        print(f"[Translate] '{request.text[:50]}...' -> {request.targetLanguage}", flush=True)
+
+        return TranslateResponse(
+            translatedText=result["translatedText"],
+            detectedSourceLanguage=result["detectedSourceLanguage"],
+            targetLanguage=result["targetLanguage"]
+        )
+    except Exception as e:
+        print(f"[Translate] Error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+
+
+# ==================== TEXT-TO-SPEECH ENDPOINTS ====================
+
+class TTSRequest(BaseModel):
+    """Request body for text-to-speech."""
+    text: str
+    languageCode: str = "en-US"  # BCP-47 code
+    voiceName: Optional[str] = None
+    speakingRate: float = 0.9  # Slightly slower for learning
+    pitch: float = 0.0
+
+
+class TTSResponse(BaseModel):
+    """Response with audio data."""
+    audioContent: str  # Base64-encoded MP3 audio
+    contentType: str
+
+
+@app.post("/api/tts", response_model=TTSResponse)
+async def text_to_speech(request: TTSRequest):
+    """
+    Convert text to speech audio.
+
+    Uses Google Cloud Text-to-Speech API to synthesize speech.
+    Returns base64-encoded MP3 audio for web playback.
+
+    Request Body:
+        text: Text to synthesize
+        languageCode: Language code (default: en-US)
+        voiceName: Optional specific voice name
+        speakingRate: Speech speed (0.25-4.0, default: 0.9 for clarity)
+        pitch: Voice pitch adjustment (-20 to 20)
+
+    Returns:
+        audioContent: Base64-encoded MP3 audio
+        contentType: MIME type (audio/mpeg)
+    """
+    try:
+        language_service = get_language_service()
+        audio_base64 = language_service.text_to_speech_base64(
+            text=request.text,
+            language_code=request.languageCode,
+            voice_name=request.voiceName,
+            speaking_rate=request.speakingRate,
+            pitch=request.pitch
+        )
+
+        print(f"[TTS] Generated audio for: '{request.text[:50]}...'", flush=True)
+
+        return TTSResponse(
+            audioContent=audio_base64,
+            contentType="audio/mpeg"
+        )
+    except Exception as e:
+        print(f"[TTS] Error: {e}", flush=True)
+        raise HTTPException(status_code=500, detail=f"Text-to-speech failed: {str(e)}")
+
+
+@app.post("/api/pulse/teacher/{teacherId}/ask")
+async def ask_class_question(teacherId: str, request: AskQuestionRequest):
+    """
+    Ask a custom question about your class and get an AI-generated answer.
+
+    The AI analyzes your class data (students, sessions, mistakes, lessons)
+    to provide a personalized answer to your question.
+
+    Example questions:
+        - "Who hasn't practiced this week?"
+        - "Who's struggling with past tense?"
+        - "Compare my top and struggling students"
+        - "What should I focus on tomorrow?"
+        - "Which lesson is causing the most mistakes?"
+
+    Returns:
+        answer: Natural language answer to the question
+    """
+    try:
+        print(f"[ClassPulse] Question from teacher {teacherId}: {request.question}", flush=True)
+        analytics_service = get_analytics_service()
+        result = analytics_service.answer_class_question(teacherId, request.question)
+        return result
+    except Exception as e:
+        import traceback
+        print(f"[ClassPulse] Error answering question: {e}", flush=True)
         print(f"[ClassPulse] Traceback: {traceback.format_exc()}", flush=True)
         raise HTTPException(status_code=500, detail=str(e))
 

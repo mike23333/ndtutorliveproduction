@@ -22,6 +22,7 @@ export interface LessonDetailData {
   functionCallingEnabled?: boolean;
   functionCallingInstructions?: string;
   teacherId?: string;
+  allowTranslation?: boolean; // Whether students can use translate button
 }
 
 interface LessonDetailModalProps {
@@ -224,6 +225,7 @@ export function LessonDetailModal({
         imageUrl: lesson.imageUrl,
         teacherId: lesson.teacherId,
         tasks: lesson.tasks,
+        allowTranslation: lesson.allowTranslation ?? true, // Default to true
       };
       sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
       onStartChat(lesson.id);

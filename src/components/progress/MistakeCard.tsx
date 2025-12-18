@@ -10,6 +10,8 @@ import { db } from '../../config/firebase';
 import { AppColors } from '../../theme/colors';
 import { ReviewItemDocument } from '../../types/firestore';
 import { CheckIcon, PlayIcon, PauseIcon } from '../../theme/icons';
+import { getLanguageService } from '../../services/languageService';
+import { uploadCorrectionAudio } from '../../services/firebase/errorAudioStorage';
 
 interface MistakeCardProps {
   item: ReviewItemDocument;
@@ -52,7 +54,10 @@ export default function MistakeCard({
   const [updating, setUpdating] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlayingCorrect, setIsPlayingCorrect] = useState(false);
+  const [isTTSLoading, setIsTTSLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const severityConfig = getSeverityConfig(item.severity);
 
@@ -88,6 +93,77 @@ export default function MistakeCard({
         console.error('Error playing audio:', err);
         setIsPlaying(false);
       });
+  };
+
+  // Handle TTS playback for correct pronunciation (with Firebase caching)
+  const handlePlayCorrect = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    // If currently playing, stop it
+    if (isPlayingCorrect && ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+      ttsAudioRef.current.currentTime = 0;
+      setIsPlayingCorrect(false);
+      return;
+    }
+
+    setIsTTSLoading(true);
+
+    try {
+      // Check if we have cached audio in Firebase
+      if (item.correctionAudioUrl) {
+        // Play from cached URL
+        const audio = new Audio(item.correctionAudioUrl);
+        ttsAudioRef.current = audio;
+
+        audio.onended = () => setIsPlayingCorrect(false);
+        audio.onerror = () => {
+          console.error('Cached TTS audio playback error');
+          setIsPlayingCorrect(false);
+        };
+
+        await audio.play();
+        setIsPlayingCorrect(true);
+        setIsTTSLoading(false);
+        return;
+      }
+
+      // No cached audio - call TTS API and cache it
+      const languageService = getLanguageService();
+      const response = await languageService.textToSpeech(
+        item.correction,
+        'en-US',
+        { speakingRate: 0.85 }
+      );
+
+      // Upload to Firebase Storage for caching (non-blocking)
+      uploadCorrectionAudio(response.audioContent, item.id, userId)
+        .then(downloadUrl => {
+          console.log('[MistakeCard] TTS audio cached:', downloadUrl);
+        })
+        .catch(err => {
+          console.error('[MistakeCard] Failed to cache TTS audio:', err);
+        });
+
+      // Play the audio immediately
+      const audioData = `data:audio/mpeg;base64,${response.audioContent}`;
+      const audio = new Audio(audioData);
+      ttsAudioRef.current = audio;
+
+      audio.onended = () => setIsPlayingCorrect(false);
+      audio.onerror = () => {
+        console.error('TTS audio playback error');
+        setIsPlayingCorrect(false);
+      };
+
+      await audio.play();
+      setIsPlayingCorrect(true);
+      setIsTTSLoading(false);
+    } catch (error) {
+      console.error('Error playing TTS:', error);
+      setIsTTSLoading(false);
+      setIsPlayingCorrect(false);
+    }
   };
 
   const handleMasteredToggle = async () => {
@@ -308,21 +384,30 @@ export default function MistakeCard({
                 gap: '8px',
                 padding: '12px 16px',
                 borderRadius: '12px',
-                border: '1px solid rgba(74, 222, 128, 0.2)',
-                backgroundColor: 'rgba(74, 222, 128, 0.08)',
+                border: isPlayingCorrect
+                  ? '1px solid rgba(74, 222, 128, 0.4)'
+                  : '1px solid rgba(74, 222, 128, 0.2)',
+                backgroundColor: isPlayingCorrect
+                  ? 'rgba(74, 222, 128, 0.15)'
+                  : 'rgba(74, 222, 128, 0.08)',
                 color: AppColors.successGreen,
                 fontSize: '13px',
                 fontWeight: '500',
-                cursor: 'pointer',
+                cursor: isTTSLoading ? 'wait' : 'pointer',
                 transition: 'all 0.2s ease',
+                opacity: isTTSLoading ? 0.7 : 1,
               }}
-              onClick={(e) => {
-                e.stopPropagation();
-                // TODO: Play TTS of correct pronunciation
-              }}
+              onClick={handlePlayCorrect}
+              disabled={isTTSLoading}
             >
-              <PlayIcon size={14} />
-              Correct way
+              {isTTSLoading ? (
+                <span style={{ fontSize: '12px' }}>...</span>
+              ) : isPlayingCorrect ? (
+                <PauseIcon size={14} />
+              ) : (
+                <PlayIcon size={14} />
+              )}
+              {isTTSLoading ? 'Loading...' : isPlayingCorrect ? 'Playing...' : 'Correct way'}
             </button>
           )}
         </div>

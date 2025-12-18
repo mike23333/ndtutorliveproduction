@@ -10,7 +10,9 @@ import {
   UserIcon,
   BookOpenIcon,
   HomeIcon,
+  LanguagesIcon,
 } from '../theme/icons';
+import { updateUserProfile } from '../services/firebase/auth';
 
 // Hooks
 import { useTeacherLessons } from '../hooks/useTeacherLessons';
@@ -90,6 +92,9 @@ const TeacherDashboard: React.FC = () => {
     generating: pulseGenerating,
     lastGenerated: pulseLastGenerated,
     generateInsights: handleGeneratePulse,
+    askQuestion: handleAskPulseQuestion,
+    isAskingQuestion: pulseAskingQuestion,
+    questionAnswer: pulseQuestionAnswer,
   } = useClassPulse(user?.uid);
 
   // Analytics data for billing tab
@@ -271,7 +276,8 @@ const TeacherDashboard: React.FC = () => {
         await createLesson(
           lessonForm.formData,
           user?.uid || 'anonymous',
-          user?.displayName || 'Teacher'
+          user?.displayName || 'Teacher',
+          { allowTranslation: userDocument?.allowTranslation ?? true }
         );
       }
       setShowCreateModal(false);
@@ -570,6 +576,9 @@ const TeacherDashboard: React.FC = () => {
               classPulseGenerating={pulseGenerating}
               classPulseLastGenerated={pulseLastGenerated}
               onGeneratePulse={() => handleGeneratePulse(true)}
+              onAskQuestion={handleAskPulseQuestion}
+              isAskingQuestion={pulseAskingQuestion}
+              questionAnswer={pulseQuestionAnswer}
             />
           )}
 
@@ -662,6 +671,101 @@ const TeacherDashboard: React.FC = () => {
                     icon="📚"
                     onClick={() => setActiveTab('roleplay')}
                   />
+                </div>
+              </div>
+
+              {/* Class Settings Section */}
+              <div
+                style={{
+                  marginTop: '24px',
+                  background: 'rgba(255, 255, 255, 0.03)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(255, 255, 255, 0.06)',
+                  borderRadius: '20px',
+                  padding: 'clamp(20px, 5vw, 28px)',
+                }}
+              >
+                <h3
+                  style={{
+                    fontSize: 'clamp(16px, 3.5vw, 18px)',
+                    fontWeight: 600,
+                    margin: '0 0 16px 0',
+                    color: AppColors.textPrimary,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <span style={{ color: AppColors.accentPurple }}><LanguagesIcon size={20} /></span>
+                  Student Features
+                </h3>
+
+                {/* Translation Toggle */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 255, 255, 0.04)',
+                  }}
+                >
+                  <div>
+                    <div
+                      style={{
+                        fontSize: '15px',
+                        fontWeight: 500,
+                        color: AppColors.textPrimary,
+                        marginBottom: '4px',
+                      }}
+                    >
+                      Allow Translation
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        color: AppColors.textSecondary,
+                      }}
+                    >
+                      Students can translate AI messages to their native language
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!user?.uid) return;
+                      const newValue = !(userDocument?.allowTranslation ?? true);
+                      await updateUserProfile(user.uid, { allowTranslation: newValue });
+                    }}
+                    style={{
+                      width: '52px',
+                      height: '28px',
+                      borderRadius: '14px',
+                      border: 'none',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      transition: 'all 0.2s ease',
+                      backgroundColor: (userDocument?.allowTranslation ?? true)
+                        ? AppColors.accentPurple
+                        : 'rgba(255, 255, 255, 0.1)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '22px',
+                        height: '22px',
+                        borderRadius: '50%',
+                        backgroundColor: '#fff',
+                        position: 'absolute',
+                        top: '3px',
+                        left: (userDocument?.allowTranslation ?? true) ? '27px' : '3px',
+                        transition: 'left 0.2s ease',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                      }}
+                    />
+                  </button>
                 </div>
               </div>
             </div>

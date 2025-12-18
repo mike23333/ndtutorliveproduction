@@ -12,6 +12,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { GeminiDirectClient } from '../services/geminiDirectClient';
 import { DEFAULT_FUNCTION_CALLING_INSTRUCTIONS } from '../types/functions';
+import { MAX_MESSAGES, MAX_MESSAGES_WITH_AUDIO } from '../constants/chat';
+// MED-006: logger utility available for future console.log replacements
+// import { logger } from '../utils/logger';
 import {
   createSessionUsage,
   updateSessionUsage,
@@ -200,7 +203,7 @@ export function useGeminiChat(
   }, []);
 
   /**
-   * Add message to chat
+   * Add message to chat (HIGH-003: with message limits to prevent memory issues)
    */
   const addMessage = useCallback((
     text: string,
@@ -217,9 +220,55 @@ export function useGeminiChat(
       translation,
       audioData
     };
-    setMessages(prev => [...prev, message]);
+
+    setMessages(prev => {
+      let updated = [...prev, message];
+
+      // Enforce total message limit
+      if (updated.length > MAX_MESSAGES) {
+        updated = updated.slice(-MAX_MESSAGES);
+      }
+
+      // Limit messages with audio to reduce memory usage
+      const messagesWithAudio = updated.filter(m => m.audioData);
+      if (messagesWithAudio.length > MAX_MESSAGES_WITH_AUDIO) {
+        const toRemoveAudio = messagesWithAudio.length - MAX_MESSAGES_WITH_AUDIO;
+        let removed = 0;
+        updated = updated.map(m => {
+          if (m.audioData && removed < toRemoveAudio) {
+            removed++;
+            return { ...m, audioData: undefined };
+          }
+          return m;
+        });
+      }
+
+      return updated;
+    });
+
     return message;
   }, [getNextMessageId]);
+
+  /**
+   * HIGH-004: Async base64 conversion to prevent main thread blocking
+   * Uses FileReader/Blob which is non-blocking for large buffers
+   */
+  const arrayBufferToBase64Async = useCallback((buffer: Uint8Array): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      // Create a copy to ensure it's a regular ArrayBuffer, not SharedArrayBuffer
+      const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength) as ArrayBuffer;
+      const blob = new Blob([arrayBuffer]);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        // Remove data URL prefix (e.g., "data:application/octet-stream;base64,")
+        const base64 = result.split(',')[1] || '';
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }, []);
 
   /**
    * Play audio response
@@ -229,13 +278,9 @@ export function useGeminiChat(
       const audioManager = (await import('../services/webAudioBridge')).getWebAudioManager();
       await audioManager.initialize();
 
-      // Convert ArrayBuffer to base64
+      // Convert ArrayBuffer to base64 using async method
       const bytes = new Uint8Array(audioData);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
-      }
-      const base64 = btoa(binary);
+      const base64 = await arrayBufferToBase64Async(bytes);
 
       setIsPlaying(true);
       await audioManager.playAudioChunk(base64);
@@ -244,7 +289,7 @@ export function useGeminiChat(
       console.error('[Audio] Playback error:', error);
       setIsPlaying(false);
     }
-  }, []);
+  }, [arrayBufferToBase64Async]);
 
   /**
    * Start streaming audio to Gemini
@@ -890,12 +935,18 @@ Base your assessment on our entire conversation. Call the show_session_summary f
           inputTranscriptionBuffer.current += text;
           console.log('[Gemini] Input transcription chunk:', text);
         },
-        onTurnComplete: () => {
+        onTurnComplete: async () => {
           console.log('[Gemini] Turn complete');
 
           // Flush accumulated AI transcription as a single message WITH audio data
-          if (outputTranscriptionBuffer.current.trim()) {
-            console.log('[Gemini] Adding AI message:', outputTranscriptionBuffer.current);
+          // Filter out Gemini control token bug (known issue: https://github.com/google-gemini/gemini-cli/issues/4486)
+          const cleanedTranscription = outputTranscriptionBuffer.current
+            .replace(/<ctrl\d+>/gi, '')  // Remove <ctrl##> tokens
+            .replace(/&<ctrl\d+>/gi, '') // Remove &<ctrl##> variant
+            .trim();
+
+          if (cleanedTranscription) {
+            console.log('[Gemini] Adding AI message:', cleanedTranscription);
 
             // Combine accumulated AI audio chunks for replay (proper binary concatenation)
             let combinedAudio: string | undefined;
@@ -909,16 +960,16 @@ Base your assessment on our entire conversation. Call the show_session_summary f
                 combined.set(chunk, offset);
                 offset += chunk.length;
               }
-              // Convert to base64
-              let binary = '';
-              for (let i = 0; i < combined.length; i++) {
-                binary += String.fromCharCode(combined[i]);
+              // HIGH-004: Use async base64 conversion to prevent UI blocking
+              try {
+                combinedAudio = await arrayBufferToBase64Async(combined);
+                console.log('[Gemini] AI audio for replay:', (combinedAudio.length / 1024).toFixed(1), 'KB');
+              } catch (error) {
+                console.error('[Gemini] Error converting audio to base64:', error);
               }
-              combinedAudio = btoa(binary);
-              console.log('[Gemini] AI audio for replay:', (combinedAudio.length / 1024).toFixed(1), 'KB');
             }
 
-            addMessage(outputTranscriptionBuffer.current.trim(), false, false, undefined, combinedAudio);
+            addMessage(cleanedTranscription, false, false, undefined, combinedAudio);
             outputTranscriptionBuffer.current = ''; // Clear buffer
             aiAudioChunksRef.current = []; // Clear audio chunks for next turn
           } else {
@@ -1108,7 +1159,7 @@ Base your assessment on our entire conversation. Call the show_session_summary f
   }, [reconnect]);
 
   /**
-   * Connect when role is available
+   * Connect when role is available (CRIT-002: with isCancelled flag to prevent race conditions)
    */
   useEffect(() => {
     // Only connect when we have a valid role with systemPrompt
@@ -1117,13 +1168,22 @@ Base your assessment on our entire conversation. Call the show_session_summary f
       return;
     }
 
+    let isCancelled = false;
+
     // Update role ref BEFORE connecting
     roleRef.current = initialRole;
     console.log('[Gemini] Role set, connecting with systemPrompt:', initialRole.systemPrompt.substring(0, 100) + '...');
 
-    connect();
+    // Async connection with cancellation check
+    const initConnection = async () => {
+      if (isCancelled) return;
+      await connect();
+    };
+
+    initConnection();
 
     return () => {
+      isCancelled = true;
       stopAudioStreaming();
 
       // Clear backup timeout on unmount

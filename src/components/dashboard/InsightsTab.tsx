@@ -19,6 +19,10 @@ interface InsightsTabProps {
   classPulseGenerating: boolean;
   classPulseLastGenerated: string | null;
   onGeneratePulse: () => void;
+  // Custom question props
+  onAskQuestion?: (question: string) => void;
+  isAskingQuestion?: boolean;
+  questionAnswer?: string | null;
 }
 
 // Period selector pill button
@@ -60,6 +64,9 @@ export const InsightsTab: React.FC<InsightsTabProps> = ({
   classPulseGenerating,
   classPulseLastGenerated,
   onGeneratePulse,
+  onAskQuestion,
+  isAskingQuestion,
+  questionAnswer,
 }) => {
   const [showDrillDown, setShowDrillDown] = useState(false);
 
@@ -296,6 +303,9 @@ export const InsightsTab: React.FC<InsightsTabProps> = ({
         generating={classPulseGenerating}
         lastGenerated={classPulseLastGenerated}
         onGenerate={onGeneratePulse}
+        onAskQuestion={onAskQuestion}
+        isAskingQuestion={isAskingQuestion}
+        questionAnswer={questionAnswer}
       />
 
       {/* Common Mistakes */}

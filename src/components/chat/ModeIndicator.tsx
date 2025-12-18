@@ -5,17 +5,21 @@
 
 import React from 'react';
 import { AppColors } from '../../theme/colors';
+import '../../styles/animations.css';
 
 interface ModeIndicatorProps {
   isWhisperMode: boolean;
   isRecording: boolean;
   isPlaying: boolean;
+  /** MED-003: Native language for whisper mode display */
+  nativeLanguage?: string;
 }
 
 export const ModeIndicator: React.FC<ModeIndicatorProps> = ({
   isWhisperMode,
   isRecording,
-  isPlaying
+  isPlaying,
+  nativeLanguage = 'Ukrainian',
 }) => {
   // Don't show anything if idle
   if (!isRecording && !isPlaying) {
@@ -33,7 +37,7 @@ export const ModeIndicator: React.FC<ModeIndicatorProps> = ({
     }
     if (isRecording) {
       return {
-        text: isWhisperMode ? 'Listening (Ukrainian)...' : 'Listening...',
+        text: isWhisperMode ? `Listening (${nativeLanguage})...` : 'Listening...',
         color: '#22c55e',
         bgColor: 'rgba(34, 197, 94, 0.15)',
         icon: '🎤'
@@ -73,13 +77,7 @@ export const ModeIndicator: React.FC<ModeIndicatorProps> = ({
         }}/>
         {config.icon} {config.text}
       </div>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-      `}</style>
+      {/* MED-001: pulse keyframes moved to animations.css */}
     </div>
   );
 };

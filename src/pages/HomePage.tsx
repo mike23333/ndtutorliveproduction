@@ -128,6 +128,7 @@ export default function HomePage() {
         functionCallingEnabled: mission.functionCallingEnabled,
         functionCallingInstructions: mission.functionCallingInstructions,
         teacherId: mission.teacherId,
+        allowTranslation: mission.allowTranslation ?? true, // Default to true
       };
     } catch (error) {
       console.error('Error fetching lesson detail:', error);
@@ -163,6 +164,7 @@ export default function HomePage() {
       imageUrl: lesson.image,
       teacherId: lesson.teacherId,
       tasks: lesson.tasks,
+      allowTranslation: (lesson as any).allowTranslation ?? true, // Default to true
     };
     sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
     navigate(`/chat/${lesson.id}`);
@@ -194,7 +196,7 @@ export default function HomePage() {
       name: 'Weekly Review',
       icon: '✨',
       scenario: `Practice conversation with your struggle words from this week`,
-      systemPrompt: activeReview.generatedPrompt,
+      systemPrompt: activeReview.generatedPrompt.replace(/\{\{studentName\}\}/g, studentDisplayName),
       persona: 'tutor' as const,
       tone: 'encouraging',
       level: activeReview.userLevel,

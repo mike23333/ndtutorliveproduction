@@ -49,9 +49,30 @@ interface UseStreakResult {
 export function useStreak(): UseStreakResult {
   const { userDocument } = useAuth();
 
-  const currentStreak = userDocument?.currentStreak || 0;
   const longestStreak = userDocument?.longestStreak || 0;
   const lastPracticeDate = userDocument?.lastPracticeDate || null;
+
+  // Calculate current streak with validity check
+  // If user hasn't practiced in 2+ days, streak is broken (show 0)
+  const currentStreak = useMemo(() => {
+    const rawStreak = userDocument?.currentStreak || 0;
+    const lastPractice = userDocument?.lastPracticeDate;
+
+    if (!lastPractice || rawStreak === 0) return 0;
+
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    // If last practice was not today or yesterday, streak is broken
+    if (lastPractice !== todayStr && lastPractice !== yesterdayStr) {
+      return 0;
+    }
+
+    return rawStreak;
+  }, [userDocument?.currentStreak, userDocument?.lastPracticeDate]);
 
   // Check if user has practiced today
   const practicedToday = useMemo(() => {

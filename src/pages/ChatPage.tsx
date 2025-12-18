@@ -8,10 +8,12 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast, Toaster } from 'sonner';
+import { z } from 'zod';
 import { AppColors } from '../theme/colors';
 import { CoffeeIcon } from '../theme/icons';
 import { useGeminiChat } from '../hooks/useGeminiChat';
-import { useUserId } from '../hooks/useAuth';
+import { useUserId, useAuth } from '../hooks/useAuth';
+import { getLanguageService } from '../services/languageService';
 import { completeReviewLesson, setCurrentLesson, savePracticeTimeOnly } from '../services/firebase/sessionData';
 import {
   canStartSession,
@@ -24,6 +26,9 @@ import type { UserDocument } from '../types/firestore';
 import { updateCustomLessonPracticed } from '../services/firebase/customLessons';
 import type { AIRole, StudentLevel, ToneType, PersonaType } from '../types/ai-role';
 import { LEVEL_CONFIGS } from '../types/ai-role';
+import { ChatErrorBoundary } from '../components/ChatErrorBoundary';
+// MED-006: logger utility available for future console.log replacements
+// import { logger } from '../utils/logger';
 
 // Modular chat components
 import {
@@ -90,7 +95,35 @@ interface RoleConfig {
   teacherId?: string;
   // Lesson tasks
   tasks?: Array<{ id: string; text: string }>;
+  // Teacher settings for translation
+  allowTranslation?: boolean;
 }
+
+// Zod schema for validating sessionStorage data (HIGH-005)
+// Minimal validation - just ensure it's an object with required fields
+// Use passthrough() to allow additional fields that may exist in the config
+const RoleConfigSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  icon: z.string().optional().default(''),
+  scenario: z.string().optional().default(''),
+  persona: z.enum(['actor', 'tutor']).optional().default('actor'),
+  tone: z.string().optional().default(''),
+  level: z.string().optional().default(''),
+  color: z.string().optional().default('#a855f7'),
+  systemPrompt: z.string().optional(),
+  durationMinutes: z.number().positive().optional(),
+  functionCallingEnabled: z.boolean().optional(),
+  functionCallingInstructions: z.string().optional(),
+  isReviewLesson: z.boolean().optional(),
+  reviewId: z.string().optional(),
+  isCustomLesson: z.boolean().optional(),
+  customLessonId: z.string().optional(),
+  isQuickPractice: z.boolean().optional(),
+  teacherId: z.string().optional(),
+  tasks: z.array(z.object({ id: z.string(), text: z.string() })).optional(),
+  allowTranslation: z.boolean().optional(),
+}).passthrough(); // Allow additional fields from sessionStorage
 
 // Message type for chat display
 interface Message {
@@ -145,10 +178,15 @@ export default function ChatPage() {
   useParams(); // roleId available from URL if needed
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userId = useUserId(); // Get authenticated user ID
+  const { userDocument } = useAuth(); // Get user document for target language
 
   // State
   const [roleConfig, setRoleConfig] = useState<RoleConfig | null>(null);
   const [aiRole, setAiRole] = useState<AIRole | null>(null);
+
+  // Translation state - track which messages are being translated and their translations
+  const [translations, setTranslations] = useState<Record<number, string>>({});
+  const [translatingIds, setTranslatingIds] = useState<Set<number>>(new Set());
 
   // Tasks state
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -198,6 +236,7 @@ export default function ChatPage() {
 
   // Session timer state
   const [showSummary, setShowSummary] = useState(false);
+  const [isSavingSummary, setIsSavingSummary] = useState(false); // MED-005: Loading state
   const [showBadgeModal, setShowBadgeModal] = useState(false);
   const [showFirstSessionCelebration, setShowFirstSessionCelebration] = useState(false);
   const [isFirstSession, setIsFirstSession] = useState(false);
@@ -227,6 +266,24 @@ export default function ChatPage() {
   const sessionStartTimeRef = useRef<number | null>(null);
   const hasSavedPracticeTimeRef = useRef(false);
 
+  // CRIT-001: Cleanup AudioContext on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (currentAudioSourceRef.current) {
+        try {
+          currentAudioSourceRef.current.stop();
+        } catch {
+          // Already stopped
+        }
+        currentAudioSourceRef.current = null;
+      }
+      if (currentAudioContextRef.current) {
+        currentAudioContextRef.current.close();
+        currentAudioContextRef.current = null;
+      }
+    };
+  }, []);
+
   // Convert gemini messages to local Message format
   // Filter out the initial "Hi" message (auto-sent to start conversation)
   const messages: Message[] = useMemo(() => {
@@ -252,9 +309,24 @@ export default function ChatPage() {
 
   // Load role config from session storage
   useEffect(() => {
-    const stored = sessionStorage.getItem('currentRole');
-    if (stored) {
-      const config: RoleConfig = JSON.parse(stored);
+    try {
+      const stored = sessionStorage.getItem('currentRole');
+      if (!stored) {
+        navigate('/');
+        return;
+      }
+
+      // Parse sessionStorage data
+      const parsed = JSON.parse(stored);
+
+      // HIGH-005: Soft validation - log warnings but always continue
+      const result = RoleConfigSchema.safeParse(parsed);
+      if (!result.success) {
+        console.warn('[ChatPage] Role config validation notes:', result.error.issues);
+      }
+
+      // Use parsed data directly (validation is informational only)
+      const config = parsed as RoleConfig;
       setRoleConfig(config);
 
       // Convert to AIRole for Gemini
@@ -277,8 +349,10 @@ export default function ChatPage() {
         setIsFirstSession(true);
         sessionStorage.removeItem('isFirstSession'); // Clear the flag
       }
-    } else {
-      navigate('/roles');
+    } catch (error) {
+      console.error('[ChatPage] Error parsing role config:', error);
+      sessionStorage.removeItem('currentRole');
+      navigate('/');
     }
   }, [navigate]);
 
@@ -496,6 +570,44 @@ export default function ChatPage() {
     }
   }, [toggleMute]);
 
+  // Handle translate button click on chat bubble
+  const handleTranslate = useCallback(async (msg: Message) => {
+    // Skip if already translated or currently translating
+    if (translations[msg.id] || translatingIds.has(msg.id)) {
+      return;
+    }
+
+    // Get target language from user profile (default to Ukrainian)
+    const targetLanguage = userDocument?.targetLanguage || 'uk-UA';
+
+    // Mark as translating
+    setTranslatingIds(prev => new Set(prev).add(msg.id));
+
+    try {
+      const languageService = getLanguageService();
+      const result = await languageService.translate(msg.text, targetLanguage);
+
+      // Store translation
+      setTranslations(prev => ({
+        ...prev,
+        [msg.id]: result.translatedText,
+      }));
+    } catch (error) {
+      console.error('[ChatPage] Translation error:', error);
+      toast.error('Translation failed. Please try again.', {
+        duration: 3000,
+        position: 'top-center',
+      });
+    } finally {
+      // Remove from translating set
+      setTranslatingIds(prev => {
+        const next = new Set(prev);
+        next.delete(msg.id);
+        return next;
+      });
+    }
+  }, [translations, translatingIds, userDocument?.targetLanguage]);
+
   // Handle replay button click on chat bubble
   const handleReplay = useCallback(async (msg: Message) => {
     // If already replaying, stop the current playback
@@ -618,48 +730,55 @@ export default function ChatPage() {
     }
   }, [isMuted, toggleMute, isReplayingAudio, stopReplay]);
 
-  // Handle continue after summary - navigate home
+  // Handle continue after summary - navigate home (MED-005: with loading state)
   const handleSummaryContinue = useCallback(async () => {
-    setShowSummary(false);
-    clearSessionSummary();
+    if (isSavingSummary) return; // Prevent double-click
+    setIsSavingSummary(true);
 
-    // If this is a review lesson, mark it as completed
-    if (roleConfig?.isReviewLesson && roleConfig?.reviewId && userId && sessionSummary) {
-      try {
-        // Extract stars from summary (the AI gives a 1-5 rating)
-        const stars = sessionSummary.stars || 3;
-        // Generate a session ID for tracking
-        const sessionId = `review-session-${Date.now()}`;
-        await completeReviewLesson(userId, roleConfig.reviewId, sessionId, stars);
-        console.log('[ChatPage] Review lesson completed:', roleConfig.reviewId);
-      } catch (error) {
-        console.error('[ChatPage] Error completing review lesson:', error);
+    try {
+      setShowSummary(false);
+      clearSessionSummary();
+
+      // If this is a review lesson, mark it as completed
+      if (roleConfig?.isReviewLesson && roleConfig?.reviewId && userId && sessionSummary) {
+        try {
+          // Extract stars from summary (the AI gives a 1-5 rating)
+          const stars = sessionSummary.stars || 3;
+          // Generate a session ID for tracking
+          const sessionId = `review-session-${Date.now()}`;
+          await completeReviewLesson(userId, roleConfig.reviewId, sessionId, stars);
+          console.log('[ChatPage] Review lesson completed:', roleConfig.reviewId);
+        } catch (error) {
+          console.error('[ChatPage] Error completing review lesson:', error);
+        }
       }
-    }
 
-    // If this is a custom lesson, update practice count
-    if (roleConfig?.isCustomLesson && roleConfig?.customLessonId && userId) {
-      try {
-        await updateCustomLessonPracticed(userId, roleConfig.customLessonId);
-        console.log('[ChatPage] Custom lesson practiced:', roleConfig.customLessonId);
-      } catch (error) {
-        console.error('[ChatPage] Error updating custom lesson practice:', error);
+      // If this is a custom lesson, update practice count
+      if (roleConfig?.isCustomLesson && roleConfig?.customLessonId && userId) {
+        try {
+          await updateCustomLessonPracticed(userId, roleConfig.customLessonId);
+          console.log('[ChatPage] Custom lesson practiced:', roleConfig.customLessonId);
+        } catch (error) {
+          console.error('[ChatPage] Error updating custom lesson practice:', error);
+        }
       }
+
+      // Note: isQuickPractice (pronunciation coach) doesn't save any stats
+
+      // Save session data before navigating
+      const sessionData = {
+        roleConfig,
+        messages,
+        duration: sessionDuration * 60,
+        endTime: new Date().toISOString(),
+        summary: sessionSummary,
+      };
+      sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
+      navigate('/');
+    } finally {
+      setIsSavingSummary(false);
     }
-
-    // Note: isQuickPractice (pronunciation coach) doesn't save any stats
-
-    // Save session data before navigating
-    const sessionData = {
-      roleConfig,
-      messages,
-      duration: sessionDuration * 60,
-      endTime: new Date().toISOString(),
-      summary: sessionSummary,
-    };
-    sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
-    navigate('/');
-  }, [clearSessionSummary, navigate, messages, roleConfig, sessionDuration, sessionSummary, userId]);
+  }, [isSavingSummary, clearSessionSummary, navigate, messages, roleConfig, sessionDuration, sessionSummary, userId]);
 
   // Derive connection state for LiveButton
   const getConnectionState = (): 'disconnected' | 'connecting' | 'listening' | 'ai_speaking' | 'muted' | 'paused' => {
@@ -745,21 +864,23 @@ export default function ChatPage() {
     );
   }
 
+  // HIGH-002: Wrap with error boundary for graceful error handling
   return (
-    <div style={{
-      height: '100vh',
-      width: '100%',
-      background: AppColors.bgPrimary,
-      color: AppColors.textPrimary,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      display: 'flex',
-      flexDirection: 'column',
-      maxWidth: '100%',
-      margin: '0 auto',
-      position: 'relative',
-      overflow: 'hidden',
-    }}>
-      <style>{`
+    <ChatErrorBoundary>
+      <div style={{
+        height: '100vh',
+        width: '100%',
+        background: AppColors.bgPrimary,
+        color: AppColors.textPrimary,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        display: 'flex',
+        flexDirection: 'column',
+        maxWidth: '100%',
+        margin: '0 auto',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+        <style>{`
         @keyframes pulse {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.05); }
@@ -844,10 +965,12 @@ export default function ChatPage() {
             message={msg.text}
             isUser={msg.isUser}
             isWhisper={msg.isWhisper}
-            translation={msg.translation}
+            translation={translations[msg.id] || msg.translation}
             audioData={msg.audioData}
-            onTranslate={() => console.log('translate', msg.id)}
+            onTranslate={() => handleTranslate(msg)}
             onReplay={() => handleReplay(msg)}
+            showTranslateButton={roleConfig?.allowTranslation !== false}
+            isTranslating={translatingIds.has(msg.id)}
           />
         ))}
         <div ref={messagesEndRef} />
@@ -866,6 +989,7 @@ export default function ChatPage() {
           summary={sessionSummary}
           onContinue={handleSummaryContinue}
           isVisible={showSummary}
+          isLoading={isSavingSummary}
         />
       )}
 
@@ -911,17 +1035,18 @@ export default function ChatPage() {
         />
       )}
 
-      {/* Toast notifications for session timeout */}
-      <Toaster
-        theme="dark"
-        toastOptions={{
-          style: {
-            background: 'rgba(30, 20, 50, 0.95)',
-            border: '1px solid rgba(216, 180, 254, 0.3)',
-            color: '#F5E6FA',
-          },
-        }}
-      />
-    </div>
+        {/* Toast notifications for session timeout */}
+        <Toaster
+          theme="dark"
+          toastOptions={{
+            style: {
+              background: 'rgba(30, 20, 50, 0.95)',
+              border: '1px solid rgba(216, 180, 254, 0.3)',
+              color: '#F5E6FA',
+            },
+          }}
+        />
+      </div>
+    </ChatErrorBoundary>
   );
 }

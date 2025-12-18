@@ -49,6 +49,8 @@ export const signUpWithEmail = async (
       email: user.email || email,
       displayName,
       role,
+      // Default subscription plan for all new users
+      subscriptionPlan: 'starter',
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     };

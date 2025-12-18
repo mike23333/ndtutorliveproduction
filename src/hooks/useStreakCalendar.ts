@@ -119,16 +119,35 @@ export function useStreakCalendar(userDocument: UserDocument | null): UseStreakC
 }
 
 /**
- * Calculate if the streak is at risk (hasn't practiced today)
+ * Calculate if the streak is at risk (hasn't practiced today but streak is still valid)
+ * A streak is only "at risk" if:
+ * 1. User has an active streak
+ * 2. User hasn't practiced TODAY
+ * 3. User practiced YESTERDAY (so streak is still valid, not already broken)
  */
 export function useStreakAtRisk(userDocument: UserDocument | null): boolean {
   return useMemo(() => {
     if (!userDocument) return false;
 
-    const today = formatDate(new Date());
-    const lastPractice = userDocument.lastPracticeDate;
+    const rawStreak = userDocument.currentStreak || 0;
+    if (rawStreak === 0) return false;
 
-    // If they have a streak but haven't practiced today
-    return (userDocument.currentStreak || 0) > 0 && lastPractice !== today;
+    const lastPractice = userDocument.lastPracticeDate;
+    if (!lastPractice) return false;
+
+    const today = new Date();
+    const todayStr = formatDate(today);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = formatDate(yesterday);
+
+    // Already practiced today - not at risk
+    if (lastPractice === todayStr) return false;
+
+    // Practiced yesterday - streak is at risk (could break at midnight)
+    if (lastPractice === yesterdayStr) return true;
+
+    // Last practice was 2+ days ago - streak is already broken, not "at risk"
+    return false;
   }, [userDocument]);
 }

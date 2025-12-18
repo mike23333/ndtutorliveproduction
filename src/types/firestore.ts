@@ -87,6 +87,8 @@ export interface UserDocument {
   // Learning settings
   targetLanguage?: string;                // BCP-47 code (default: 'uk-UA')
   dailyPracticeGoal?: number;             // Minutes per day goal (default: 15)
+  // Teacher class settings
+  allowTranslation?: boolean;             // Whether students can use translate button (default: true)
   practiceHistory?: {
     [date: string]: number;               // YYYY-MM-DD -> seconds practiced that day
   };
@@ -198,6 +200,8 @@ export interface MissionDocument {
   collectionOrder?: number;    // Order within the collection (0-indexed)
   // Placement control
   showOnHomepage: boolean;     // Appears in student's assignment grid (default: true)
+  // Student settings
+  allowTranslation?: boolean;  // Whether students can use translate button (default: true)
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -390,6 +394,8 @@ export interface ReviewItemDocument {
   // Audio capture for error review playback
   audioUrl?: string;          // Firebase Storage download URL
   audioStoragePath?: string;  // Storage path for cleanup/deletion
+  // TTS correction audio cache
+  correctionAudioUrl?: string;  // Cached TTS audio for "correct way" playback
 }
 
 /**

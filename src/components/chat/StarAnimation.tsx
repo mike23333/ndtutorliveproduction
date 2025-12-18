@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import type { ShowSessionSummaryParams } from '../../types/functions';
+import '../../styles/animations.css';
 
 interface StarAnimationProps {
   /** Session summary data from Gemini */
@@ -13,13 +14,15 @@ interface StarAnimationProps {
   onContinue: () => void;
   /** Whether the modal is visible */
   isVisible: boolean;
+  /** MED-005: Loading state for save operation */
+  isLoading?: boolean;
 }
 
 /**
  * Single animated star component
+ * MED-008: Removed unused index parameter
  */
 const AnimatedStar: React.FC<{
-  index: number;
   filled: boolean;
   delay: number;
 }> = ({ filled, delay }) => {
@@ -107,6 +110,7 @@ export const StarAnimation: React.FC<StarAnimationProps> = ({
   summary,
   onContinue,
   isVisible,
+  isLoading = false,
 }) => {
   const [showContent, setShowContent] = useState(false);
   const [showButton, setShowButton] = useState(false);
@@ -159,7 +163,6 @@ export const StarAnimation: React.FC<StarAnimationProps> = ({
           {Array.from({ length: 5 }).map((_, i) => (
             <AnimatedStar
               key={i}
-              index={i}
               filled={i < starCount}
               delay={200 + i * 150}
             />
@@ -210,18 +213,20 @@ export const StarAnimation: React.FC<StarAnimationProps> = ({
           <p className="encouragement">{summary.encouragement}</p>
         </div>
 
-        {/* Continue button */}
+        {/* Continue button - MED-005: with loading state */}
         <button
           className={`continue-button ${showButton ? 'visible' : ''}`}
           onClick={onContinue}
+          disabled={isLoading}
           style={{
-            opacity: showButton ? 1 : 0,
+            opacity: showButton ? (isLoading ? 0.7 : 1) : 0,
             transform: showButton ? 'translateY(0)' : 'translateY(20px)',
             transition: 'all 0.4s ease-out',
-            pointerEvents: showButton ? 'auto' : 'none',
+            pointerEvents: showButton && !isLoading ? 'auto' : 'none',
+            cursor: isLoading ? 'wait' : 'pointer',
           }}
         >
-          Continue
+          {isLoading ? 'Saving...' : 'Continue'}
         </button>
       </div>
 
@@ -251,25 +256,7 @@ export const StarAnimation: React.FC<StarAnimationProps> = ({
           pointer-events: none;
         }
 
-        @keyframes fall {
-          0% {
-            opacity: 1;
-            transform: translateY(0) rotate(0deg);
-          }
-          100% {
-            opacity: 0;
-            transform: translateY(100vh) rotate(720deg);
-          }
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
+        /* MED-001: fall and fadeIn keyframes moved to animations.css */
 
         .star-animation-modal {
           background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
@@ -399,14 +386,7 @@ export const StarAnimation: React.FC<StarAnimationProps> = ({
           transform: translateY(0);
         }
 
-        @keyframes pulse-glow {
-          0%, 100% {
-            box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
-          }
-          50% {
-            box-shadow: 0 0 40px rgba(251, 191, 36, 0.6);
-          }
-        }
+        /* MED-001: pulse-glow keyframes moved to animations.css */
       `}</style>
     </div>
   );

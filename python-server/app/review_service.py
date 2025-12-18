@@ -2,7 +2,7 @@
 Weekly Review Generator Service
 
 Generates personalized review lessons based on student struggles.
-Uses Gemini 2.0 Flash to create natural conversational prompts.
+Uses Gemini 3 Flash to create natural conversational prompts.
 Fetches the meta-prompt template from Firestore so teachers can edit it.
 """
 
@@ -395,12 +395,18 @@ Be warm and encouraging. Help gently if they struggle.
         prompt = template.replace('{{level}}', level)
         prompt = prompt.replace('{{struggles}}', struggle_text)
 
-        # Generate the actual conversation prompt using Gemini 2.5 Flash
-        # Using stable model name (no suffix = stable version)
+        # Generate the actual conversation prompt using Gemini 3 Flash
+        # Using minimal thinking for low latency and cost
         try:
+            from google.genai import types
             response = self._client.models.generate_content(
-                model='gemini-2.5-flash',
+                model='gemini-3-flash-preview',
                 contents=prompt,
+                config=types.GenerateContentConfig(
+                    thinking_config=types.ThinkingConfig(
+                        thinking_level=types.ThinkingLevel.MINIMAL
+                    )
+                ),
             )
             return response.text.strip()
 

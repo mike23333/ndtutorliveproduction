@@ -8,6 +8,7 @@
 import React from 'react';
 import { AppColors } from '../../theme/colors';
 import { MicIcon } from '../../theme/icons';
+import '../../styles/animations.css';
 
 // Stop icon component
 const StopIcon: React.FC<{ size?: number }> = ({ size = 24 }) => (
@@ -21,15 +22,11 @@ const StopIcon: React.FC<{ size?: number }> = ({ size = 24 }) => (
 // Connection state type
 type ConnectionState = 'disconnected' | 'connecting' | 'listening' | 'ai_speaking' | 'muted' | 'paused';
 
+// MED-004: Removed unused props (isPaused, canResume, onToggleMute, onPause, onResume)
 interface ChatControlBarProps {
   connectionState: ConnectionState;
   isPlaying?: boolean;
-  isPaused?: boolean;
-  canResume?: boolean;
   onStop: () => void;
-  onToggleMute?: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
 }
 
 /**
@@ -192,50 +189,7 @@ export const ChatControlBar: React.FC<ChatControlBarProps> = ({
         {getHelpText()}
       </div>
 
-      {/* CSS Animations */}
-      <style>{`
-        @keyframes listeningPulse {
-          0%, 100% {
-            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4), 0 0 30px rgba(34, 197, 94, 0.4);
-            transform: scale(1.05);
-          }
-          50% {
-            box-shadow: 0 0 0 20px rgba(34, 197, 94, 0), 0 0 50px rgba(34, 197, 94, 0.6);
-            transform: scale(1.1);
-          }
-        }
-
-        @keyframes speakingPulse {
-          0%, 100% {
-            box-shadow: 0 0 0 0 rgba(168, 85, 247, 0.4), 0 0 30px rgba(168, 85, 247, 0.4);
-            transform: scale(1.05);
-          }
-          50% {
-            box-shadow: 0 0 0 15px rgba(168, 85, 247, 0), 0 0 50px rgba(168, 85, 247, 0.7);
-            transform: scale(1.08);
-          }
-        }
-
-        @keyframes connectingPulse {
-          0%, 100% {
-            opacity: 0.6;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.03);
-          }
-        }
-
-        @keyframes pausedPulse {
-          0%, 100% {
-            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3), 0 0 20px rgba(59, 130, 246, 0.3);
-          }
-          50% {
-            box-shadow: 0 0 0 10px rgba(59, 130, 246, 0), 0 0 30px rgba(59, 130, 246, 0.5);
-          }
-        }
-      `}</style>
+      {/* MED-001: Keyframes moved to animations.css */}
     </div>
   );
 };

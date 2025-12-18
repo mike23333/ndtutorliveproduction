@@ -15,6 +15,12 @@ interface ChatBubbleProps {
   audioData?: string; // base64 encoded audio for replay
   onTranslate: () => void;
   onReplay: () => void;
+  /** MED-003: Native language for whisper mode display */
+  nativeLanguage?: string;
+  /** Whether to show the translate button (controlled by teacher setting) */
+  showTranslateButton?: boolean;
+  /** Whether translation is currently loading */
+  isTranslating?: boolean;
 }
 
 const iconButtonStyle: React.CSSProperties = {
@@ -49,6 +55,9 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   audioData,
   onTranslate,
   onReplay,
+  nativeLanguage = 'Ukrainian',
+  showTranslateButton = true,
+  isTranslating = false,
 }) => {
   const hasAudio = Boolean(audioData);
   if (isUser) {
@@ -68,7 +77,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
         }}>
           {isWhisper && (
             <div style={{ fontSize: '11px', opacity: 0.7, marginBottom: '4px' }}>
-              Asked in Ukrainian
+              Asked in {nativeLanguage}
             </div>
           )}
           <p style={{ margin: 0 }}>{message}</p>
@@ -128,9 +137,24 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           </p>
         )}
         <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-          <button onClick={onTranslate} style={iconButtonStyleLight} title="Translate">
-            <LanguagesIcon size={16} />
-          </button>
+          {showTranslateButton && (
+            <button
+              onClick={onTranslate}
+              style={{
+                ...iconButtonStyleLight,
+                opacity: isTranslating ? 0.5 : 1,
+                cursor: isTranslating ? 'wait' : 'pointer',
+              }}
+              disabled={isTranslating}
+              title={isTranslating ? 'Translating...' : 'Translate'}
+            >
+              {isTranslating ? (
+                <span style={{ fontSize: '12px' }}>...</span>
+              ) : (
+                <LanguagesIcon size={16} />
+              )}
+            </button>
+          )}
           <button
             onClick={hasAudio ? onReplay : undefined}
             style={{

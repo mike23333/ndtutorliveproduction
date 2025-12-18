@@ -645,7 +645,7 @@ Respond with ONLY valid JSON:
         """
         Generate AI-powered Class Pulse insights for a teacher.
 
-        Uses Gemini 2.5 Pro to analyze class data and generate 2-3 actionable insights.
+        Uses Gemini 3 Flash to analyze class data and generate 2-3 actionable insights.
         Implements smart triggering to avoid wasteful API calls when no new data.
 
         Args:
@@ -848,10 +848,16 @@ Respond with ONLY valid JSON:
         prompt = self.CLASS_PULSE_PROMPT.format(class_data=class_data)
 
         try:
-            print(f"[ClassPulse] Calling Gemini 2.5 Pro...", flush=True)
+            print(f"[ClassPulse] Calling Gemini 3 Flash...", flush=True)
+            from google.genai import types
             response = self._gemini.models.generate_content(
-                model='gemini-2.5-pro',
-                contents=prompt
+                model='gemini-3-flash-preview',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    thinking_config=types.ThinkingConfig(
+                        thinking_level=types.ThinkingLevel.LOW
+                    )
+                ),
             )
             print(f"[ClassPulse] Gemini response received", flush=True)
 
@@ -902,6 +908,104 @@ Respond with ONLY valid JSON:
             'isNew': False,
             'skippedReason': reason
         }
+
+    # ==================== CUSTOM QUESTION ANSWERING ====================
+
+    QUESTION_ANSWER_PROMPT = """You are a helpful teaching assistant helping an English teacher understand their class data.
+
+Answer the teacher's question directly and concisely based on the class data provided. Be specific - use student names when relevant.
+
+CRITICAL CONTEXT:
+- "Stars" are the AI tutor's assessment of student PERFORMANCE (1-5 scale), NOT student ratings
+- Low stars (< 3) = student is struggling with the material
+- High stars (4-5) = student is performing well
+- "Inactive" = hasn't practiced in 7+ days
+- "Warning" = hasn't practiced in 3-7 days
+
+WRITING STYLE:
+- Answer directly in 1-3 sentences
+- Use student names when relevant
+- Be actionable - suggest what the teacher can do
+- Warm but professional tone
+
+TEACHER'S QUESTION:
+{question}
+
+CLASS DATA:
+{class_data}
+
+Respond with just your answer - no JSON, no formatting, just plain text."""
+
+    def answer_class_question(
+        self,
+        teacher_id: str,
+        question: str
+    ) -> Dict[str, Any]:
+        """
+        Answer a custom question about the class using Gemini.
+
+        Args:
+            teacher_id: Teacher's user ID
+            question: The teacher's question
+
+        Returns:
+            Dict with answer string
+        """
+        print(f"[ClassPulse] Answering question for teacher {teacher_id}: {question}", flush=True)
+
+        # Get analytics data for context
+        analytics = self.get_teacher_analytics(teacher_id, period="week", level="all")
+
+        if analytics['totals']['sessionCount'] == 0 and analytics['totals']['studentCount'] == 0:
+            return {
+                'answer': "I don't have enough data about your class yet. Once your students start practicing, I'll be able to answer questions about their progress."
+            }
+
+        # Format class data for the prompt
+        class_data = self._format_class_data_for_gemini(teacher_id, analytics)
+
+        # Add mistakes data for more context
+        mistakes_data = self.get_class_mistakes(teacher_id, period="week")
+        if mistakes_data['mistakes']:
+            class_data += "\n\nRECENT MISTAKES (last 7 days):\n"
+            for mistake in mistakes_data['mistakes'][:15]:  # Limit to 15 most recent
+                class_data += f"  • {mistake['studentName']}: \"{mistake['userSentence']}\" → \"{mistake['correction']}\" ({mistake['errorType']})\n"
+
+        # Call Gemini
+        answer = self._call_gemini_for_question(question, class_data)
+
+        return {'answer': answer}
+
+    def _call_gemini_for_question(self, question: str, class_data: str) -> str:
+        """Call Gemini to answer a custom question."""
+        if self._gemini is None:
+            return "I can't answer questions right now - the AI service is unavailable. Please try again later."
+
+        prompt = self.QUESTION_ANSWER_PROMPT.format(
+            question=question,
+            class_data=class_data
+        )
+
+        try:
+            print(f"[ClassPulse] Calling Gemini for question answer...", flush=True)
+            from google.genai import types
+            response = self._gemini.models.generate_content(
+                model='gemini-3-flash-preview',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    thinking_config=types.ThinkingConfig(
+                        thinking_level=types.ThinkingLevel.LOW
+                    )
+                ),
+            )
+
+            answer = response.text.strip()
+            print(f"[ClassPulse] Got answer: {answer[:100]}...", flush=True)
+            return answer
+
+        except Exception as e:
+            print(f"[ClassPulse] Error calling Gemini for question: {e}", flush=True)
+            return "Sorry, I couldn't process that question right now. Please try again."
 
     # ==================== CLASS MISTAKES ENDPOINT ====================
 

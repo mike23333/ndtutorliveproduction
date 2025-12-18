@@ -4,6 +4,9 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { TIMER_LOW_TIME_SECONDS, TIMER_CRITICAL_SECONDS, TIMER_RADIUS } from '../../constants/chat';
+import { logger } from '../../utils/logger';
+import '../../styles/animations.css';
 
 interface SessionTimerProps {
   /** Duration in minutes */
@@ -50,10 +53,13 @@ export const SessionTimer: React.FC<SessionTimerProps> = ({
   const [secondsRemaining, setSecondsRemaining] = useState(totalSeconds);
   const hasTriggeredRef = useRef(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  // MED-007: Use ref to avoid stale closure in timeout callback
+  const onTimeUpRef = useRef(onTimeUp);
+  onTimeUpRef.current = onTimeUp;
 
   // Calculate progress for circular display
   const progress = secondsRemaining / totalSeconds;
-  const circumference = 2 * Math.PI * 45; // radius = 45
+  const circumference = 2 * Math.PI * TIMER_RADIUS;
   const strokeDashoffset = circumference * (1 - progress);
   const color = getTimerColor(secondsRemaining, totalSeconds);
 
@@ -89,12 +95,13 @@ export const SessionTimer: React.FC<SessionTimerProps> = ({
   }, [isPaused, secondsRemaining]);
 
   // Trigger onTimeUp when timer reaches zero
+  // MED-007: Use ref to avoid stale closure and remove onTimeUp from deps
   useEffect(() => {
     if (secondsRemaining === 0 && !hasTriggeredRef.current) {
       hasTriggeredRef.current = true;
-      onTimeUp();
+      onTimeUpRef.current();
     }
-  }, [secondsRemaining, onTimeUp]);
+  }, [secondsRemaining]);
 
   // Reset trigger flag if timer resets
   useEffect(() => {
@@ -107,8 +114,8 @@ export const SessionTimer: React.FC<SessionTimerProps> = ({
     return null;
   }
 
-  const isLowTime = secondsRemaining <= 60; // Last minute
-  const isCritical = secondsRemaining <= 30; // Last 30 seconds
+  const isLowTime = secondsRemaining <= TIMER_LOW_TIME_SECONDS;
+  const isCritical = secondsRemaining <= TIMER_CRITICAL_SECONDS;
 
   return (
     <div
@@ -191,6 +198,7 @@ export const SessionTimer: React.FC<SessionTimerProps> = ({
         />
       )}
 
+      {/* MED-001: Keyframes moved to animations.css */}
       <style>{`
         .session-timer {
           position: relative;
@@ -205,42 +213,6 @@ export const SessionTimer: React.FC<SessionTimerProps> = ({
 
         .session-timer.critical .timer-circle {
           animation: pulse-scale 1s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-          0% {
-            transform: scale(1);
-            opacity: 1;
-          }
-          50% {
-            transform: scale(1.1);
-            opacity: 0.5;
-          }
-          100% {
-            transform: scale(1.2);
-            opacity: 0;
-          }
-        }
-
-        @keyframes pulse-scale {
-          0%, 100% {
-            transform: scale(1);
-          }
-          50% {
-            transform: scale(1.05);
-          }
-        }
-
-        @keyframes shake {
-          0%, 100% {
-            transform: translateX(0);
-          }
-          25% {
-            transform: translateX(-2px);
-          }
-          75% {
-            transform: translateX(2px);
-          }
         }
       `}</style>
     </div>
@@ -261,6 +233,9 @@ export const SessionTimerCompact: React.FC<SessionTimerProps> = ({
   const [secondsRemaining, setSecondsRemaining] = useState(totalSeconds);
   const hasTriggeredRef = useRef(false);
   const initializedRef = useRef(false);
+  // MED-007: Use ref to avoid stale closure in timeout callback
+  const onTimeUpRef = useRef(onTimeUp);
+  onTimeUpRef.current = onTimeUp;
 
   // Only initialize once - don't reset on re-renders
   useEffect(() => {
@@ -289,18 +264,19 @@ export const SessionTimerCompact: React.FC<SessionTimerProps> = ({
   }, [isPaused, secondsRemaining]);
 
   // Trigger onTimeUp exactly once when timer reaches zero
+  // MED-007: Use ref to avoid stale closure and remove onTimeUp from deps
   useEffect(() => {
     if (secondsRemaining === 0 && !hasTriggeredRef.current) {
       hasTriggeredRef.current = true;
-      console.log('[SessionTimer] Time up! Calling onTimeUp callback');
-      onTimeUp();
+      logger.info('[SessionTimer]', 'Time up! Calling onTimeUp callback');
+      onTimeUpRef.current();
     }
-  }, [secondsRemaining, onTimeUp]);
+  }, [secondsRemaining]);
 
   if (!isVisible) return null;
 
   const color = getTimerColor(secondsRemaining, totalSeconds);
-  const isLowTime = secondsRemaining <= 60;
+  const isLowTime = secondsRemaining <= TIMER_LOW_TIME_SECONDS;
 
   return (
     <div
@@ -332,13 +308,7 @@ export const SessionTimerCompact: React.FC<SessionTimerProps> = ({
       />
       <span style={{ color }}>{formatTime(secondsRemaining)}</span>
       {isPaused && <span style={{ fontSize: '10px', opacity: 0.7 }}>⏸</span>}
-
-      <style>{`
-        @keyframes blink {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
+      {/* MED-001: blink keyframes moved to animations.css */}
     </div>
   );
 };
