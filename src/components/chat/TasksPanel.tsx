@@ -239,7 +239,7 @@ export function TasksPanel({ tasks, isCollapsed, onToggleCollapse }: TasksPanelP
           maxHeight: isCollapsed ? '0px' : `${tasks.length * 44 + 8}px`,
           overflow: 'hidden',
           transition: 'max-height 0.25s ease-in-out',
-          paddingBottom: isCollapsed ? 0 : '4px',
+          paddingBottom: isCollapsed ? 0 : '16px',
         }}
       >
         {tasks.map((task) => (

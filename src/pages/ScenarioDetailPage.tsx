@@ -8,7 +8,7 @@ import { LevelKey } from '../components/roleplay';
 
 // === Types ===
 interface ScenarioTask {
-  id: number;
+  id: string;
   text: string;
   completed: boolean;
 }
@@ -32,9 +32,9 @@ const SCENARIO_DATA: Record<string, Omit<ScenarioConfig, 'id'>> = {
     caseDescription:
       'You are at an interview with a hiring manager. You must answer common interview questions, such as describing your strengths, past experiences, and career goals.',
     tasks: [
-      { id: 1, text: 'Describe your previous experiences and what you did in your previous jobs.', completed: false },
-      { id: 2, text: "Answer the question: 'What are your strengths?'", completed: false },
-      { id: 3, text: 'Ask the interviewer one question about the role.', completed: false },
+      { id: '1', text: 'Describe your previous experiences and what you did in your previous jobs.', completed: false },
+      { id: '2', text: "Answer the question: 'What are your strengths?'", completed: false },
+      { id: '3', text: 'Ask the interviewer one question about the role.', completed: false },
     ],
     systemPrompt: `You are a professional hiring manager conducting a job interview. Your name is Sarah Chen.
 
@@ -62,9 +62,9 @@ Keep responses concise and natural. Wait for their responses before moving to th
     caseDescription:
       'Practice describing your professional skills and abilities in a workplace context. Learn to highlight your strengths effectively.',
     tasks: [
-      { id: 1, text: 'Introduce yourself and mention your main skill.', completed: false },
-      { id: 2, text: 'Give an example of how you used this skill in the past.', completed: false },
-      { id: 3, text: 'Explain why this skill is valuable for your career.', completed: false },
+      { id: '1', text: 'Introduce yourself and mention your main skill.', completed: false },
+      { id: '2', text: 'Give an example of how you used this skill in the past.', completed: false },
+      { id: '3', text: 'Explain why this skill is valuable for your career.', completed: false },
     ],
     systemPrompt: `You are a career coach helping someone practice talking about their skills.
 
@@ -83,9 +83,9 @@ Keep the conversation natural and flowing.`,
     caseDescription:
       'Practice casual conversation skills for social situations. Learn to make small talk, ask questions, and share about yourself.',
     tasks: [
-      { id: 1, text: 'Introduce yourself and ask about their interests.', completed: false },
-      { id: 2, text: 'Share something interesting about your hobbies.', completed: false },
-      { id: 3, text: 'Suggest a fun activity you could do together.', completed: false },
+      { id: '1', text: 'Introduce yourself and ask about their interests.', completed: false },
+      { id: '2', text: 'Share something interesting about your hobbies.', completed: false },
+      { id: '3', text: 'Suggest a fun activity you could do together.', completed: false },
     ],
     systemPrompt: `You are Alex, a friendly person on a casual first meeting at a café.
 
@@ -104,9 +104,9 @@ Be natural and respond to what they say.`,
     caseDescription:
       'You are lost in a new city and need to find the train station. Practice asking for directions politely and understanding the response.',
     tasks: [
-      { id: 1, text: 'Politely stop someone and ask for directions to the train station.', completed: false },
-      { id: 2, text: 'Ask them to repeat or clarify if you do not understand.', completed: false },
-      { id: 3, text: 'Thank them for their help.', completed: false },
+      { id: '1', text: 'Politely stop someone and ask for directions to the train station.', completed: false },
+      { id: '2', text: 'Ask them to repeat or clarify if you do not understand.', completed: false },
+      { id: '3', text: 'Thank them for their help.', completed: false },
     ],
     systemPrompt: `You are a friendly local who knows the area well.
 
@@ -127,9 +127,9 @@ Start by responding to their request for help.`,
     caseDescription:
       'You have a headache and need to buy medicine. Practice asking for health products and describing symptoms.',
     tasks: [
-      { id: 1, text: 'Greet the pharmacist and explain your symptoms.', completed: false },
-      { id: 2, text: 'Ask for a recommendation for medicine.', completed: false },
-      { id: 3, text: 'Ask about dosage and any side effects.', completed: false },
+      { id: '1', text: 'Greet the pharmacist and explain your symptoms.', completed: false },
+      { id: '2', text: 'Ask for a recommendation for medicine.', completed: false },
+      { id: '3', text: 'Ask about dosage and any side effects.', completed: false },
     ],
     systemPrompt: `You are a friendly pharmacist at a local pharmacy.
 
@@ -149,9 +149,9 @@ Start by greeting the customer.`,
     caseDescription:
       'You are at a clothing store looking for a new shirt. Practice asking about sizes, colors, and prices.',
     tasks: [
-      { id: 1, text: 'Ask the shop assistant for help finding a shirt.', completed: false },
-      { id: 2, text: 'Ask about available sizes and colors.', completed: false },
-      { id: 3, text: 'Ask if you can try it on and where the fitting room is.', completed: false },
+      { id: '1', text: 'Ask the shop assistant for help finding a shirt.', completed: false },
+      { id: '2', text: 'Ask about available sizes and colors.', completed: false },
+      { id: '3', text: 'Ask if you can try it on and where the fitting room is.', completed: false },
     ],
     systemPrompt: `You are a friendly shop assistant at a clothing store.
 
@@ -171,9 +171,9 @@ The store has shirts in sizes S, M, L, XL and colors: blue, white, black, and gr
     caseDescription:
       'You are at a restaurant ready to order food. Practice reading a menu, ordering dishes, and asking about ingredients.',
     tasks: [
-      { id: 1, text: 'Greet the waiter and ask for the menu.', completed: false },
-      { id: 2, text: 'Order a main course and a drink.', completed: false },
-      { id: 3, text: 'Ask about a dish you are curious about.', completed: false },
+      { id: '1', text: 'Greet the waiter and ask for the menu.', completed: false },
+      { id: '2', text: 'Order a main course and a drink.', completed: false },
+      { id: '3', text: 'Ask about a dish you are curious about.', completed: false },
     ],
     systemPrompt: `You are a friendly waiter at a casual restaurant.
 
@@ -201,9 +201,9 @@ Start by greeting them and asking if they're ready to order.`,
     caseDescription:
       'You need to book a hotel room for your vacation. Practice making reservations, asking about amenities, and confirming details.',
     tasks: [
-      { id: 1, text: 'Call the hotel and ask about room availability.', completed: false },
-      { id: 2, text: 'Ask about the price and what is included.', completed: false },
-      { id: 3, text: 'Confirm your booking dates and provide your name.', completed: false },
+      { id: '1', text: 'Call the hotel and ask about room availability.', completed: false },
+      { id: '2', text: 'Ask about the price and what is included.', completed: false },
+      { id: '3', text: 'Confirm your booking dates and provide your name.', completed: false },
     ],
     systemPrompt: `You are a hotel receptionist at the Grand Plaza Hotel.
 
@@ -227,9 +227,9 @@ Start by greeting them: "Thank you for calling Grand Plaza Hotel. How may I help
     caseDescription:
       'You are at a networking event and want to meet new people. Practice introducing yourself and making small talk.',
     tasks: [
-      { id: 1, text: 'Introduce yourself and mention what you do.', completed: false },
-      { id: 2, text: 'Ask them about their work or interests.', completed: false },
-      { id: 3, text: 'Find something in common and continue the conversation.', completed: false },
+      { id: '1', text: 'Introduce yourself and mention what you do.', completed: false },
+      { id: '2', text: 'Ask them about their work or interests.', completed: false },
+      { id: '3', text: 'Find something in common and continue the conversation.', completed: false },
     ],
     systemPrompt: `You are Jamie, a marketing professional at a networking event.
 
@@ -248,9 +248,9 @@ You work in digital marketing, enjoy hiking, and recently moved to the city.`,
     caseDescription:
       'You just moved to a new apartment and want to introduce yourself to your neighbour. Practice friendly neighborhood conversation.',
     tasks: [
-      { id: 1, text: 'Introduce yourself as the new neighbour.', completed: false },
-      { id: 2, text: 'Ask about the neighbourhood and local amenities.', completed: false },
-      { id: 3, text: 'Exchange contact information in case of emergencies.', completed: false },
+      { id: '1', text: 'Introduce yourself as the new neighbour.', completed: false },
+      { id: '2', text: 'Ask about the neighbourhood and local amenities.', completed: false },
+      { id: '3', text: 'Exchange contact information in case of emergencies.', completed: false },
     ],
     systemPrompt: `You are Pat, a friendly neighbour who has lived in the building for 3 years.
 
@@ -269,9 +269,9 @@ Start by responding to their introduction.`,
     caseDescription:
       'Practice planning a special evening, making reservations, and discussing preferences with a partner.',
     tasks: [
-      { id: 1, text: 'Suggest a restaurant and explain why you chose it.', completed: false },
-      { id: 2, text: 'Discuss timing and transportation.', completed: false },
-      { id: 3, text: 'Plan an activity after dinner.', completed: false },
+      { id: '1', text: 'Suggest a restaurant and explain why you chose it.', completed: false },
+      { id: '2', text: 'Discuss timing and transportation.', completed: false },
+      { id: '3', text: 'Plan an activity after dinner.', completed: false },
     ],
     systemPrompt: `You are helping your partner plan a romantic evening for your anniversary.
 
@@ -415,8 +415,25 @@ export default function ScenarioDetailPage() {
     );
   };
 
-  const handleStartChat = () => {
+  const handleStartChat = async () => {
     if (!scenario) return;
+
+    // Request microphone permission BEFORE navigating
+    // iOS Safari requires getUserMedia to be called from a direct user gesture
+    // The navigation would break the gesture chain, so we request permission first
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Immediately stop tracks - we just needed to trigger the permission prompt
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      const err = error as Error;
+      if (err.name === 'NotAllowedError') {
+        alert('Microphone access is required for voice interaction. Please allow microphone permission and try again.');
+        return;
+      }
+      // For other errors (NotFoundError, etc.), continue to chat page and handle there
+      console.warn('Pre-navigation microphone check failed:', err.message);
+    }
 
     const roleConfig = {
       id: `roleplay-${scenario.id}`,

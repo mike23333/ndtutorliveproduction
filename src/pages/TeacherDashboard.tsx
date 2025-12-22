@@ -447,7 +447,7 @@ const TeacherDashboard: React.FC = () => {
                   margin: 0,
                 }}
               >
-                Manage lessons and track progress
+                Create lessons, set objectives, track student progress
               </p>
             </div>
           </div>

@@ -11,7 +11,6 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { GeminiDirectClient } from '../services/geminiDirectClient';
-import { DEFAULT_FUNCTION_CALLING_INSTRUCTIONS } from '../types/functions';
 import { MAX_MESSAGES, MAX_MESSAGES_WITH_AUDIO } from '../constants/chat';
 // MED-006: logger utility available for future console.log replacements
 // import { logger } from '../utils/logger';
@@ -802,19 +801,10 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     setConnectionError(null);
 
     // Use the raw system prompt from the role (teacher's custom prompt)
-    // Only append function calling instructions if enabled AND not a review lesson
-    // (review lessons have their own function instructions built into the prompt)
-    let systemPrompt: string | undefined;
-    if (roleRef.current?.systemPrompt) {
-      systemPrompt = roleRef.current.systemPrompt;
+    // Tool instructions are now auto-injected by the backend PromptBuilder
+    const systemPrompt = roleRef.current?.systemPrompt;
 
-      // Append function calling instructions if enabled, but NOT for review lessons
-      // Review lessons already have custom function instructions in the generated prompt
-      if (roleRef.current.functionCallingEnabled !== false && !roleRef.current.isReviewLesson) {
-        const fcInstructions = roleRef.current.functionCallingInstructions || DEFAULT_FUNCTION_CALLING_INSTRUCTIONS;
-        systemPrompt += '\n\n# FUNCTION CALLING\n' + fcInstructions;
-      }
-
+    if (systemPrompt) {
       // Full prompt logging for debugging
       console.log('[Gemini] === FULL SYSTEM PROMPT ===');
       console.log(systemPrompt);
@@ -843,11 +833,14 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     const enableFunctionCalling = roleRef.current?.functionCallingEnabled !== false;
 
     // Create the direct client
+    // Tasks and isReviewLesson are passed to backend for auto-injected tool instructions
     const client = new GeminiDirectClient({
       userId: userIdRef.current,
       systemPrompt,
       enableFunctionCalling,
       voiceName: voiceNameRef.current,
+      tasks: roleRef.current?.tasks,
+      isReviewLesson: roleRef.current?.isReviewLesson,
       callbacks: {
         onConnected: () => {
           console.log('[Gemini] Connected');

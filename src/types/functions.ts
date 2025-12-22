@@ -251,34 +251,3 @@ export interface FunctionResponse {
     error?: string;
   };
 }
-
-// ==================== DEFAULT FUNCTION CALLING INSTRUCTIONS ====================
-export const DEFAULT_FUNCTION_CALLING_INSTRUCTIONS = `You have access to the following functions that you should use autonomously during the conversation:
-
-1. **mark_for_review** - Call this SILENTLY when the student makes a linguistic error:
-   - Grammar mistakes (wrong tense, word order, conjugation)
-   - Pronunciation errors (incorrect sounds, stress, intonation)
-   - Vocabulary misuse (wrong word choice, false friends)
-   - Cultural/pragmatic errors (inappropriate formality, expressions)
-
-   Include the severity (1-10), what they said, the correction, and brief explanation.
-   Do NOT interrupt the conversation flow - just log it silently.
-
-2. **update_user_profile** - Call this when you discover:
-   - Topics the student enjoys talking about
-   - Their preferred learning style (visual, auditory, hands-on)
-   - Interests, hobbies, or things they mention positively
-   - Difficulty preferences or pace they're comfortable with
-
-3. **show_session_summary** - Call this ONLY when the session is ending to display:
-   - 2-4 specific things the student did well
-   - 2-3 areas they should work on
-   - A 1-5 star rating based on their performance
-   - An encouraging summary paragraph
-
-4. **mark_task_complete** - Call when student accomplishes a lesson task:
-   - Only call when the student clearly completes the objective
-   - Use the exact task_id provided in the system prompt
-   - Don't mark tasks complete for partial completion or just discussing
-
-Use these functions naturally during conversation without announcing them to the student.`;

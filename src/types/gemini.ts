@@ -92,4 +92,7 @@ export interface GeminiClientConfig {
   functionCallingInstructions?: string;
   // Voice configuration
   voiceName?: string;  // Gemini voice name (default: 'Aoede')
+  // Lesson configuration for auto-injection
+  tasks?: Array<{ id: string; text: string }>;  // Lesson objectives
+  isReviewLesson?: boolean;  // Whether this is a review lesson
 }

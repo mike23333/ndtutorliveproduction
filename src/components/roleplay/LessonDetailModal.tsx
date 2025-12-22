@@ -3,7 +3,7 @@ import { AppColors, radius, spacing } from '../../theme/colors';
 
 // === Types ===
 interface LessonTask {
-  id: number;
+  id: string;
   text: string;
   completed: boolean;
 }
@@ -203,33 +203,50 @@ export function LessonDetailModal({
     };
   }, [isOpen]);
 
-  const handleStartChat = () => {
-    if (lesson) {
-      // DEBUG: Log what prompt we're about to use
-      console.log('[LessonDetailModal] Starting chat with systemPrompt:', lesson.systemPrompt?.slice(0, 150) + '...');
+  const handleStartChat = async () => {
+    if (!lesson) return;
 
-      // Set up sessionStorage for the chat page (like HomePage does)
-      const roleConfig = {
-        id: lesson.id,
-        name: lesson.title,
-        icon: '📚',
-        scenario: lesson.title,
-        systemPrompt: lesson.systemPrompt || '',
-        persona: 'actor' as const,
-        tone: lesson.tone || 'friendly',
-        level: lesson.level,
-        color: '#8B5CF6',
-        durationMinutes: lesson.durationMinutes || 15,
-        functionCallingEnabled: lesson.functionCallingEnabled ?? true,
-        functionCallingInstructions: lesson.functionCallingInstructions,
-        imageUrl: lesson.imageUrl,
-        teacherId: lesson.teacherId,
-        tasks: lesson.tasks,
-        allowTranslation: lesson.allowTranslation ?? true, // Default to true
-      };
-      sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
-      onStartChat(lesson.id);
+    // Request microphone permission BEFORE navigating
+    // iOS Safari requires getUserMedia to be called from a direct user gesture
+    // The navigation would break the gesture chain, so we request permission first
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Immediately stop tracks - we just needed to trigger the permission prompt
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      const err = error as Error;
+      if (err.name === 'NotAllowedError') {
+        alert('Microphone access is required for voice interaction. Please allow microphone permission and try again.');
+        return;
+      }
+      // For other errors (NotFoundError, etc.), continue to chat page and handle there
+      console.warn('Pre-navigation microphone check failed:', err.message);
     }
+
+    // DEBUG: Log what prompt we're about to use
+    console.log('[LessonDetailModal] Starting chat with systemPrompt:', lesson.systemPrompt?.slice(0, 150) + '...');
+
+    // Set up sessionStorage for the chat page (like HomePage does)
+    const roleConfig = {
+      id: lesson.id,
+      name: lesson.title,
+      icon: '📚',
+      scenario: lesson.title,
+      systemPrompt: lesson.systemPrompt || '',
+      persona: 'actor' as const,
+      tone: lesson.tone || 'friendly',
+      level: lesson.level,
+      color: '#8B5CF6',
+      durationMinutes: lesson.durationMinutes || 15,
+      functionCallingEnabled: lesson.functionCallingEnabled ?? true,
+      functionCallingInstructions: lesson.functionCallingInstructions,
+      imageUrl: lesson.imageUrl,
+      teacherId: lesson.teacherId,
+      tasks: lesson.tasks,
+      allowTranslation: lesson.allowTranslation ?? true, // Default to true
+    };
+    sessionStorage.setItem('currentRole', JSON.stringify(roleConfig));
+    onStartChat(lesson.id);
   };
 
   if (!isOpen || !lesson) return null;

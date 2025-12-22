@@ -765,15 +765,21 @@ export default function ChatPage() {
 
       // Note: isQuickPractice (pronunciation coach) doesn't save any stats
 
-      // Save session data before navigating
-      const sessionData = {
-        roleConfig,
-        messages,
-        duration: sessionDuration * 60,
-        endTime: new Date().toISOString(),
-        summary: sessionSummary,
-      };
-      sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
+      // Save session data (best effort - don't block navigation)
+      try {
+        const sessionData = {
+          roleConfig,
+          messages,
+          duration: sessionDuration * 60,
+          endTime: new Date().toISOString(),
+          summary: sessionSummary,
+        };
+        sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
+      } catch (e) {
+        console.warn('[ChatPage] Could not save session to storage:', e);
+      }
+
+      // Navigate home - must happen regardless of session storage success
       navigate('/');
     } finally {
       setIsSavingSummary(false);
@@ -908,7 +914,8 @@ export default function ChatPage() {
         />
       )}
 
-      {/* Header with scenario info and connection status */}
+      {/* Header with scenario info and connection status - flexShrink: 0 to prevent scrolling off */}
+      <div style={{ flexShrink: 0 }}>
       <ScenarioHeader
         scenario={roleConfig.name}
         tone={roleConfig.tone || 'friendly'}
@@ -930,10 +937,11 @@ export default function ChatPage() {
           ) : undefined
         }
       />
+      </div>
 
-      {/* Tasks panel - only show if tasks exist */}
+      {/* Tasks panel - only show if tasks exist - flexShrink: 0 to prevent scrolling off */}
       {tasks.length > 0 && (
-        <div style={{ padding: '0 16px', marginTop: '8px' }}>
+        <div style={{ padding: '0 16px', marginTop: '8px', flexShrink: 0 }}>
           <TasksPanel
             tasks={tasks}
             isCollapsed={tasksCollapsed}
@@ -943,12 +951,14 @@ export default function ChatPage() {
       )}
 
 
-      {/* Mode indicator */}
-      <ModeIndicator
-        isWhisperMode={false}
-        isRecording={isListening && !isMuted}
-        isPlaying={isPlaying}
-      />
+      {/* Mode indicator - flexShrink: 0 to prevent scrolling off */}
+      <div style={{ flexShrink: 0 }}>
+        <ModeIndicator
+          isWhisperMode={false}
+          isRecording={isListening && !isMuted}
+          isPlaying={isPlaying}
+        />
+      </div>
 
       {/* Chat Messages */}
       <div style={{

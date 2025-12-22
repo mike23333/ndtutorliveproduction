@@ -57,8 +57,8 @@ export function TaskCheckbox({ text, completed, onToggle, isLast = false }: Task
 }
 
 interface TaskListProps {
-  tasks: Array<{ id: string | number; text: string; completed: boolean }>;
-  onToggle: (id: string | number) => void;
+  tasks: Array<{ id: string; text: string; completed: boolean }>;
+  onToggle: (id: string) => void;
 }
 
 export function TaskList({ tasks, onToggle }: TaskListProps) {

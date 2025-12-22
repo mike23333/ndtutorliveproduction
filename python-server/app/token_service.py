@@ -6,7 +6,7 @@ Tokens are created using the v1alpha API with configurable expiry and constraint
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
 from google import genai
@@ -26,6 +26,123 @@ class EphemeralToken:
 class TokenService:
     """Service for creating ephemeral tokens for client-side Gemini connections."""
 
+    # ==================== TOOL DECLARATIONS ====================
+    # Base tools (always included)
+    MARK_FOR_REVIEW = {
+        'name': 'mark_for_review',
+        'description': 'Call this silently when the student makes a linguistic error. Do not interrupt the flow.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'error_type': {
+                    'type': 'string',
+                    'enum': ['Grammar', 'Pronunciation', 'Vocabulary', 'Cultural'],
+                    'description': 'The type of linguistic error'
+                },
+                'severity': {
+                    'type': 'integer',
+                    'description': '1 (Minor) to 10 (Critical)'
+                },
+                'user_sentence': {
+                    'type': 'string',
+                    'description': 'The approximate sentence the user just said'
+                },
+                'correction': {
+                    'type': 'string',
+                    'description': 'The correct native way to say it'
+                },
+                'explanation': {
+                    'type': 'string',
+                    'description': 'A very brief explanation of the rule'
+                }
+            },
+            'required': ['error_type', 'user_sentence', 'correction', 'severity']
+        }
+    }
+
+    UPDATE_USER_PROFILE = {
+        'name': 'update_user_profile',
+        'description': 'Call this when you learn about student preferences or interests',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'category': {'type': 'string', 'enum': ['topic', 'interest', 'learning_style', 'difficulty_preference']},
+                'value': {'type': 'string', 'description': 'The preference value'},
+                'sentiment': {'type': 'string', 'enum': ['positive', 'negative', 'neutral']},
+                'confidence': {'type': 'number', 'description': 'Confidence 0-1'}
+            },
+            'required': ['category', 'value', 'sentiment']
+        }
+    }
+
+    SHOW_SESSION_SUMMARY = {
+        'name': 'show_session_summary',
+        'description': 'Call this at session end to display a summary for the student',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'did_well': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Things student did well'},
+                'work_on': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Areas to practice'},
+                'stars': {'type': 'integer', 'description': 'Rating 1-5'},
+                'summary_text': {'type': 'string', 'description': 'Encouraging summary'},
+                'encouragement': {'type': 'string', 'description': 'Optional motivation'}
+            },
+            'required': ['did_well', 'work_on', 'stars', 'summary_text']
+        }
+    }
+
+    # Task tools (only when lesson has tasks)
+    MARK_TASK_COMPLETE = {
+        'name': 'mark_task_complete',
+        'description': 'Call when student successfully accomplishes a lesson task/objective. Only call when the task is clearly completed, not when partially done or just discussed.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'task_id': {
+                    'type': 'string',
+                    'description': 'The ID of the completed task (e.g., "task-1", "task-2")'
+                }
+            },
+            'required': ['task_id']
+        }
+    }
+
+    # Review tools (only for review lessons)
+    MARK_ITEM_MASTERED = {
+        'name': 'mark_item_mastered',
+        'description': 'Mark a review item as mastered when the student demonstrates clear understanding. Call this during review sessions when the student correctly uses a phrase they previously struggled with. Do NOT call if they just repeat after you.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'review_item_id': {
+                    'type': 'string',
+                    'description': 'The exact ID of the review item to mark as mastered (from the ITEMS TO REVIEW list)'
+                },
+                'confidence': {
+                    'type': 'string',
+                    'enum': ['low', 'medium', 'high'],
+                    'description': 'How confident you are in their mastery: low (hesitant but correct), medium (correct with minor issues), high (natural and fluent)'
+                }
+            },
+            'required': ['review_item_id', 'confidence']
+        }
+    }
+
+    PLAY_STUDENT_AUDIO = {
+        'name': 'play_student_audio',
+        'description': 'Play back audio of a mistake the student made earlier. Use this BEFORE explaining the correction so they can hear themselves. Only call for items marked as "HAS AUDIO" in the review list.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'review_item_id': {
+                    'type': 'string',
+                    'description': 'The exact ID of the review item with audio to play (from the ITEMS TO REVIEW list)'
+                }
+            },
+            'required': ['review_item_id']
+        }
+    }
+
     def __init__(self):
         """Initialize the token service with Gemini Developer API client."""
         if not config.GEMINI_API_KEY:
@@ -36,13 +153,54 @@ class TokenService:
             http_options=types.HttpOptions(api_version='v1alpha')
         )
 
+    def _get_tool_declarations(
+        self,
+        has_tasks: bool = False,
+        is_review_lesson: bool = False
+    ) -> List[dict]:
+        """
+        Get tool declarations based on lesson configuration.
+
+        Args:
+            has_tasks: Whether the lesson has task objectives
+            is_review_lesson: Whether this is a review lesson
+
+        Returns:
+            List of function declarations for the tools config
+        """
+        # Base tools (always included)
+        declarations = [
+            self.MARK_FOR_REVIEW,
+            self.UPDATE_USER_PROFILE,
+            self.SHOW_SESSION_SUMMARY,
+        ]
+        tool_names = ['mark_for_review', 'update_user_profile', 'show_session_summary']
+
+        # Add task completion tool if lesson has tasks
+        if has_tasks:
+            declarations.append(self.MARK_TASK_COMPLETE)
+            tool_names.append('mark_task_complete')
+
+        # Add review tools for review lessons
+        if is_review_lesson:
+            declarations.append(self.MARK_ITEM_MASTERED)
+            declarations.append(self.PLAY_STUDENT_AUDIO)
+            tool_names.extend(['mark_item_mastered', 'play_student_audio'])
+
+        print(f"[TokenService] Tool declarations: {tool_names}", flush=True)
+        print(f"[TokenService] Total tools: {len(declarations)}", flush=True)
+
+        return declarations
+
     async def create_ephemeral_token(
         self,
         expire_minutes: int = 30,
         new_session_expire_minutes: int = 2,
         lock_config: bool = True,
         system_prompt: Optional[str] = None,
-        voice_name: Optional[str] = None
+        voice_name: Optional[str] = None,
+        has_tasks: bool = False,
+        is_review_lesson: bool = False
     ) -> EphemeralToken:
         """
         Create an ephemeral token for client-side Gemini Live API connection.
@@ -52,6 +210,9 @@ class TokenService:
             new_session_expire_minutes: Time window to start new sessions (default 2)
             lock_config: Whether to lock token to specific model/config
             system_prompt: Optional system prompt to lock into the token
+            voice_name: Voice name for speech synthesis
+            has_tasks: Whether the lesson has task objectives
+            is_review_lesson: Whether this is a review lesson
 
         Returns:
             EphemeralToken with token string and expiry times
@@ -102,118 +263,12 @@ class TokenService:
                 # Live API expects system_instruction as a simple string
                 live_config['system_instruction'] = system_prompt
 
-            # Add function calling tools for autonomous tracking
-            live_config['tools'] = [{
-                'function_declarations': [
-                    {
-                        'name': 'mark_for_review',
-                        'description': 'Call this silently when the student makes a linguistic error. Do not interrupt the flow.',
-                        'parameters': {
-                            'type': 'object',
-                            'properties': {
-                                'error_type': {
-                                    'type': 'string',
-                                    'enum': ['Grammar', 'Pronunciation', 'Vocabulary', 'Cultural'],
-                                    'description': 'The type of linguistic error'
-                                },
-                                'severity': {
-                                    'type': 'integer',
-                                    'description': '1 (Minor) to 10 (Critical)'
-                                },
-                                'user_sentence': {
-                                    'type': 'string',
-                                    'description': 'The approximate sentence the user just said'
-                                },
-                                'correction': {
-                                    'type': 'string',
-                                    'description': 'The correct native way to say it'
-                                },
-                                'explanation': {
-                                    'type': 'string',
-                                    'description': 'A very brief explanation of the rule'
-                                }
-                            },
-                            'required': ['error_type', 'user_sentence', 'correction', 'severity']
-                        }
-                    },
-                    {
-                        'name': 'update_user_profile',
-                        'description': 'Call this when you learn about student preferences or interests',
-                        'parameters': {
-                            'type': 'object',
-                            'properties': {
-                                'category': {'type': 'string', 'enum': ['topic', 'interest', 'learning_style', 'difficulty_preference']},
-                                'value': {'type': 'string', 'description': 'The preference value'},
-                                'sentiment': {'type': 'string', 'enum': ['positive', 'negative', 'neutral']},
-                                'confidence': {'type': 'number', 'description': 'Confidence 0-1'}
-                            },
-                            'required': ['category', 'value', 'sentiment']
-                        }
-                    },
-                    {
-                        'name': 'show_session_summary',
-                        'description': 'Call this at session end to display a summary for the student',
-                        'parameters': {
-                            'type': 'object',
-                            'properties': {
-                                'did_well': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Things student did well'},
-                                'work_on': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Areas to practice'},
-                                'stars': {'type': 'integer', 'description': 'Rating 1-5'},
-                                'summary_text': {'type': 'string', 'description': 'Encouraging summary'},
-                                'encouragement': {'type': 'string', 'description': 'Optional motivation'}
-                            },
-                            'required': ['did_well', 'work_on', 'stars', 'summary_text']
-                        }
-                    },
-                    {
-                        'name': 'mark_item_mastered',
-                        'description': 'Mark a review item as mastered when the student demonstrates clear understanding. Call this during review sessions when the student correctly uses a phrase they previously struggled with. Do NOT call if they just repeat after you.',
-                        'parameters': {
-                            'type': 'object',
-                            'properties': {
-                                'review_item_id': {
-                                    'type': 'string',
-                                    'description': 'The exact ID of the review item to mark as mastered (from the ITEMS TO REVIEW list)'
-                                },
-                                'confidence': {
-                                    'type': 'string',
-                                    'enum': ['low', 'medium', 'high'],
-                                    'description': 'How confident you are in their mastery: low (hesitant but correct), medium (correct with minor issues), high (natural and fluent)'
-                                }
-                            },
-                            'required': ['review_item_id', 'confidence']
-                        }
-                    },
-                    {
-                        'name': 'play_student_audio',
-                        'description': 'Play back audio of a mistake the student made earlier. Use this BEFORE explaining the correction so they can hear themselves. Only call for items marked as "HAS AUDIO" in the review list.',
-                        'parameters': {
-                            'type': 'object',
-                            'properties': {
-                                'review_item_id': {
-                                    'type': 'string',
-                                    'description': 'The exact ID of the review item with audio to play (from the ITEMS TO REVIEW list)'
-                                }
-                            },
-                            'required': ['review_item_id']
-                        }
-                    },
-                    {
-                        'name': 'mark_task_complete',
-                        'description': 'Call when student successfully accomplishes a lesson task/objective. Only call when the task is clearly completed, not when partially done or just discussed.',
-                        'parameters': {
-                            'type': 'object',
-                            'properties': {
-                                'task_id': {
-                                    'type': 'string',
-                                    'description': 'The ID of the completed task (e.g., "task-1", "task-2")'
-                                }
-                            },
-                            'required': ['task_id']
-                        }
-                    }
-                ]
-            }]
+            # Add function calling tools based on lesson type
+            tool_declarations = self._get_tool_declarations(
+                has_tasks=has_tasks,
+                is_review_lesson=is_review_lesson
+            )
+            live_config['tools'] = [{'function_declarations': tool_declarations}]
 
             token_config['live_connect_constraints'] = {
                 'model': config.GEMINI_MODEL,

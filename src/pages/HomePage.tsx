@@ -24,6 +24,29 @@ import {
 } from '../components/home';
 import { LessonDetailModal, LessonDetailData } from '../components/roleplay';
 
+/**
+ * Request microphone permission before navigating to chat
+ * iOS Safari requires getUserMedia to be called from a direct user gesture
+ * @returns true if permission granted or non-blocking error, false if explicitly denied
+ */
+async function requestMicrophonePermission(): Promise<boolean> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Immediately stop tracks - we just needed to trigger the permission prompt
+    stream.getTracks().forEach(track => track.stop());
+    return true;
+  } catch (error) {
+    const err = error as Error;
+    if (err.name === 'NotAllowedError') {
+      alert('Microphone access is required for voice interaction. Please allow microphone permission and try again.');
+      return false;
+    }
+    // For other errors (NotFoundError, etc.), continue to chat page and handle there
+    console.warn('Pre-navigation microphone check failed:', err.message);
+    return true;
+  }
+}
+
 export default function HomePage() {
   const navigate = useNavigate();
   const { user, userDocument } = useAuth();
@@ -118,7 +141,7 @@ export default function HomePage() {
         imageUrl: mission.imageUrl || undefined,
         description: mission.description || `Practice this ${mission.durationMinutes || 5}-minute lesson to improve your English skills.`,
         tasks: mission.tasks?.map((t, i) => ({
-          id: i + 1,
+          id: String(i + 1),
           text: t.text,
           completed: false,
         })),
@@ -148,6 +171,10 @@ export default function HomePage() {
     }
 
     // Fallback or for custom lessons: navigate directly
+    // Request microphone permission before navigating (for iOS Safari)
+    const hasPermission = await requestMicrophonePermission();
+    if (!hasPermission) return;
+
     const roleConfig = {
       id: lesson.id,
       name: lesson.title,
@@ -171,7 +198,7 @@ export default function HomePage() {
   };
 
   // Handle continue learning - prioritize in-progress, then newest lesson (matches group class rhythm)
-  const handleContinueLearning = () => {
+  const handleContinueLearning = async () => {
     const currentLesson = userDocument?.currentLesson;
     if (currentLesson) {
       // Resume in-progress lesson (started but not finished)
@@ -179,6 +206,9 @@ export default function HomePage() {
       if (fullLesson) {
         handleLessonClick(fullLesson);
       } else {
+        // Request microphone permission before navigating (for iOS Safari)
+        const hasPermission = await requestMicrophonePermission();
+        if (!hasPermission) return;
         navigate(`/chat/${currentLesson.missionId}`);
       }
     } else if (smartDefaultLesson) {
@@ -188,8 +218,12 @@ export default function HomePage() {
   };
 
   // Handle review lesson click
-  const handleReviewClick = () => {
+  const handleReviewClick = async () => {
     if (!activeReview) return;
+
+    // Request microphone permission before navigating (for iOS Safari)
+    const hasPermission = await requestMicrophonePermission();
+    if (!hasPermission) return;
 
     const roleConfig = {
       id: `review-${activeReview.id}`,
@@ -233,7 +267,11 @@ export default function HomePage() {
     }
   };
 
-  const handleCustomLessonClick = (lesson: CustomLessonDocument) => {
+  const handleCustomLessonClick = async (lesson: CustomLessonDocument) => {
+    // Request microphone permission before navigating (for iOS Safari)
+    const hasPermission = await requestMicrophonePermission();
+    if (!hasPermission) return;
+
     const roleConfig = {
       id: `custom-${lesson.id}`,
       name: lesson.title,
@@ -266,6 +304,10 @@ export default function HomePage() {
   };
 
   const handlePronunciationSubmit = async (words: string) => {
+    // Request microphone permission before navigating (for iOS Safari)
+    const hasPermission = await requestMicrophonePermission();
+    if (!hasPermission) return;
+
     try {
       const templateDoc = await getPronunciationCoachTemplate();
       const level = userDocument?.level || 'B1';

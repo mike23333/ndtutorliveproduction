@@ -284,30 +284,34 @@ export const SessionTimerCompact: React.FC<SessionTimerProps> = ({
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: '6px',
-        padding: '6px 12px',
-        borderRadius: '20px',
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+        gap: 'clamp(4px, 1vw, 6px)',
+        padding: 'clamp(4px, 1.5vw, 6px) clamp(8px, 2.5vw, 12px)',
+        borderRadius: 'clamp(14px, 4vw, 20px)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
         backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
         color: 'white',
         fontFamily: 'monospace',
-        fontSize: '14px',
+        fontSize: 'clamp(11px, 3vw, 14px)',
         fontWeight: 'bold',
+        whiteSpace: 'nowrap',
+        flexShrink: 0,
       }}
       role="timer"
       aria-label={`Time remaining: ${formatTime(secondsRemaining)}`}
     >
       <span
         style={{
-          width: '10px',
-          height: '10px',
+          width: 'clamp(6px, 2vw, 10px)',
+          height: 'clamp(6px, 2vw, 10px)',
           borderRadius: '50%',
           backgroundColor: color,
           animation: isLowTime ? 'blink 0.5s ease-in-out infinite' : 'none',
+          flexShrink: 0,
         }}
       />
       <span style={{ color }}>{formatTime(secondsRemaining)}</span>
-      {isPaused && <span style={{ fontSize: '10px', opacity: 0.7 }}>⏸</span>}
+      {isPaused && <span style={{ fontSize: 'clamp(8px, 2vw, 10px)', opacity: 0.7 }}>⏸</span>}
       {/* MED-001: blink keyframes moved to animations.css */}
     </div>
   );

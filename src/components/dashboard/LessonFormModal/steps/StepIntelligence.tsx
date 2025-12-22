@@ -170,7 +170,7 @@ export const StepIntelligence: React.FC<StepIntelligenceProps> = ({
         />
       </div>
 
-      {/* Lesson Tasks */}
+      {/* Learning Objectives / Tasks */}
       {onTasksChange && (
         <div style={{ marginBottom: 'clamp(12px, 3vw, 16px)' }}>
           <label
@@ -179,11 +179,20 @@ export const StepIntelligence: React.FC<StepIntelligenceProps> = ({
               fontSize: 'clamp(12px, 2.5vw, 14px)',
               fontWeight: 500,
               color: AppColors.textSecondary,
-              marginBottom: 'clamp(4px, 1vw, 6px)',
+              marginBottom: 'clamp(2px, 0.5vw, 4px)',
             }}
           >
-            Lesson Tasks (Optional)
+            Learning Objectives
           </label>
+          <p
+            style={{
+              fontSize: 'clamp(11px, 2.2vw, 12px)',
+              color: AppColors.textMuted,
+              margin: '0 0 clamp(8px, 2vw, 12px) 0',
+            }}
+          >
+            Define what students should accomplish. They'll see a checklist and get credit when completed.
+          </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {(formData.tasks || []).map((task, index) => (
@@ -213,7 +222,7 @@ export const StepIntelligence: React.FC<StepIntelligenceProps> = ({
                 </span>
                 <input
                   type="text"
-                  placeholder={`Task ${index + 1}: e.g., "Order a drink"`}
+                  placeholder={index === 0 ? 'e.g., "Greet the cashier"' : index === 1 ? 'e.g., "Order your drink"' : `Objective ${index + 1}`}
                   value={task.text}
                   onChange={(e) => handleTaskChange(index, e.target.value)}
                   style={{
@@ -277,19 +286,19 @@ export const StepIntelligence: React.FC<StepIntelligenceProps> = ({
               }}
             >
               <span style={{ fontSize: '18px' }}>+</span>
-              Add Task
+              Add Objective
             </button>
           </div>
 
           <p
             style={{
               fontSize: 'clamp(11px, 2.2vw, 12px)',
-              color: AppColors.textSecondary,
+              color: AppColors.textMuted,
               margin: 'clamp(8px, 2vw, 10px) 0 0 0',
+              fontStyle: 'italic',
             }}
           >
-            Students will see checkmarks as they complete each task. The AI marks tasks complete
-            automatically.
+            The AI automatically marks objectives complete when students achieve them.
           </p>
         </div>
       )}
@@ -308,9 +317,9 @@ export function getIntelligenceSummary(
 
   parts.push(`${formData.durationMinutes} min`);
 
-  const taskCount = formData.tasks?.filter((t) => t.text.trim()).length || 0;
-  if (taskCount > 0) {
-    parts.push(`${taskCount} task${taskCount !== 1 ? 's' : ''}`);
+  const objectiveCount = formData.tasks?.filter((t) => t.text.trim()).length || 0;
+  if (objectiveCount > 0) {
+    parts.push(`${objectiveCount} objective${objectiveCount !== 1 ? 's' : ''}`);
   }
 
   if (selectedTemplateId) {

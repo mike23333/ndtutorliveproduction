@@ -22,6 +22,31 @@ class AudioHandler {
     this.turnBuffer = [];  // Array of Int16Array chunks, grows during user's turn
     this.turnBufferSampleCount = 0;
     this.MAX_TURN_SECONDS = 120;  // Safety limit: 120 seconds max per turn
+
+    // iOS detection cache
+    this._isIOSSafari = null;
+  }
+
+  /**
+   * Detect if running on iOS Safari (including iOS Chrome which uses WebKit)
+   * iOS Safari has stricter requirements for getUserMedia
+   */
+  isIOSSafari() {
+    if (this._isIOSSafari !== null) {
+      return this._isIOSSafari;
+    }
+
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const isWebKit = /WebKit/.test(ua);
+    // iOS Chrome uses WebKit, so it has the same limitations
+    this._isIOSSafari = isIOS && isWebKit;
+
+    if (this._isIOSSafari) {
+      console.log('AudioHandler: iOS Safari detected - using simplified audio constraints');
+    }
+
+    return this._isIOSSafari;
   }
 
   /**
@@ -74,14 +99,21 @@ class AudioHandler {
       await this.initAudioContext();
 
       // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: this.TARGET_SAMPLE_RATE
-        }
-      });
+      // iOS Safari requires minimal constraints - sampleRate is not supported
+      // and complex constraints can cause silent failures
+      const audioConstraints = this.isIOSSafari()
+        ? { audio: true }
+        : {
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+              // Note: sampleRate constraint removed - not widely supported
+              // Downsampling is handled in onaudioprocess
+            }
+          };
+
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
 
       this.microphoneStream = stream;
       this.mediaStreamSource = this.audioContext.createMediaStreamSource(stream);

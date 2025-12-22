@@ -85,7 +85,7 @@ const fetchLessonDetail = async (lessonId: string): Promise<LessonDetailData | n
       level: getModalLevelLabel(mission.targetLevel || null),
       imageUrl: mission.imageUrl || undefined,
       description: mission.description || `Practice this ${mission.durationMinutes || 5}-minute lesson.`,
-      tasks: mission.tasks?.map((t, i) => ({ id: i + 1, text: t.text, completed: false })),
+      tasks: mission.tasks?.map((t, i) => ({ id: String(i + 1), text: t.text, completed: false })),
       systemPrompt: mission.systemPrompt || mission.scenario,
       durationMinutes: mission.durationMinutes,
       tone: mission.tone,
@@ -98,6 +98,29 @@ const fetchLessonDetail = async (lessonId: string): Promise<LessonDetailData | n
     return null;
   }
 };
+
+/**
+ * Request microphone permission before navigating to chat
+ * iOS Safari requires getUserMedia to be called from a direct user gesture
+ * @returns true if permission granted or non-blocking error, false if explicitly denied
+ */
+async function requestMicrophonePermission(): Promise<boolean> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Immediately stop tracks - we just needed to trigger the permission prompt
+    stream.getTracks().forEach(track => track.stop());
+    return true;
+  } catch (error) {
+    const err = error as Error;
+    if (err.name === 'NotAllowedError') {
+      alert('Microphone access is required for voice interaction. Please allow microphone permission and try again.');
+      return false;
+    }
+    // For other errors (NotFoundError, etc.), continue to chat page and handle there
+    console.warn('Pre-navigation microphone check failed:', err.message);
+    return true;
+  }
+}
 
 // === Main Component ===
 export default function RolePlayPage() {
@@ -171,6 +194,9 @@ export default function RolePlayPage() {
       setSelectedLesson(lessonDetail);
       setShowLessonModal(true);
     } else {
+      // Request microphone permission before navigating (for iOS Safari)
+      const hasPermission = await requestMicrophonePermission();
+      if (!hasPermission) return;
       navigate(`/chat/${randomLesson.id}`);
     }
   }, [collections, navigate]);
@@ -182,6 +208,9 @@ export default function RolePlayPage() {
         setSelectedLesson(lessonDetail);
         setShowLessonModal(true);
       } else {
+        // Request microphone permission before navigating (for iOS Safari)
+        const hasPermission = await requestMicrophonePermission();
+        if (!hasPermission) return;
         navigate(`/chat/${lessonId}`);
       }
     },

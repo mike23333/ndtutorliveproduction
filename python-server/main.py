@@ -20,13 +20,22 @@ from app.token_service import get_token_service
 from app.review_service import get_review_service
 from app.analytics_service import get_analytics_service
 from app.language_service import get_language_service
+from app.prompt_builder import get_prompt_builder
 
 
 # Request/Response models
+class LessonTask(BaseModel):
+    """A single lesson task/objective."""
+    id: str
+    text: str
+
+
 class TokenRequest(BaseModel):
     """Request body for token creation."""
     userId: str
     systemPrompt: Optional[str] = None
+    tasks: Optional[List[LessonTask]] = None  # Lesson objectives for auto-injection
+    isReviewLesson: bool = False  # Whether this is a review lesson
     expireMinutes: int = 30
     lockConfig: bool = True
     voiceName: Optional[str] = None  # Gemini voice (e.g., 'Aoede', 'Puck', 'Leda')
@@ -98,9 +107,12 @@ async def create_token(request: TokenRequest):
 
     Request Body:
         userId: User ID for tracking
-        systemPrompt: Optional system prompt locked into the token
+        systemPrompt: Teacher's custom system prompt (scenario, role, etc.)
+        tasks: Optional list of lesson objectives for auto-injection
+        isReviewLesson: Whether this is a review lesson
         expireMinutes: Token lifetime (max 30 minutes)
         lockConfig: Lock token to specific config (recommended: true)
+        voiceName: Voice for speech synthesis
 
     Returns:
         token: Ephemeral token to use as API key
@@ -110,29 +122,74 @@ async def create_token(request: TokenRequest):
     """
     try:
         token_service = get_token_service()
+        prompt_builder = get_prompt_builder()
+
+        # Determine if we have tasks
+        has_tasks = request.tasks is not None and len(request.tasks) > 0
+
+        # Build final prompt with auto-injected tool instructions
+        final_prompt = None
+        if request.systemPrompt:
+            # Convert LessonTask models to dicts for prompt_builder
+            tasks_list = None
+            if has_tasks:
+                tasks_list = [{"id": t.id, "text": t.text} for t in request.tasks]
+
+            final_prompt = prompt_builder.build(
+                teacher_prompt=request.systemPrompt,
+                tasks=tasks_list,
+                is_review_lesson=request.isReviewLesson
+            )
+
+        # Create token with assembled prompt and conditional tools
         ephemeral_token = await token_service.create_ephemeral_token(
             expire_minutes=min(request.expireMinutes, 30),
             new_session_expire_minutes=2,
             lock_config=request.lockConfig,
-            system_prompt=request.systemPrompt,
-            voice_name=request.voiceName
+            system_prompt=final_prompt,
+            voice_name=request.voiceName,
+            has_tasks=has_tasks,
+            is_review_lesson=request.isReviewLesson
         )
 
-        print(f"[Token] Created token for user {request.userId} with voice: {request.voiceName or 'Aoede (default)'}", flush=True)
-        if request.systemPrompt:
-            print(f"[Token] System prompt length: {len(request.systemPrompt)} chars", flush=True)
-            print(f"[Token] System prompt (first 300 chars): {request.systemPrompt[:300]}...", flush=True)
-            # Check if function calling instructions are included
-            if "FUNCTION CALLING" in request.systemPrompt:
-                print(f"[Token] ✅ Function calling instructions INCLUDED", flush=True)
-                # Show function calling section
-                fc_index = request.systemPrompt.find("# FUNCTION CALLING")
-                if fc_index >= 0:
-                    print(f"[Token] Function calling section: {request.systemPrompt[fc_index:fc_index+500]}...", flush=True)
+        # Logging
+        print(f"\n{'='*60}", flush=True)
+        print(f"[Token] AUTO-INJECT TOOL INSTRUCTIONS - Request Summary", flush=True)
+        print(f"{'='*60}", flush=True)
+        print(f"[Token] User: {request.userId}", flush=True)
+        print(f"[Token] Voice: {request.voiceName or 'Aoede (default)'}", flush=True)
+        print(f"[Token] Has tasks: {has_tasks} ({len(request.tasks) if has_tasks else 0} tasks)", flush=True)
+        print(f"[Token] Is review lesson: {request.isReviewLesson}", flush=True)
+
+        if has_tasks:
+            print(f"[Token] Tasks:", flush=True)
+            for t in request.tasks:
+                print(f"[Token]   - {t.id}: {t.text}", flush=True)
+
+        if final_prompt:
+            print(f"\n[Token] PROMPT ASSEMBLY:", flush=True)
+            print(f"[Token] Final prompt length: {len(final_prompt)} chars", flush=True)
+
+            # Check for auto-injected sections
+            injections = []
+            if "Autonomous Tracking" in final_prompt:
+                injections.append("Base Tool Instructions")
+            if "Task Completion" in final_prompt:
+                injections.append("Task Completion Instructions")
+            if "Review Session Tools" in final_prompt:
+                injections.append("Review Session Instructions")
+
+            if injections:
+                print(f"[Token] ✅ Auto-injected sections: {', '.join(injections)}", flush=True)
             else:
-                print(f"[Token] ⚠️ WARNING: No function calling instructions in prompt!", flush=True)
+                print(f"[Token] ⚠️ No tool instructions found in prompt", flush=True)
+
+            # Show full prompt for debugging (can be removed in production)
+            print(f"\n[Token] === FULL ASSEMBLED PROMPT ===", flush=True)
+            print(final_prompt, flush=True)
+            print(f"[Token] === END PROMPT ===\n", flush=True)
         else:
-            print(f"[Token] ❌ WARNING: No system prompt provided!", flush=True)
+            print(f"[Token] ⚠️ No system prompt provided", flush=True)
 
         return TokenResponse(
             token=ephemeral_token.token,
