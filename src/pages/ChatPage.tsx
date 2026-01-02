@@ -837,8 +837,10 @@ export default function ChatPage() {
       if (!confirmed) return;
     }
 
-    // Save partial time before navigating
-    await savePartialPracticeTime();
+    // Save partial time (best effort - don't block navigation)
+    savePartialPracticeTime().catch(err => {
+      console.warn('[ChatPage] Error saving practice time:', err);
+    });
 
     const elapsedSeconds = sessionStartTimeRef.current
       ? Math.floor((Date.now() - sessionStartTimeRef.current) / 1000)
@@ -850,7 +852,14 @@ export default function ChatPage() {
       duration: elapsedSeconds,
       endTime: new Date().toISOString(),
     };
-    sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
+
+    try {
+      sessionStorage.setItem('lastSession', JSON.stringify(sessionData));
+    } catch (e) {
+      console.warn('[ChatPage] Could not save session:', e);
+    }
+
+    // Always navigate home
     navigate('/');
   }, [savePartialPracticeTime, roleConfig, messages, navigate, sessionSummary]);
 
