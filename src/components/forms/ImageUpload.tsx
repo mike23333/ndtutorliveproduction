@@ -11,6 +11,8 @@ interface ImageUploadProps {
   teacherId: string;
   isUploading: boolean;
   setIsUploading: (uploading: boolean) => void;
+  cropPosition?: number; // 0-100, vertical crop position
+  onCropPositionChange?: (position: number) => void;
 }
 
 export const ImageUpload: React.FC<ImageUploadProps> = ({
@@ -21,6 +23,8 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
   teacherId,
   isUploading,
   setIsUploading,
+  cropPosition = 50,
+  onCropPositionChange,
 }) => {
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -68,40 +72,94 @@ export const ImageUpload: React.FC<ImageUploadProps> = ({
         Lesson Image
       </label>
       {imageUrl ? (
-        <div
-          style={{
-            position: 'relative',
-            width: '100%',
-            height: 'clamp(120px, 25vw, 160px)',
-            borderRadius: 'clamp(8px, 2vw, 12px)',
-            overflow: 'hidden',
-          }}
-        >
-          <img
-            src={imageUrl}
-            alt="Lesson"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-          <button
-            onClick={handleRemove}
+        <div>
+          <div
             style={{
-              position: 'absolute',
-              top: 'clamp(6px, 1.5vw, 8px)',
-              right: 'clamp(6px, 1.5vw, 8px)',
-              width: 'clamp(28px, 6vw, 32px)',
-              height: 'clamp(28px, 6vw, 32px)',
-              background: 'rgba(0, 0, 0, 0.5)',
-              border: 'none',
-              borderRadius: '50%',
-              color: AppColors.textPrimary,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              position: 'relative',
+              width: '100%',
+              height: 'clamp(120px, 25vw, 160px)',
+              borderRadius: 'clamp(8px, 2vw, 12px)',
+              overflow: 'hidden',
             }}
           >
-            <XIcon size={16} />
-          </button>
+            <img
+              src={imageUrl}
+              alt="Lesson"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                objectPosition: `center ${cropPosition}%`,
+              }}
+            />
+            <button
+              onClick={handleRemove}
+              style={{
+                position: 'absolute',
+                top: 'clamp(6px, 1.5vw, 8px)',
+                right: 'clamp(6px, 1.5vw, 8px)',
+                width: 'clamp(28px, 6vw, 32px)',
+                height: 'clamp(28px, 6vw, 32px)',
+                background: 'rgba(0, 0, 0, 0.5)',
+                border: 'none',
+                borderRadius: '50%',
+                color: AppColors.textPrimary,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <XIcon size={16} />
+            </button>
+          </div>
+          {/* Crop position slider */}
+          {onCropPositionChange && (
+            <div style={{ marginTop: 'clamp(8px, 2vw, 12px)' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: '4px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 'clamp(11px, 2.2vw, 12px)',
+                    color: AppColors.textSecondary,
+                  }}
+                >
+                  Image position
+                </span>
+                <span
+                  style={{
+                    fontSize: 'clamp(11px, 2.2vw, 12px)',
+                    color: AppColors.textSecondary,
+                  }}
+                >
+                  {cropPosition === 0 ? 'Top' : cropPosition === 100 ? 'Bottom' : cropPosition === 50 ? 'Center' : `${cropPosition}%`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={cropPosition}
+                onChange={(e) => onCropPositionChange(Number(e.target.value))}
+                style={{
+                  width: '100%',
+                  height: '6px',
+                  borderRadius: '3px',
+                  background: `linear-gradient(to right, ${AppColors.accentPurple} 0%, ${AppColors.accentPurple} ${cropPosition}%, ${AppColors.surfaceLight} ${cropPosition}%, ${AppColors.surfaceLight} 100%)`,
+                  outline: 'none',
+                  cursor: 'pointer',
+                  WebkitAppearance: 'none',
+                  appearance: 'none',
+                }}
+              />
+            </div>
+          )}
         </div>
       ) : (
         <label

@@ -885,6 +885,7 @@ const TeacherDashboard: React.FC = () => {
         onFirstLessonChange={lessonForm.setIsFirstLesson}
         onImageUpload={lessonForm.setImage}
         onImageRemove={lessonForm.clearImage}
+        onImageCropPositionChange={lessonForm.setImageCropPosition}
         teacherId={user?.uid || 'anonymous'}
         saving={lessonForm.saving}
         isUploading={lessonForm.isUploading}

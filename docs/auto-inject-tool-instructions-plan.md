@@ -100,8 +100,8 @@ When you learn about student interests or preferences, call `update_user_profile
 
 ### Session Summary
 When the lesson naturally ends or student says goodbye, call `show_session_summary` with:
-- 2-4 things the student did well (did_well)
-- 2-3 areas to work on (work_on)
+- 2 things the student did well (did_well)
+- 2 areas to work on (work_on)
 - 1-5 star rating based on participation and effort (stars)
 - An encouraging summary paragraph (summary_text)
 """

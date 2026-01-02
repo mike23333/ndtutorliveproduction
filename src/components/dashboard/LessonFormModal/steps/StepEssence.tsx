@@ -9,6 +9,7 @@ interface StepEssenceProps {
   onDescriptionChange: (description: string) => void;
   onImageUpload: (url: string, path: string) => void;
   onImageRemove: () => void;
+  onImageCropPositionChange: (position: number) => void;
   teacherId: string;
   isUploading: boolean;
   setIsUploading: (uploading: boolean) => void;
@@ -20,6 +21,7 @@ export const StepEssence: React.FC<StepEssenceProps> = ({
   onDescriptionChange,
   onImageUpload,
   onImageRemove,
+  onImageCropPositionChange,
   teacherId,
   isUploading,
   setIsUploading,
@@ -76,6 +78,8 @@ export const StepEssence: React.FC<StepEssenceProps> = ({
         teacherId={teacherId}
         isUploading={isUploading}
         setIsUploading={setIsUploading}
+        cropPosition={formData.imageCropPosition}
+        onCropPositionChange={onImageCropPositionChange}
       />
     </div>
   );

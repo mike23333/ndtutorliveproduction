@@ -27,6 +27,7 @@ export interface StudentLesson {
   targetLevel: string | null;
   durationMinutes: number;
   imageUrl: string | null;
+  imageCropPosition?: number;
   order: number;
 }
 
@@ -44,6 +45,7 @@ function mapMissionToStudentLesson(mission: MissionDocument): StudentLesson {
     targetLevel: mission.targetLevel || null,
     durationMinutes: mission.durationMinutes || 5,
     imageUrl: mission.imageUrl || null,
+    imageCropPosition: mission.imageCropPosition,
     order: mission.collectionOrder ?? 0,
   };
 }

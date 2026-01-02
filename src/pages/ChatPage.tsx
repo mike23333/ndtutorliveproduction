@@ -222,6 +222,7 @@ export default function ChatPage() {
     sessionSummary,
     newBadges,
     sessionTimedOut,
+    resumptionFailed,
     reconnect,
     triggerSessionEnd,
     clearSessionSummary,
@@ -912,6 +913,30 @@ export default function ChatPage() {
           message={usageBlockedMessage}
           onGoBack={() => navigate('/')}
         />
+      )}
+
+      {/* Session Resumption Failed Toast */}
+      {resumptionFailed && (
+        <div style={{
+          position: 'fixed',
+          top: '80px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(251, 191, 36, 0.95)',
+          color: '#1e1b4b',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          zIndex: 1000,
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.3)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '14px',
+          fontWeight: 500,
+        }}>
+          <span>⚠️</span>
+          <span>Connection lost - conversation restarted</span>
+        </div>
       )}
 
       {/* Header with scenario info and connection status - flexShrink: 0 to prevent scrolling off */}

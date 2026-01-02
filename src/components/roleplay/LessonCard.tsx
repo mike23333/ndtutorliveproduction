@@ -64,6 +64,7 @@ interface LessonCardProps {
   id: string;
   title: string;
   imageUrl?: string;
+  imageCropPosition?: number;
   targetLevel: string | null;
   onClick: () => void;
   animationDelay?: number;
@@ -72,6 +73,7 @@ interface LessonCardProps {
 export const LessonCard = ({
   title,
   imageUrl,
+  imageCropPosition = 50,
   targetLevel,
   onClick,
   animationDelay = 0,
@@ -147,6 +149,7 @@ export const LessonCard = ({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
+              objectPosition: `center ${imageCropPosition}%`,
             }}
           />
         ) : (

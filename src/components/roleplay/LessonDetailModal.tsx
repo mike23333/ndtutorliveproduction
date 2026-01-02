@@ -13,6 +13,7 @@ export interface LessonDetailData {
   title: string;
   level: string;
   imageUrl?: string;
+  imageCropPosition?: number;
   description: string; // Required lesson description
   tasks?: LessonTask[]; // Optional - only shown if lesson has tasks
   // Additional fields for sessionStorage setup when starting chat
@@ -461,6 +462,7 @@ export function LessonDetailModal({
                   width: '100%',
                   height: '160px',
                   objectFit: 'cover',
+                  objectPosition: `center ${lesson.imageCropPosition ?? 50}%`,
                 }}
               />
             ) : (

@@ -87,6 +87,7 @@ export const createMission = async (
     // Only add optional fields if they have values
     if (missionData.imageUrl) mission.imageUrl = missionData.imageUrl;
     if (missionData.imageStoragePath) mission.imageStoragePath = missionData.imageStoragePath;
+    if (missionData.imageCropPosition !== undefined) mission.imageCropPosition = missionData.imageCropPosition;
     if (missionData.groupId) mission.groupId = missionData.groupId;
     if (missionData.targetLevel) mission.targetLevel = missionData.targetLevel;
     if (missionData.systemPrompt) mission.systemPrompt = missionData.systemPrompt;

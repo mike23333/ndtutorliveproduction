@@ -14,6 +14,7 @@ interface UseLessonFormResult {
   setImageStoragePath: (path: string | null) => void;
   setImage: (url: string, path: string) => void;
   clearImage: () => void;
+  setImageCropPosition: (position: number) => void;
   setAssignedStudentIds: (studentIds: string[]) => void;
   setTasks: (tasks: LessonTask[]) => void;
   // RolePlay Collections
@@ -36,6 +37,7 @@ const initialFormData: LessonFormData = {
   durationMinutes: 15,
   imageUrl: null,
   imageStoragePath: null,
+  imageCropPosition: 50, // Default to center crop
   targetLevel: null,
   isFirstLesson: false,
   assignedStudentIds: [],
@@ -88,7 +90,12 @@ export function useLessonForm(): UseLessonFormResult {
   }, []);
 
   const clearImage = useCallback(() => {
-    setFormData(prev => ({ ...prev, imageUrl: null, imageStoragePath: null }));
+    setFormData(prev => ({ ...prev, imageUrl: null, imageStoragePath: null, imageCropPosition: 50 }));
+  }, []);
+
+  const setImageCropPosition = useCallback((imageCropPosition: number) => {
+    const clampedPosition = Math.min(100, Math.max(0, imageCropPosition));
+    setFormData(prev => ({ ...prev, imageCropPosition: clampedPosition }));
   }, []);
 
   const setAssignedStudentIds = useCallback((assignedStudentIds: string[]) => {
@@ -121,6 +128,7 @@ export function useLessonForm(): UseLessonFormResult {
       durationMinutes: lesson.durationMinutes,
       imageUrl: lesson.imageUrl,
       imageStoragePath: lesson.imageStoragePath || null,
+      imageCropPosition: lesson.imageCropPosition ?? 50, // Default to center if not set
       targetLevel: lesson.targetLevel || null,
       isFirstLesson: lesson.isFirstLesson || false,
       assignedStudentIds: lesson.assignedStudentIds || [],
@@ -149,6 +157,7 @@ export function useLessonForm(): UseLessonFormResult {
     setImageStoragePath,
     setImage,
     clearImage,
+    setImageCropPosition,
     setAssignedStudentIds,
     setTasks,
     setCollectionId,

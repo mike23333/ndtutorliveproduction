@@ -39,6 +39,8 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
   const [generatingPrivateCode, setGeneratingPrivateCode] = useState(false);
   const [copiedPrivateLink, setCopiedPrivateLink] = useState<string | null>(null);
   const [revokingCode, setRevokingCode] = useState<string | null>(null);
+  const [showNameInput, setShowNameInput] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
 
   // Plan management state
   const [changingPlan, setChangingPlan] = useState<string | null>(null);
@@ -116,8 +118,14 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
   const handleGeneratePrivateCode = async () => {
     setGeneratingPrivateCode(true);
     try {
-      const newCode = await createPrivateStudentCode(teacherId, teacherName);
+      const newCode = await createPrivateStudentCode(
+        teacherId,
+        teacherName,
+        newStudentName.trim() || undefined
+      );
       setPrivateCodes(prev => [newCode, ...prev]);
+      setNewStudentName(''); // Clear input after success
+      setShowNameInput(false); // Hide the input form after success
     } catch (error) {
       console.error('Error generating private code:', error);
       alert('Failed to generate private code. Please try again.');
@@ -398,7 +406,7 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                 Invite a Student
               </div>
               {privateCodes.filter(c => c.status === 'active').length > 0 ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                   <span style={{
                     fontFamily: 'SF Mono, Menlo, monospace',
                     fontSize: 'clamp(18px, 4vw, 22px)',
@@ -408,6 +416,15 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                   }}>
                     {privateCodes.filter(c => c.status === 'active')[0].id}
                   </span>
+                  {privateCodes.filter(c => c.status === 'active')[0].studentName && (
+                    <span style={{
+                      fontSize: 'clamp(13px, 2.8vw, 14px)',
+                      color: AppColors.accentPurple,
+                      fontWeight: 500,
+                    }}>
+                      for {privateCodes.filter(c => c.status === 'active')[0].studentName}
+                    </span>
+                  )}
                 </div>
               ) : (
                 <span style={{
@@ -419,74 +436,117 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
               )}
             </div>
 
-            <div style={{ display: 'flex', gap: '8px' }}>
-              {privateCodes.filter(c => c.status === 'active').length > 0 ? (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {/* Copy Link button when there are active codes */}
+              {privateCodes.filter(c => c.status === 'active').length > 0 && (
+                <button
+                  onClick={() => handleCopyPrivateLink(privateCodes.filter(c => c.status === 'active')[0].id)}
+                  style={{
+                    background: copiedPrivateLink === privateCodes.filter(c => c.status === 'active')[0].id
+                      ? AppColors.successGreen
+                      : 'linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%)',
+                    border: 'none',
+                    borderRadius: '10px',
+                    padding: '10px 20px',
+                    color: 'white',
+                    fontSize: 'clamp(13px, 2.8vw, 14px)',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  {copiedPrivateLink === privateCodes.filter(c => c.status === 'active')[0].id ? (
+                    <>✓ Copied</>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: '14px' }}>🔗</span>
+                      Copy Link
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Two-step Generate Code flow */}
+              {showNameInput ? (
                 <>
-                  <button
-                    onClick={() => handleCopyPrivateLink(privateCodes.filter(c => c.status === 'active')[0].id)}
+                  <input
+                    type="text"
+                    value={newStudentName}
+                    onChange={(e) => setNewStudentName(e.target.value)}
+                    placeholder="Student name"
+                    autoFocus
                     style={{
-                      background: copiedPrivateLink === privateCodes.filter(c => c.status === 'active')[0].id
-                        ? AppColors.successGreen
-                        : 'linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%)',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      borderRadius: '10px',
+                      padding: '10px 16px',
+                      color: AppColors.textPrimary,
+                      fontSize: 'clamp(14px, 3vw, 15px)',
+                      outline: 'none',
+                      width: 'clamp(120px, 25vw, 160px)',
+                    }}
+                  />
+                  <button
+                    onClick={handleGeneratePrivateCode}
+                    disabled={generatingPrivateCode}
+                    style={{
+                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%)',
                       border: 'none',
                       borderRadius: '10px',
                       padding: '10px 20px',
                       color: 'white',
                       fontSize: 'clamp(13px, 2.8vw, 14px)',
                       fontWeight: 600,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    {copiedPrivateLink === privateCodes.filter(c => c.status === 'active')[0].id ? (
-                      <>✓ Copied</>
-                    ) : (
-                      <>
-                        <span style={{ fontSize: '14px' }}>🔗</span>
-                        Copy Link
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleGeneratePrivateCode}
-                    disabled={generatingPrivateCode}
-                    style={{
-                      background: 'rgba(255, 255, 255, 0.1)',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      borderRadius: '10px',
-                      padding: '10px 16px',
-                      color: AppColors.textSecondary,
-                      fontSize: 'clamp(13px, 2.8vw, 14px)',
-                      fontWeight: 500,
                       cursor: generatingPrivateCode ? 'not-allowed' : 'pointer',
                       opacity: generatingPrivateCode ? 0.5 : 1,
                       transition: 'all 0.2s ease',
                     }}
                   >
-                    + New
+                    {generatingPrivateCode ? 'Creating...' : 'Create'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowNameInput(false);
+                      setNewStudentName('');
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      padding: '8px',
+                      color: AppColors.textSecondary,
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      opacity: 0.7,
+                    }}
+                  >
+                    ✕
                   </button>
                 </>
               ) : (
                 <button
-                  onClick={handleGeneratePrivateCode}
-                  disabled={generatingPrivateCode}
+                  onClick={() => setShowNameInput(true)}
                   style={{
-                    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%)',
-                    border: 'none',
+                    background: privateCodes.filter(c => c.status === 'active').length > 0
+                      ? 'rgba(255, 255, 255, 0.1)'
+                      : 'linear-gradient(135deg, rgba(139, 92, 246, 0.9) 0%, rgba(99, 102, 241, 0.9) 100%)',
+                    border: privateCodes.filter(c => c.status === 'active').length > 0
+                      ? '1px solid rgba(255, 255, 255, 0.2)'
+                      : 'none',
                     borderRadius: '10px',
-                    padding: '12px 24px',
-                    color: 'white',
-                    fontSize: 'clamp(14px, 3vw, 15px)',
+                    padding: '10px 20px',
+                    color: privateCodes.filter(c => c.status === 'active').length > 0
+                      ? AppColors.textSecondary
+                      : 'white',
+                    fontSize: 'clamp(13px, 2.8vw, 14px)',
                     fontWeight: 600,
-                    cursor: generatingPrivateCode ? 'not-allowed' : 'pointer',
-                    opacity: generatingPrivateCode ? 0.5 : 1,
+                    cursor: 'pointer',
                     transition: 'all 0.2s ease',
                   }}
                 >
-                  {generatingPrivateCode ? 'Creating...' : 'Generate Invite Code'}
+                  {privateCodes.filter(c => c.status === 'active').length > 0 ? '+ New Code' : 'Generate Code'}
                 </button>
               )}
             </div>
@@ -526,6 +586,14 @@ export const StudentsTab: React.FC<StudentsTabProps> = ({
                     }}>
                       {code.id}
                     </span>
+                    {code.studentName && (
+                      <span style={{
+                        fontSize: 'clamp(11px, 2.3vw, 12px)',
+                        color: AppColors.accentPurple,
+                      }}>
+                        ({code.studentName})
+                      </span>
+                    )}
                     <button
                       onClick={() => handleCopyPrivateLink(code.id)}
                       style={{

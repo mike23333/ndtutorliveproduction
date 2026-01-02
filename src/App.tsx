@@ -45,9 +45,7 @@ function App() {
               {/* Protected routes - require auth */}
               <Route path="/join-class" element={
                 <ProtectedRoute>
-                  <MainLayout>
-                    <JoinClassPage />
-                  </MainLayout>
+                  <JoinClassPage />
                 </ProtectedRoute>
               } />
 

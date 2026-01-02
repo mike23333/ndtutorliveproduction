@@ -84,6 +84,7 @@ const fetchLessonDetail = async (lessonId: string): Promise<LessonDetailData | n
       title: mission.title,
       level: getModalLevelLabel(mission.targetLevel || null),
       imageUrl: mission.imageUrl || undefined,
+      imageCropPosition: mission.imageCropPosition,
       description: mission.description || `Practice this ${mission.durationMinutes || 5}-minute lesson.`,
       tasks: mission.tasks?.map((t, i) => ({ id: String(i + 1), text: t.text, completed: false })),
       systemPrompt: mission.systemPrompt || mission.scenario,
@@ -365,6 +366,7 @@ export default function RolePlayPage() {
                   id={lesson.id}
                   title={lesson.title}
                   imageUrl={lesson.imageUrl || undefined}
+                  imageCropPosition={lesson.imageCropPosition}
                   targetLevel={lesson.targetLevel}
                   onClick={() => handleScenarioClick(lesson.id)}
                   animationDelay={index * 0.05}
@@ -422,6 +424,7 @@ export default function RolePlayPage() {
                   id={lesson.id}
                   title={lesson.title}
                   imageUrl={lesson.imageUrl || undefined}
+                  imageCropPosition={lesson.imageCropPosition}
                   targetLevel={lesson.targetLevel}
                   onClick={() => handleScenarioClick(lesson.id)}
                   animationDelay={index * 0.05}

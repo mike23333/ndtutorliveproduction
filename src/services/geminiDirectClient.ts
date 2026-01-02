@@ -38,6 +38,13 @@ export class GeminiDirectClient {
     totalTokens: 0
   };
 
+  // Auto-nudge detection
+  private lastAudioSentTime: number = 0;
+  private lastResponseTime: number = 0;
+  private autoNudgeTimer: NodeJS.Timeout | null = null;
+  private hasNudged: boolean = false;
+  private static readonly AUTO_NUDGE_DELAY_MS = 3000; // Wait 3s before auto-nudge
+
   constructor(config: GeminiClientConfig) {
     this.config = config;
     this.callbacks = config.callbacks;
@@ -131,10 +138,10 @@ export class GeminiDirectClient {
       realtimeInputConfig: {
         automaticActivityDetection: {
           disabled: false,
-          startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',   // Avoid triggering on hesitation sounds
-          endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',       // Don't cut off during thinking pauses
-          prefixPaddingMs: 300,                                 // Capture slightly more lead-in
-          silenceDurationMs: 1500                               // 1.5 seconds - gives time to think
+          startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH', // More sensitive speech detection
+          endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',      // Wait longer before ending (fewer cutoffs)
+          prefixPaddingMs: 200,                               // Standard lead-in
+          silenceDurationMs: 1000                             // 1 second silence before ending
         }
       },
       // Session resumption - pass handle if we have one
@@ -187,7 +194,12 @@ export class GeminiDirectClient {
         this.sessionHandle = message.sessionResumptionUpdate.newHandle;
         this.storeSessionHandle(this.sessionHandle!);
         this.callbacks.onSessionUpdate?.(this.sessionHandle!);
-        console.log('[GeminiClient] Stored new session handle:', this.sessionHandle?.substring(0, 20) + '...');
+        console.log('[GeminiClient] ✅ Session resumed successfully, new handle:', this.sessionHandle?.substring(0, 20) + '...');
+      } else if (Object.keys(message.sessionResumptionUpdate).length === 0 && this.sessionHandle) {
+        // Empty update when we had a handle means resumption failed - session context was lost
+        console.warn('[GeminiClient] ⚠️ Session resumption FAILED - conversation context lost (Gemini server-side issue)');
+        this.sessionHandle = null;
+        this.callbacks.onResumptionFailed?.();
       }
     }
 
@@ -201,6 +213,10 @@ export class GeminiDirectClient {
     // Server content (audio/text responses)
     if (message.serverContent) {
       const content = message.serverContent;
+
+      // Response received - cancel auto-nudge and track time
+      this.lastResponseTime = Date.now();
+      this.cancelAutoNudge();
 
       // Handle model turn parts
       if (content.modelTurn?.parts) {
@@ -392,6 +408,46 @@ export class GeminiDirectClient {
   }
 
   /**
+   * Schedule auto-nudge if no response received
+   */
+  private scheduleAutoNudge(): void {
+    // Clear existing timer
+    if (this.autoNudgeTimer) {
+      clearTimeout(this.autoNudgeTimer);
+    }
+
+    this.autoNudgeTimer = setTimeout(async () => {
+      // Only nudge if we sent audio more recently than we received a response
+      if (this.lastAudioSentTime > this.lastResponseTime && !this.hasNudged) {
+        console.log('[GeminiClient] Auto-nudging - no response after audio');
+        this.hasNudged = true;
+
+        // Try audioStreamEnd first (flushes cached audio)
+        await this.nudgeResponse();
+
+        // If still no response after 2s, force with turnComplete
+        setTimeout(async () => {
+          if (this.lastAudioSentTime > this.lastResponseTime) {
+            console.log('[GeminiClient] Auto-forcing response with turnComplete');
+            await this.forceResponse();
+          }
+        }, 2000);
+      }
+    }, GeminiDirectClient.AUTO_NUDGE_DELAY_MS);
+  }
+
+  /**
+   * Cancel auto-nudge timer (called when response received)
+   */
+  private cancelAutoNudge(): void {
+    if (this.autoNudgeTimer) {
+      clearTimeout(this.autoNudgeTimer);
+      this.autoNudgeTimer = null;
+    }
+    this.hasNudged = false;
+  }
+
+  /**
    * Send audio data to Gemini
    */
   async sendAudio(audioData: ArrayBuffer): Promise<void> {
@@ -405,6 +461,10 @@ export class GeminiDirectClient {
           mimeType: 'audio/pcm;rate=16000'
         }
       });
+
+      // Track audio sent time and schedule auto-nudge
+      this.lastAudioSentTime = Date.now();
+      this.scheduleAutoNudge();
     } catch (error) {
       console.error('[GeminiClient] Error sending audio:', error);
     }
@@ -423,6 +483,10 @@ export class GeminiDirectClient {
           mimeType: 'audio/pcm;rate=16000'
         }
       });
+
+      // Track audio sent time and schedule auto-nudge
+      this.lastAudioSentTime = Date.now();
+      this.scheduleAutoNudge();
     } catch (error) {
       console.error('[GeminiClient] Error sending audio:', error);
     }
@@ -444,6 +508,44 @@ export class GeminiDirectClient {
       });
     } catch (error) {
       console.error('[GeminiClient] Error sending text:', error);
+    }
+  }
+
+  /**
+   * Nudge Gemini to respond when it's silent
+   * Flushes cached audio and prompts a response
+   * Use when VAD doesn't detect end of speech correctly
+   * Note: audioStreamEnd is for automatic VAD mode (our config)
+   *       activityEnd is only for manual VAD mode (disabled: true)
+   */
+  async nudgeResponse(): Promise<void> {
+    if (!this.session || !this.isConnected || this.isPaused) return;
+
+    try {
+      console.log('[GeminiClient] Nudging with audioStreamEnd...');
+      // Flush cached audio to trigger model response (correct for automatic VAD)
+      await this.session.sendRealtimeInput({
+        audioStreamEnd: {}
+      });
+    } catch (error) {
+      console.error('[GeminiClient] Error nudging response:', error);
+    }
+  }
+
+  /**
+   * Send an empty turn to force Gemini to respond
+   * Fallback when audioStreamEnd doesn't work
+   */
+  async forceResponse(): Promise<void> {
+    if (!this.session || !this.isConnected || this.isPaused) return;
+
+    try {
+      console.log('[GeminiClient] Forcing response with turnComplete...');
+      await this.session.sendClientContent({
+        turnComplete: true
+      });
+    } catch (error) {
+      console.error('[GeminiClient] Error forcing response:', error);
     }
   }
 
@@ -514,6 +616,9 @@ export class GeminiDirectClient {
     console.log('[GeminiClient] Disconnecting...');
     this.shouldReconnect = false;
     this.isConnected = false;
+
+    // Clear auto-nudge timer
+    this.cancelAutoNudge();
 
     if (this.session) {
       try {

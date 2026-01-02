@@ -38,10 +38,14 @@ export const generatePrivateCodeString = (): string => {
 /**
  * Create a new private student code for a teacher
  * Returns the created code document
+ * @param teacherId - The teacher's user ID
+ * @param teacherName - The teacher's display name
+ * @param studentName - Optional name/label for the intended recipient
  */
 export const createPrivateStudentCode = async (
   teacherId: string,
-  teacherName: string
+  teacherName: string,
+  studentName?: string
 ): Promise<PrivateStudentCodeDocument> => {
   if (!db) {
     throw new Error('Firebase is not configured. Please check your environment variables.');
@@ -63,6 +67,7 @@ export const createPrivateStudentCode = async (
     id: code,
     teacherId,
     teacherName,
+    ...(studentName && { studentName }),
     status: 'active',
     createdAt: Timestamp.now(),
   };

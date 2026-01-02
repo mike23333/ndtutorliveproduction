@@ -39,6 +39,7 @@ import type {
   MarkTaskCompleteParams,
 } from '../types/functions';
 import type { BadgeDefinition } from '../types/badges';
+import { calculateStarsFromMistakes } from '../utils/starCalculation';
 
 export interface ChatMessage {
   id: number;
@@ -90,6 +91,9 @@ export interface UseGeminiChatResult {
   // Session timed out (Gemini didn't respond to end prompt)
   sessionTimedOut: boolean;
 
+  // Session resumption failed (context lost due to server error)
+  resumptionFailed: boolean;
+
   // Audio playback for review lessons (play_student_audio function)
   audioToPlay: AudioPlaybackRequest | null;
   onAudioPlaybackComplete: () => void;
@@ -107,6 +111,7 @@ export interface UseGeminiChatResult {
   triggerSessionEnd: () => void;
   clearSessionSummary: () => void;
   clearNewBadges: () => void;
+  nudgeResponse: () => void;  // Nudge Gemini when it doesn't respond
 }
 
 export function useGeminiChat(
@@ -154,6 +159,9 @@ export function useGeminiChat(
   // Session timeout state (when Gemini doesn't respond to end prompt)
   const [sessionTimedOut, setSessionTimedOut] = useState(false);
 
+  // Session resumption failed state (context lost due to server error)
+  const [resumptionFailed, setResumptionFailed] = useState(false);
+
   // Audio playback state for play_student_audio function
   const [audioToPlay, setAudioToPlay] = useState<AudioPlaybackRequest | null>(null);
 
@@ -188,6 +196,8 @@ export function useGeminiChat(
   const audioPlaybackResolverRef = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
   const outputTranscriptionBuffer = useRef<string>(''); // Accumulate AI transcription chunks
   const inputTranscriptionBuffer = useRef<string>(''); // Accumulate user transcription chunks
+  const turnCompleteTimeoutRef = useRef<NodeJS.Timeout | null>(null); // Debounce turn complete processing
+  const lastTranscriptionTimeRef = useRef<number>(0); // Track when last transcription was received
 
   // Audio replay support - accumulate AI audio for each turn (store as Uint8Array for proper concatenation)
   const aiAudioChunksRef = useRef<Uint8Array[]>([]); // Accumulate AI audio chunks as binary during response
@@ -514,6 +524,14 @@ export function useGeminiChat(
               console.log('[Function] Backup timeout cleared - Gemini responded');
             }
 
+            // Calculate stars from mistake count (override AI-determined stars)
+            const mistakeCount = sessionMistakesRef.current.length;
+            const calculatedStars = calculateStarsFromMistakes(mistakeCount);
+            console.log(`[Function] Star calculation: ${mistakeCount} mistakes = ${calculatedStars} stars`);
+
+            // Override params with calculated stars
+            const adjustedParams: ShowSessionSummaryParams = { ...params, stars: calculatedStars };
+
             // Calculate session duration
             const durationSeconds = sessionStartTime
               ? Math.floor((Date.now() - sessionStartTime.getTime()) / 1000)
@@ -526,7 +544,7 @@ export function useGeminiChat(
                 userIdRef.current,
                 missionIdRef.current || '',
                 durationSeconds,
-                params
+                adjustedParams
               );
 
               // Set newly earned badges if any
@@ -537,7 +555,7 @@ export function useGeminiChat(
             }
 
             // Set state to trigger UI modal
-            setSessionSummary(params);
+            setSessionSummary(adjustedParams);
 
             responses.push({
               id: fc.id,
@@ -755,7 +773,8 @@ Include in your summary:
 1. 2 specific things the student did well
 2. 2-3 areas to focus on practicing. Here are specific mistakes from this session for context:
 ${mistakesList}
-3. A star rating from 1-5 based on overall performance
+
+IMPORTANT: Do NOT mention the star rating in your goodbye message - stars will be shown visually to the student.
 
 Base your assessment on our entire conversation. Call the show_session_summary function now.`;
 
@@ -936,7 +955,14 @@ Base your assessment on our entire conversation. Call the show_session_summary f
           }
           // Accumulate AI transcription chunks (they come in small pieces)
           outputTranscriptionBuffer.current += text;
+          lastTranscriptionTimeRef.current = Date.now();
           console.log('[Gemini] Output transcription chunk:', text);
+
+          // If we're waiting for turn complete, reset the timer (more transcription is coming)
+          if (turnCompleteTimeoutRef.current) {
+            clearTimeout(turnCompleteTimeoutRef.current);
+            turnCompleteTimeoutRef.current = null;
+          }
         },
         onInputTranscription: (text: string) => {
           // Accumulate user transcription chunks
@@ -944,57 +970,84 @@ Base your assessment on our entire conversation. Call the show_session_summary f
           console.log('[Gemini] Input transcription chunk:', text);
         },
         onTurnComplete: async () => {
-          console.log('[Gemini] Turn complete');
+          console.log('[Gemini] Turn complete signal received');
 
-          // Flush accumulated AI transcription as a single message WITH audio data
-          // Filter out Gemini control token bug (known issue: https://github.com/google-gemini/gemini-cli/issues/4486)
-          const cleanedTranscription = outputTranscriptionBuffer.current
-            .replace(/<ctrl\d+>/gi, '')  // Remove <ctrl##> tokens
-            .replace(/&<ctrl\d+>/gi, '') // Remove &<ctrl##> variant
-            .trim();
+          // Clear any existing timeout
+          if (turnCompleteTimeoutRef.current) {
+            clearTimeout(turnCompleteTimeoutRef.current);
+          }
 
-          if (cleanedTranscription) {
-            console.log('[Gemini] Adding AI message:', cleanedTranscription);
+          // Debounce turn complete processing - wait 500ms for any remaining transcription
+          // This fixes the issue where audio/transcription arrives after turnComplete signal
+          turnCompleteTimeoutRef.current = setTimeout(async () => {
+            console.log('[Gemini] Processing turn complete (debounced)');
 
-            // Combine accumulated AI audio chunks for replay (proper binary concatenation)
-            let combinedAudio: string | undefined;
-            if (aiAudioChunksRef.current.length > 0) {
-              // Calculate total length
-              const totalLength = aiAudioChunksRef.current.reduce((sum, chunk) => sum + chunk.length, 0);
-              // Concatenate all binary chunks
-              const combined = new Uint8Array(totalLength);
-              let offset = 0;
-              for (const chunk of aiAudioChunksRef.current) {
-                combined.set(chunk, offset);
-                offset += chunk.length;
+            // Flush accumulated AI transcription as a single message WITH audio data
+            // Filter out Gemini control token bug (known issue: https://github.com/google-gemini/gemini-cli/issues/4486)
+            const cleanedTranscription = outputTranscriptionBuffer.current
+              .replace(/<ctrl\d+>/gi, '')  // Remove <ctrl##> tokens
+              .replace(/&<ctrl\d+>/gi, '') // Remove &<ctrl##> variant
+              .trim();
+
+            if (cleanedTranscription) {
+              console.log('[Gemini] Adding AI message:', cleanedTranscription);
+
+              // Combine accumulated AI audio chunks for replay (proper binary concatenation)
+              let combinedAudio: string | undefined;
+              if (aiAudioChunksRef.current.length > 0) {
+                // Calculate total length
+                const totalLength = aiAudioChunksRef.current.reduce((sum, chunk) => sum + chunk.length, 0);
+                // Concatenate all binary chunks
+                const combined = new Uint8Array(totalLength);
+                let offset = 0;
+                for (const chunk of aiAudioChunksRef.current) {
+                  combined.set(chunk, offset);
+                  offset += chunk.length;
+                }
+                // HIGH-004: Use async base64 conversion to prevent UI blocking
+                try {
+                  combinedAudio = await arrayBufferToBase64Async(combined);
+                  console.log('[Gemini] AI audio for replay:', (combinedAudio.length / 1024).toFixed(1), 'KB');
+                } catch (error) {
+                  console.error('[Gemini] Error converting audio to base64:', error);
+                }
               }
-              // HIGH-004: Use async base64 conversion to prevent UI blocking
-              try {
-                combinedAudio = await arrayBufferToBase64Async(combined);
-                console.log('[Gemini] AI audio for replay:', (combinedAudio.length / 1024).toFixed(1), 'KB');
-              } catch (error) {
-                console.error('[Gemini] Error converting audio to base64:', error);
-              }
+
+              addMessage(cleanedTranscription, false, false, undefined, combinedAudio);
+              outputTranscriptionBuffer.current = ''; // Clear buffer
+              aiAudioChunksRef.current = []; // Clear audio chunks for next turn
+            } else if (aiAudioChunksRef.current.length > 0) {
+              // Has audio but no transcription - this is the bug case
+              // Wait a bit more for transcription, then clear
+              console.log('[Gemini] AI responded with audio but no transcription - possible Gemini bug');
+              aiAudioChunksRef.current = [];
+              outputTranscriptionBuffer.current = '';
+            } else {
+              // No transcription and no audio - clear anyway
+              aiAudioChunksRef.current = [];
             }
 
-            addMessage(cleanedTranscription, false, false, undefined, combinedAudio);
-            outputTranscriptionBuffer.current = ''; // Clear buffer
-            aiAudioChunksRef.current = []; // Clear audio chunks for next turn
-          } else {
-            // No transcription but might have audio - clear it anyway
-            aiAudioChunksRef.current = [];
-          }
+            // Clear the audio buffer to start fresh for user's next turn
+            try {
+              getWebAudioManager().clearTurnBuffer();
+            } catch (e) {
+              // Ignore - audio manager may not be ready
+            }
 
-          // Clear the audio buffer to start fresh for user's next turn
-          try {
-            getWebAudioManager().clearTurnBuffer();
-          } catch (e) {
-            // Ignore - audio manager may not be ready
-          }
+            turnCompleteTimeoutRef.current = null;
+          }, 500); // Wait 500ms for remaining transcription
         },
         onSessionUpdate: (_handle: string) => {
           console.log('[Gemini] Session handle updated');
           setCanResume(true);
+          // Clear resumption failed state on successful update
+          setResumptionFailed(false);
+        },
+        onResumptionFailed: () => {
+          console.warn('[Gemini] ⚠️ Session resumption failed - conversation context lost');
+          setResumptionFailed(true);
+          // Auto-clear after 5 seconds
+          setTimeout(() => setResumptionFailed(false), 5000);
         },
         onGoAway: (timeRemaining: number) => {
           console.log(`[Gemini] GoAway: ${timeRemaining}s remaining`);
@@ -1167,7 +1220,38 @@ Base your assessment on our entire conversation. Call the show_session_summary f
   }, [reconnect]);
 
   /**
+   * Nudge Gemini to respond when it's silent
+   * This signals activity end to trigger a response when VAD fails
+   */
+  const nudgeResponse = useCallback(() => {
+    if (!isConnected || !clientRef.current) {
+      console.warn('[Gemini] Cannot nudge - not connected');
+      return;
+    }
+
+    // First try activity end signal
+    clientRef.current.nudgeResponse();
+
+    // If still no response after 2 seconds, force with turnComplete
+    setTimeout(() => {
+      if (clientRef.current?.connected) {
+        clientRef.current.forceResponse();
+      }
+    }, 2000);
+  }, [isConnected]);
+
+  // Track the last connected system prompt to prevent unnecessary reconnections
+  const lastConnectedPromptRef = useRef<string | null>(null);
+
+  /**
    * Connect when role is available (CRIT-002: with isCancelled flag to prevent race conditions)
+   *
+   * IMPORTANT: We use lastConnectedPromptRef to prevent mid-conversation restarts.
+   * React re-renders can cause object reference changes even when content is the same,
+   * which would trigger this effect. By comparing the actual prompt string, we only
+   * reconnect when the prompt content has truly changed.
+   *
+   * See: https://ai.google.dev/gemini-api/docs/live-session
    */
   useEffect(() => {
     // Only connect when we have a valid role with systemPrompt
@@ -1180,6 +1264,13 @@ Base your assessment on our entire conversation. Call the show_session_summary f
       return;
     }
 
+    // CRITICAL: Skip reconnection if already connected with the same prompt content
+    // This prevents mid-conversation restarts when React re-renders
+    if (clientRef.current?.connected && lastConnectedPromptRef.current === initialRole.systemPrompt) {
+      console.log('[Gemini] Already connected with same prompt, skipping reconnect');
+      return;
+    }
+
     let isCancelled = false;
 
     // Update role ref BEFORE connecting
@@ -1189,6 +1280,10 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     const initConnection = async () => {
       if (isCancelled) return;
       await connect();
+      // Track what prompt we connected with
+      if (!isCancelled) {
+        lastConnectedPromptRef.current = initialRole.systemPrompt || null;
+      }
     };
 
     initConnection();
@@ -1201,6 +1296,12 @@ Base your assessment on our entire conversation. Call the show_session_summary f
       if (sessionEndTimeoutRef.current) {
         clearTimeout(sessionEndTimeoutRef.current);
         sessionEndTimeoutRef.current = null;
+      }
+
+      // Clear turn complete debounce timeout on unmount
+      if (turnCompleteTimeoutRef.current) {
+        clearTimeout(turnCompleteTimeoutRef.current);
+        turnCompleteTimeoutRef.current = null;
       }
 
       // Finalize session on unmount
@@ -1216,6 +1317,9 @@ Base your assessment on our entire conversation. Call the show_session_summary f
         clientRef.current.disconnect();
         clientRef.current = null;
       }
+
+      // Clear the tracked prompt on cleanup so next mount will connect
+      lastConnectedPromptRef.current = null;
     };
   }, [initialRole?.systemPrompt, userDocumentReady]);
 
@@ -1263,6 +1367,9 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     // Session timed out (Gemini didn't respond)
     sessionTimedOut,
 
+    // Session resumption failed (context lost)
+    resumptionFailed,
+
     // Audio playback for review lessons
     audioToPlay,
     onAudioPlaybackComplete,
@@ -1279,6 +1386,7 @@ Base your assessment on our entire conversation. Call the show_session_summary f
     updateSystemPrompt,
     triggerSessionEnd,
     clearSessionSummary,
-    clearNewBadges
+    clearNewBadges,
+    nudgeResponse
   };
 }

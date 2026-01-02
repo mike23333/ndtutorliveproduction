@@ -63,6 +63,8 @@ export interface GeminiClientCallbacks {
   onInputTranscription: (text: string) => void;
   // Function calling callbacks
   onToolCall: (functionCalls: GeminiFunctionCall[]) => Promise<GeminiFunctionResponse[]>;
+  // Session resumption failed - context was lost due to server error
+  onResumptionFailed: () => void;
 }
 
 // Function calling types for Gemini Live API

@@ -14,6 +14,7 @@ export interface LessonData {
   durationMinutes: number;
   imageUrl: string | null;
   imageStoragePath?: string | null;
+  imageCropPosition?: number; // 0-100, vertical crop position (50 = center)
   functionCallingEnabled: boolean;
   assignedGroups: string[];
   status: 'draft' | 'published';
@@ -38,6 +39,7 @@ export interface LessonFormData {
   durationMinutes: number;
   imageUrl: string | null;
   imageStoragePath: string | null;
+  imageCropPosition: number; // 0-100, vertical crop position (50 = center)
   targetLevel: ProficiencyLevel | null;
   isFirstLesson?: boolean;
   assignedStudentIds?: string[]; // For private student assignment

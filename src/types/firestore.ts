@@ -183,6 +183,7 @@ export interface MissionDocument {
   vocabList: VocabularyItem[];
   imageUrl?: string;
   imageStoragePath?: string; // Firebase Storage path for cleanup
+  imageCropPosition?: number; // 0-100, vertical crop position (50 = center)
   groupId?: string; // @deprecated - use collectionId instead
   targetLevel?: ProficiencyLevel;
   isActive: boolean;
@@ -269,6 +270,7 @@ export interface PrivateStudentCodeDocument {
   id: string;                    // The code itself (e.g., "PRV-A7K3MN")
   teacherId: string;
   teacherName: string;
+  studentName?: string;          // Name/label for intended recipient (e.g., "Sarah Johnson")
   status: PrivateStudentCodeStatus;
   usedByStudentId?: string;      // Student UID who used this code
   usedByStudentName?: string;    // Denormalized for display

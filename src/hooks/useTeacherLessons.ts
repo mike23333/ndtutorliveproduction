@@ -32,6 +32,7 @@ function mapMissionToLesson(
     durationMinutes: mission.durationMinutes || 15,
     imageUrl: mission.imageUrl || null,
     imageStoragePath: mission.imageStoragePath || null,
+    imageCropPosition: mission.imageCropPosition ?? 50,
     functionCallingEnabled: mission.functionCallingEnabled ?? true,
     assignedGroups: mission.groupId ? [mission.groupId] : [],
     status: mission.isActive ? 'published' : 'draft',
@@ -113,6 +114,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       vocabList: [],
       imageUrl: data.imageUrl || undefined,
       imageStoragePath: data.imageStoragePath || undefined,
+      imageCropPosition: data.imageCropPosition,
       functionCallingEnabled: true,
       isActive: true,
       isFirstLesson: data.isFirstLesson || false,
@@ -149,6 +151,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
     if (data.targetLevel !== undefined) updateData.targetLevel = data.targetLevel;
     if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
     if (data.imageStoragePath !== undefined) updateData.imageStoragePath = data.imageStoragePath;
+    if (data.imageCropPosition !== undefined) updateData.imageCropPosition = data.imageCropPosition;
     if (data.isFirstLesson !== undefined) updateData.isFirstLesson = data.isFirstLesson;
     if (data.assignedStudentIds !== undefined) updateData.assignedStudentIds = data.assignedStudentIds;
     if (data.tasks !== undefined) updateData.tasks = data.tasks;
@@ -191,6 +194,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
           durationMinutes: data.durationMinutes ?? l.durationMinutes,
           targetLevel: data.targetLevel !== undefined ? data.targetLevel : l.targetLevel,
           imageUrl: data.imageUrl ?? l.imageUrl,
+          imageCropPosition: data.imageCropPosition ?? l.imageCropPosition,
           isFirstLesson: data.isFirstLesson ?? l.isFirstLesson,
           tasks: data.tasks ?? l.tasks,
           // RolePlay Collections
@@ -221,6 +225,7 @@ export function useTeacherLessons(): UseTeacherLessonsResult {
       targetLevel: lesson.targetLevel || null,
       imageUrl: lesson.imageUrl,
       imageStoragePath: null,
+      imageCropPosition: lesson.imageCropPosition ?? 50,
       tasks: lesson.tasks || [],
     };
   }, []);

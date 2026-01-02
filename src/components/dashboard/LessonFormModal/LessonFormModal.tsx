@@ -30,6 +30,7 @@ interface LessonFormModalProps {
   onFirstLessonChange: (isFirst: boolean) => void;
   onImageUpload: (url: string, path: string) => void;
   onImageRemove: () => void;
+  onImageCropPositionChange: (position: number) => void;
   teacherId: string;
   saving: boolean;
   isUploading: boolean;
@@ -62,6 +63,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
   onFirstLessonChange,
   onImageUpload,
   onImageRemove,
+  onImageCropPositionChange,
   teacherId,
   saving,
   isUploading,
@@ -166,6 +168,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
               onDescriptionChange={onDescriptionChange}
               onImageUpload={onImageUpload}
               onImageRemove={onImageRemove}
+              onImageCropPositionChange={onImageCropPositionChange}
               teacherId={teacherId}
               isUploading={isUploading}
               setIsUploading={setIsUploading}
@@ -221,6 +224,7 @@ export const LessonFormModal: React.FC<LessonFormModalProps> = ({
           onDescriptionChange={onDescriptionChange}
           onImageUpload={onImageUpload}
           onImageRemove={onImageRemove}
+          onImageCropPositionChange={onImageCropPositionChange}
           teacherId={teacherId}
           isUploading={isUploading}
           setIsUploading={setIsUploading}

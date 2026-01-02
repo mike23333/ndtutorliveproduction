@@ -139,6 +139,7 @@ export default function HomePage() {
         title: mission.title,
         level: getModalLevelLabel(mission.targetLevel || null),
         imageUrl: mission.imageUrl || undefined,
+        imageCropPosition: mission.imageCropPosition,
         description: mission.description || `Practice this ${mission.durationMinutes || 5}-minute lesson to improve your English skills.`,
         tasks: mission.tasks?.map((t, i) => ({
           id: String(i + 1),
@@ -468,8 +469,8 @@ export default function HomePage() {
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        {/* First Time User Guidance */}
-        {isFirstTimeUser ? (
+        {/* First Time User Guidance - only show if no assigned lessons */}
+        {isFirstTimeUser && lessons.length === 0 ? (
           <FirstTimeGuidance
             teacherName={userDocument?.teacherName}
             firstLesson={getFirstLesson()}
